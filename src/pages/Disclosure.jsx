@@ -24,25 +24,16 @@ export default function Disclosure() {
         <section>
           <h2 className="font-heading text-xl font-bold text-slate-900 mb-3">Editorial Independence</h2>
           <p>
-            Affiliate commissions do not influence our editorial decisions. Every deal on DealScout is independently
-            reviewed before publication. We only feature products we believe represent genuine value.
+            Affiliate commissions do not influence our editorial decisions. Every deal on DealScout is curated to provide
+            genuine value and competitive pricing.
           </p>
         </section>
 
         <section>
           <h2 className="font-heading text-xl font-bold text-slate-900 mb-3">Pricing & Availability</h2>
           <p>
-            Prices and availability can change at any time. Always verify the final price on Amazon before completing
-            your purchase. We are not responsible for any discrepancies between prices listed here and prices on Amazon.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="font-heading text-xl font-bold text-slate-900 mb-3">AI-Generated Content</h2>
-          <p>
-            Deal summaries, pros, and cons are generated with AI assistance based on manufacturer specifications and
-            consumer reviews, then reviewed by our editorial team. This content is for informational purposes only and
-            should not be taken as expert advice.
+            Prices and availability can change rapidly on Amazon. Always verify the final price directly on the Amazon checkout
+            page before completing your purchase. We are not responsible for price changes or stock fluctuations that occur on Amazon.
           </p>
         </section>
 

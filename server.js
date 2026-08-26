@@ -22,11 +22,27 @@ async function startServer() {
   app.use('/api/deals', require('./server/routes/deals.js'));
   app.use('/api/categories', require('./server/routes/categories.js'));
   app.use('/api/functions', require('./server/routes/functions.js'));
+  app.use('/api/ai', require('./server/routes/ai.js'));
+  app.use('/api/bookmarks', require('./server/routes/bookmarks.js'));
 
-  // Health check endpoint
-  app.get('/api/health', (_, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
+  // Start Automated Daily Deals Scheduler
+  try {
+    const dealCron = require('./server/services/cronService.js');
+    dealCron.start();
+  } catch (cronErr) {
+    console.warn('[DealScout] Deal scheduler initialization warning:', cronErr.message);
+  }
 
-  // Vite Middleware for SPA serving
+  // Health & Scheduler check endpoint
+  app.get('/api/health', (_, res) => {
+    let cronStatus = null;
+    try {
+      cronStatus = require('./server/services/cronService.js').getStatus();
+    } catch {}
+    res.json({ status: 'ok', time: new Date().toISOString(), scheduler: cronStatus });
+  });
+
+  // Vite Middleware for SPA serving in development, static files in production
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -36,7 +52,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_, res) => {
+    app.use((req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

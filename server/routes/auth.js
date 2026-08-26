@@ -61,9 +61,9 @@ router.post('/register', (req, res) => {
     'INSERT INTO users (id, email, password, otp_code, otp_expires) VALUES (?, ?, ?, ?, ?)'
   ).run(id, email.toLowerCase(), hash, otp, expires);
 
-  // In production wire up a real mailer; for local dev we log to console.
+  // In production wire up a real mailer; for local dev we log to console and return in payload
   console.log(`[auth] OTP for ${email}: ${otp}`);
-  res.json({ message: 'Registration started — check console for OTP (local dev)' });
+  res.json({ message: 'Verification code generated.', otpCode: otp });
 });
 
 // POST /api/auth/verify-otp
@@ -88,21 +88,22 @@ router.post('/resend-otp', (req, res) => {
   const expires = Date.now() + 15 * 60 * 1000;
   db.prepare('UPDATE users SET otp_code = ?, otp_expires = ? WHERE id = ?').run(otp, expires, user.id);
   console.log(`[auth] Resent OTP for ${email}: ${otp}`);
-  res.json({ message: 'OTP resent — check console (local dev)' });
+  res.json({ message: 'OTP resent', otpCode: otp });
 });
 
 // POST /api/auth/forgot-password
 router.post('/forgot-password', (req, res) => {
   const { email } = req.body;
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email?.toLowerCase());
+  let token = null;
   if (user) {
-    const token = uuidv4();
+    token = uuidv4();
     const expires = Date.now() + 60 * 60 * 1000; // 1 hour
     db.prepare('UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?').run(token, expires, user.id);
-    console.log(`[auth] Password reset link for ${email}: http://localhost:5173/reset-password?token=${token}`);
+    console.log(`[auth] Password reset link for ${email}: /reset-password?token=${token}`);
   }
-  // Always respond success (don't leak whether email exists)
-  res.json({ message: 'If that email exists, a reset link has been sent (check console for local dev)' });
+  // Respond success with token for preview testing
+  res.json({ message: 'If that email exists, a reset link has been sent', resetToken: token });
 });
 
 // POST /api/auth/reset-password

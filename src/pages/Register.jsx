@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { UserPlus, Mail, Lock, Loader2, CheckCircle2 } from 'lucide-react';
 import AuthLayout from '@/components/AuthLayout';
-import { auth } from '@/lib/api';
+import { auth, setToken } from '@/lib/api';
 import { safeReturnTo } from '@/lib/authReturnTo';
 
 export default function Register() {
@@ -18,6 +18,8 @@ export default function Register() {
   const [loading, setLoading]   = useState(false);
   const returnTo = safeReturnTo();
 
+  const [devCode, setDevCode]   = useState('');
+
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
@@ -25,7 +27,11 @@ export default function Register() {
     if (password.length < 6)  { setError('Password must be at least 6 characters'); return; }
     setLoading(true);
     try {
-      await auth.register(email, password);
+      const res = await auth.register(email, password);
+      if (res?.otpCode) {
+        setDevCode(res.otpCode);
+        setOtpCode(res.otpCode);
+      }
       setStep('otp');
     } catch (err) {
       setError(err.message || 'Registration failed');
@@ -39,7 +45,6 @@ export default function Register() {
     setError('');
     setLoading(true);
     try {
-      const { setToken } = await import('@/lib/api');
       const res = await auth.verifyOtp(email, otpCode);
       setToken(res.access_token);
       window.location.href = returnTo;
@@ -52,7 +57,11 @@ export default function Register() {
 
   const handleResend = async () => {
     try {
-      await auth.resendOtp(email);
+      const res = await auth.resendOtp(email);
+      if (res?.otpCode) {
+        setDevCode(res.otpCode);
+        setOtpCode(res.otpCode);
+      }
       setError('');
     } catch (err) {
       setError(err.message);
@@ -61,8 +70,20 @@ export default function Register() {
 
   if (step === 'otp') {
     return (
-      <AuthLayout icon={CheckCircle2} title="Check your email" subtitle={`Enter the 6-digit code sent to ${email}. (In local dev, check your server console.)`}>
+      <AuthLayout icon={CheckCircle2} title="Check your email" subtitle={`Enter the 6-digit code sent to ${email}.`}>
         {error && <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
+        {devCode && (
+          <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center justify-between">
+            <span>Demo verification code: <strong className="font-mono text-sm">{devCode}</strong></span>
+            <button
+              type="button"
+              onClick={() => setOtpCode(devCode)}
+              className="text-emerald-700 font-bold underline text-xs"
+            >
+              Fill code
+            </button>
+          </div>
+        )}
         <form onSubmit={handleVerify} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="otp">Verification code</Label>

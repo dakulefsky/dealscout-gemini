@@ -10,6 +10,7 @@ import { auth } from '@/lib/api';
 export default function ForgotPassword() {
   const [email, setEmail]   = useState('');
   const [done, setDone]     = useState(false);
+  const [resetToken, setResetToken] = useState('');
   const [error, setError]   = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +19,10 @@ export default function ForgotPassword() {
     setError('');
     setLoading(true);
     try {
-      await auth.forgotPassword(email);
+      const res = await auth.forgotPassword(email);
+      if (res?.resetToken) {
+        setResetToken(res.resetToken);
+      }
       setDone(true);
     } catch (err) {
       setError(err.message || 'Something went wrong');
@@ -29,7 +33,18 @@ export default function ForgotPassword() {
 
   if (done) {
     return (
-      <AuthLayout icon={CheckCircle2} title="Check your email" subtitle="If that address is registered you'll see a reset link in your server console (local dev).">
+      <AuthLayout icon={CheckCircle2} title="Check your email" subtitle="If that address is registered, a password reset link has been issued.">
+        {resetToken && (
+          <div className="mb-4 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
+            <p className="text-xs text-emerald-800 font-semibold">Demo Password Reset Link:</p>
+            <Link
+              to={`/reset-password?token=${resetToken}`}
+              className="inline-block px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl"
+            >
+              Reset Password Now →
+            </Link>
+          </div>
+        )}
         <p className="text-sm text-muted-foreground text-center">
           <Link to="/login" className="text-primary font-medium hover:underline">Back to log in</Link>
         </p>

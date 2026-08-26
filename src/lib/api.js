@@ -13,9 +13,22 @@ export function setToken(token) {
   else localStorage.removeItem('ds_token');
 }
 
+// Guest ID generation for anonymous bookmarks/alerts sync
+function getGuestId() {
+  let guestId = localStorage.getItem('ds_guest_id');
+  if (!guestId) {
+    guestId = 'guest_' + Math.random().toString(36).substring(2, 11);
+    localStorage.setItem('ds_guest_id', guestId);
+  }
+  return guestId;
+}
+
 async function request(method, path, body) {
   const token = getToken();
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-guest-id': getGuestId(),
+  };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -55,11 +68,11 @@ export const auth = {
   logout:              ()       => setToken(null),
 };
 
-// ── Entities ───────────────────────────────────────────────────────────
+// ── Deals ────────────────────────────────────────────────────────────────
 export const deals = {
   list:   (params = {}) => {
     const qs = new URLSearchParams(
-      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null))
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== ''))
     ).toString();
     return api.get(`/api/deals${qs ? '?' + qs : ''}`);
   },
@@ -67,12 +80,21 @@ export const deals = {
   create: (data)        => api.post('/api/deals', data),
   update: (id, data)    => api.patch(`/api/deals/${id}`, data),
   delete: (id)          => api.delete(`/api/deals/${id}`),
+  expire: (id)          => api.post(`/api/deals/${id}/expire`),
+  restore: (id)         => api.post(`/api/deals/${id}/restore`),
+  getLifecycleStats: () => api.get('/api/deals/lifecycle-stats'),
+  approveAll: ()        => api.post('/api/deals/approve-all'),
+  bulkStatus: (ids, status) => api.post('/api/deals/bulk-status', { ids, status }),
+  getPriceHistory: (id) => api.get(`/api/deals/${id}/price-history`),
+  syncReviews: (id)     => api.post(`/api/deals/${id}/sync-reviews`),
+  getStats: ()          => api.get('/api/deals/stats'),
 };
 
+// ── Categories ───────────────────────────────────────────────────────────
 export const categories = {
   list:   (params = {}) => {
     const qs = new URLSearchParams(
-      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null))
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== ''))
     ).toString();
     return api.get(`/api/categories${qs ? '?' + qs : ''}`);
   },
@@ -82,8 +104,31 @@ export const categories = {
   delete: (id)          => api.delete(`/api/categories/${id}`),
 };
 
-// ── Functions ──────────────────────────────────────────────────────────
+// ── Gemini AI Services ───────────────────────────────────────────────────
+export const ai = {
+  analyzeDeal: (data) => api.post('/api/ai/analyze-deal', data),
+  askAssistant: (params) => api.post('/api/ai/ask-deal-assistant', params),
+};
+
+// ── Saved Deals & Price Alerts ───────────────────────────────────────────
+export const bookmarks = {
+  list: () => api.get('/api/bookmarks'),
+  toggle: (dealId, targetPrice) => api.post('/api/bookmarks/toggle', { dealId, targetPrice }),
+  setPriceAlert: (dealId, targetPrice, email) => api.post('/api/bookmarks/price-alert', { dealId, targetPrice, email }),
+};
+
+// ── Functions & Ingestion ────────────────────────────────────────────────
 export const functions = {
-  amazonRedirect: (url)          => api.post('/api/functions/amazon-redirect', { url }),
-  fetchDeals:     (maxDeals = 10) => api.post('/api/functions/fetch-deals', { maxDeals }),
+  amazonRedirect:    (url)                  => api.post('/api/functions/amazon-redirect', { url }),
+  fetchDeals:        (maxDeals = 10)        => api.post('/api/functions/fetch-deals', { maxDeals }),
+  rainforestStatus:  ()                     => api.get('/api/functions/rainforest-status'),
+  rainforestLookup:  (input, amazonDomain)  => api.post('/api/functions/rainforest-lookup', { input, amazonDomain }),
+  rainforestSearch:  (query, options = {})  => api.post('/api/functions/rainforest-search', { query, ...options }),
+  rainforestReviews: (asin)                 => api.post('/api/functions/rainforest-reviews', { asin }),
+  providerStatus:    ()                     => api.get('/api/functions/provider-status'),
+  providerSwitch:    (provider)             => api.post('/api/functions/provider-switch', { provider }),
+  verifyPrices:      (limit = 15)           => api.post('/api/functions/verify-prices', { limit }),
+  purgeExpired:      ()                     => api.post('/api/functions/purge-expired'),
+  siteStripeImport:  (input, autoApprove = false) => api.post('/api/functions/sitestripe-import', typeof input === 'object' ? input : { input, inputUrl: input, autoApprove }),
+  siteStripeParse:   (input)                      => api.post('/api/functions/parse-sitestripe', typeof input === 'object' ? input : { input, inputUrl: input }),
 };

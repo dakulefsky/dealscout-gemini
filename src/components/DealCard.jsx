@@ -1,67 +1,244 @@
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Image } from '@/components/ui/image';
-import { TrendingDown, ShieldAlert, Star } from 'lucide-react';
+import { TrendingDown, Star, Heart, ImageOff, ArrowRight, Clock, AlertCircle } from 'lucide-react';
+import { useBookmarks } from '@/lib/BookmarksContext';
 
 export function formatPrice(price) {
-  if (price == null) return '';
+  if (price == null || isNaN(price)) return '';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price);
 }
 
-export default function DealCard({ deal }) {
-  return (
-    <Link
-      to={`/deal/${deal.id}`}
-      className="group bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-md hover:border-emerald-200 transition-all duration-200 flex flex-col"
-    >
-      <div className="relative aspect-square bg-slate-100 overflow-hidden">
-        <Image
-          src={deal.imageUrl}
-          fittingType="fill"
-          className="w-full h-full transition-transform duration-300 group-hover:scale-105"
-          alt={deal.title}
-        />
-        {deal.discountPercent > 0 && (
-          <span className="absolute top-2 left-2 inline-flex items-center gap-1 bg-emerald-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
-            <TrendingDown className="h-3 w-3" /> {deal.discountPercent}%
-          </span>
-        )}
-        {!deal.sourceSufficient && (
-          <span className="absolute top-2 right-2 inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-[11px] font-medium px-2 py-0.5 rounded-full border border-amber-200">
-            <ShieldAlert className="h-3 w-3" /> Limited data
-          </span>
-        )}
-      </div>
+export default function DealCard({ deal, viewMode = 'grid' }) {
+  const { isSaved, toggleBookmark } = useBookmarks();
+  const [imgError, setImgError] = useState(false);
 
-      <div className="flex flex-col flex-1 p-3 sm:p-4">
-        {deal.category && (
-          <span className="text-[11px] uppercase tracking-wide font-semibold text-emerald-600 mb-1">
-            {deal.category}
-          </span>
-        )}
-        <h3 className="text-sm font-semibold text-slate-900 leading-snug line-clamp-2 flex-1">
-          {deal.title}
-        </h3>
+  const dealId = deal.id || deal.asin;
+  const saved = isSaved(dealId);
+  const isExpired = Boolean(deal.isExpired || deal.status === 'EXPIRED');
+  const hoursLeft = deal.expiresInHours ? Math.max(1, Math.ceil(deal.expiresInHours)) : null;
 
-        {deal.rating != null && (
-          <div className="flex items-center gap-1 mt-1.5">
-            <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
-            <span className="text-xs text-slate-600 font-medium">{deal.rating.toFixed(1)}</span>
-            {deal.ratingsTotal > 0 && (
-              <span className="text-xs text-slate-400">({deal.ratingsTotal.toLocaleString()})</span>
+  const handleBookmarkClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleBookmark(deal);
+  };
+
+  if (viewMode === 'list') {
+    return (
+      <Link
+        to={`/deal/${deal.id || deal.asin}`}
+        className={`group rounded-2xl border p-4 transition-all flex flex-col sm:flex-row gap-4 items-start sm:items-center relative w-full ${
+          isExpired
+            ? 'bg-slate-50/80 border-dashed border-slate-300 opacity-70 hover:opacity-100 hover:bg-white hover:border-slate-400'
+            : 'bg-white border-slate-200/90 hover:shadow-md hover:border-slate-300'
+        }`}
+      >
+        <div className={`relative w-full sm:w-32 h-36 sm:h-32 rounded-xl overflow-hidden shrink-0 flex items-center justify-center p-3 border ${
+          isExpired ? 'bg-slate-100/80 border-slate-200 grayscale-[0.85]' : 'bg-slate-50 border-slate-100'
+        }`}>
+          {!imgError && deal.imageUrl ? (
+            <img
+              src={deal.imageUrl}
+              alt={deal.title}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={() => setImgError(true)}
+              className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-200"
+            />
+          ) : (
+            <div className="flex items-center justify-center w-full h-full text-slate-300">
+              <ImageOff className="w-8 h-8" />
+            </div>
+          )}
+
+          {isExpired ? (
+            <span className="absolute top-2 left-2 inline-flex items-center gap-1 bg-slate-800 text-slate-100 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs">
+              <Clock className="w-3 h-3 text-amber-400" /> Ended
+            </span>
+          ) : deal.discountPercent > 0 ? (
+            <span className="absolute top-2 left-2 inline-flex items-center gap-0.5 bg-emerald-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-md shadow-xs">
+              -{deal.discountPercent}%
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex-1 min-w-0 space-y-1.5 w-full">
+          <div className="flex items-center gap-2 flex-wrap">
+            {isExpired ? (
+              <span className="text-[10px] uppercase font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Deal Ended {hoursLeft ? `• Auto-deletes in ${hoursLeft}h` : ''}
+              </span>
+            ) : deal.category ? (
+              <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
+                {deal.category}
+              </span>
+            ) : null}
+
+            {deal.rating != null && (
+              <div className="flex items-center gap-1 text-xs text-slate-600 font-semibold">
+                <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                <span>{deal.rating.toFixed(1)}</span>
+                {deal.ratingsTotal > 0 && (
+                  <span className="text-[11px] text-slate-400 font-normal">
+                    ({deal.ratingsTotal.toLocaleString()})
+                  </span>
+                )}
+              </div>
             )}
           </div>
-        )}
 
-        <div className="mt-2 flex items-baseline gap-1.5">
-          <span className="text-base font-bold text-emerald-700">{formatPrice(deal.salePrice)}</span>
-          {deal.originalPrice > deal.salePrice && (
-            <span className="text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>
+          <h3 className={`text-sm sm:text-base font-semibold transition leading-snug line-clamp-2 ${
+            isExpired ? 'text-slate-600 line-through group-hover:no-underline' : 'text-slate-900 group-hover:text-emerald-700'
+          }`}>
+            {deal.title}
+          </h3>
+
+          {deal.shortBio && (
+            <p className="text-xs text-slate-500 line-clamp-1 leading-normal">
+              {deal.shortBio}
+            </p>
           )}
         </div>
 
-        {deal.shortBio && (
-          <p className="mt-1.5 text-xs text-slate-500 leading-relaxed line-clamp-2">{deal.shortBio}</p>
+        <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0 gap-3">
+          <div className="text-left sm:text-right min-w-0">
+            <div className={`text-lg font-black ${isExpired ? 'text-slate-500 line-through' : 'text-emerald-700'}`}>
+              {formatPrice(deal.salePrice)}
+            </div>
+            {deal.originalPrice > deal.salePrice && (
+              <div className="text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleBookmarkClick}
+              title={saved ? 'Remove' : 'Save'}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition border ${
+                saved
+                  ? 'bg-rose-50 text-rose-600 border-rose-200'
+                  : 'bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border-slate-200'
+              }`}
+            >
+              <Heart className={`w-4 h-4 ${saved ? 'fill-rose-600' : ''}`} />
+            </button>
+          </div>
+        </div>
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      to={`/deal/${deal.id || deal.asin}`}
+      className={`group rounded-2xl border overflow-hidden transition-all flex flex-col h-full w-full relative ${
+        isExpired
+          ? 'bg-slate-50/90 border-dashed border-slate-300 opacity-75 hover:opacity-100 hover:bg-white hover:border-slate-400 hover:shadow-sm'
+          : 'bg-white border-slate-200/90 hover:shadow-md hover:border-slate-300'
+      }`}
+    >
+      {/* Product Image Container */}
+      <div className={`relative aspect-square w-full overflow-hidden flex items-center justify-center p-4 border-b shrink-0 ${
+        isExpired ? 'bg-slate-100/70 border-slate-200 grayscale-[0.85]' : 'bg-slate-50/70 border-slate-100'
+      }`}>
+        {!imgError && deal.imageUrl ? (
+          <img
+            src={deal.imageUrl}
+            alt={deal.title}
+            loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={() => setImgError(true)}
+            className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="flex items-center justify-center w-full h-full text-slate-300">
+            <ImageOff className="w-10 h-10" />
+          </div>
         )}
+
+        {/* Discount or Expired Pill */}
+        {isExpired ? (
+          <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 bg-slate-800 text-slate-100 text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs pointer-events-none">
+            <Clock className="w-3 h-3 text-amber-400" /> Deal Ended
+          </span>
+        ) : deal.discountPercent > 0 ? (
+          <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 bg-emerald-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-md shadow-xs pointer-events-none">
+            <TrendingDown className="h-3 w-3" /> {deal.discountPercent}% OFF
+          </span>
+        ) : null}
+
+        {/* Wishlist Heart Action */}
+        <button
+          type="button"
+          onClick={handleBookmarkClick}
+          title={saved ? 'Remove from Saved' : 'Save Deal'}
+          className={`absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center transition shadow-xs border z-10 ${
+            saved
+              ? 'bg-rose-600 text-white border-rose-600'
+              : 'bg-white/90 hover:bg-white text-slate-600 hover:text-rose-600 border-slate-200'
+          }`}
+        >
+          <Heart className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} />
+        </button>
+      </div>
+
+      {/* Structured Content Box */}
+      <div className="p-4 flex-1 flex flex-col justify-between gap-3 min-w-0">
+        <div className="space-y-2 min-w-0">
+          {/* Category & Rating Row */}
+          <div className="flex items-center justify-between text-xs h-5 min-w-0">
+            {isExpired ? (
+              <span className="text-[10px] font-bold text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded flex items-center gap-1 truncate max-w-[150px]">
+                <AlertCircle className="w-2.5 h-2.5" />
+                {hoursLeft ? `Deletes in ${hoursLeft}h` : 'Ended'}
+              </span>
+            ) : (
+              <span className="text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded truncate max-w-[130px]">
+                {deal.category || 'Deal'}
+              </span>
+            )}
+
+            {deal.rating != null ? (
+              <div className="flex items-center gap-1 text-[11px] text-slate-600 font-semibold shrink-0">
+                <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                <span>{deal.rating.toFixed(1)}</span>
+                {deal.ratingsTotal > 0 && (
+                  <span className="text-[10px] text-slate-400 font-normal">
+                    ({deal.ratingsTotal > 999 ? `${(deal.ratingsTotal / 1000).toFixed(0)}k` : deal.ratingsTotal})
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="h-3.5" />
+            )}
+          </div>
+
+          {/* Title */}
+          <h3 className={`text-sm font-bold transition leading-snug line-clamp-2 h-[2.625rem] overflow-hidden ${
+            isExpired ? 'text-slate-600 line-through group-hover:no-underline' : 'text-slate-900 group-hover:text-emerald-700'
+          }`}>
+            {deal.title}
+          </h3>
+        </div>
+
+        {/* Price & Action Footer */}
+        <div className="pt-3 border-t border-slate-100 flex items-center justify-between mt-auto min-w-0">
+          <div className="flex items-baseline gap-1.5 min-w-0 truncate">
+            <span className={`text-lg font-black ${isExpired ? 'text-slate-500 line-through' : 'text-emerald-700'}`}>
+              {formatPrice(deal.salePrice)}
+            </span>
+            {deal.originalPrice > deal.salePrice && (
+              <span className="text-xs text-slate-400 line-through truncate">{formatPrice(deal.originalPrice)}</span>
+            )}
+          </div>
+          <span className={`text-xs font-bold inline-flex items-center gap-1 shrink-0 transition-colors ml-2 ${
+            isExpired ? 'text-slate-400 group-hover:text-slate-600' : 'text-slate-500 group-hover:text-emerald-600'
+          }`}>
+            <span>{isExpired ? 'Ended' : 'View Deal'}</span>
+            <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+          </span>
+        </div>
       </div>
     </Link>
   );
