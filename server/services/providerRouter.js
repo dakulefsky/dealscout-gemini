@@ -1,62 +1,37 @@
-const { isPaapiConfigured, getItems, searchItems, getPaapiConfig } = require('./amazonPaapiService');
+const { getItems, searchItems, getPaapiConfig } = require('./amazonPaapiService');
 const {
   isConfigured: isRainforestConfigured,
   isQuotaExhausted,
   fetchProductByAsin: fetchRainforestProduct,
   fetchRainforestDeals,
-  searchProducts: searchRainforestProducts,
-  getAccountStatus: getRainforestAccountStatus,
-  getCuratedSampleDeals,
-  generateAuthenticReviewsForProduct,
   SAMPLE_DEAL_POOL,
 } = require('./rainforestService');
 const { resolveProductDetails } = require('./amazonScraperService');
 
-/**
- * Deal Provider Router
- * Supports:
- * - 'auto' (Tries Amazon PA-API v5 -> Rainforest API -> Live Scraper/Gemini AI -> Curated Deal Pool)
- * - 'amazon_paapi' (Amazon Product Advertising API v5)
- * - 'rainforest' (Rainforest API)
- * - 'curated' (Curated Verified Amazon Deals Pool)
- */
-
 let activeProvider = process.env.DEAL_DATA_PROVIDER || 'auto';
 
-function getActiveProvider() {
-  return activeProvider;
-}
+function getActiveProvider() { return activeProvider; }
 
 function setActiveProvider(provider) {
   const valid = ['auto', 'amazon_paapi', 'rainforest', 'curated'];
-  if (!valid.includes(provider)) {
-    throw new Error(`Invalid provider '${provider}'. Allowed: ${valid.join(', ')}`);
-  }
+  if (!valid.includes(provider)) throw new Error(`Invalid provider '${provider}'. Allowed: ${valid.join(', ')}`);
   activeProvider = provider;
   return activeProvider;
 }
 
-/**
- * Checks provider readiness and active status.
- */
 async function getProviderStatus() {
   const paapiConfig = getPaapiConfig();
   const rainforestConfigured = isRainforestConfigured();
   const rainforestQuotaExhausted = isQuotaExhausted();
+  let effectiveProvider = 'none';
 
-  let effectiveProvider = 'curated';
-  if (activeProvider === 'amazon_paapi' && paapiConfig.isConfigured) {
-    effectiveProvider = 'amazon_paapi';
-  } else if (activeProvider === 'rainforest' && rainforestConfigured && !rainforestQuotaExhausted) {
-    effectiveProvider = 'rainforest';
-  } else if (activeProvider === 'auto') {
-    if (paapiConfig.isConfigured) {
-      effectiveProvider = 'amazon_paapi';
-    } else if (rainforestConfigured && !rainforestQuotaExhausted) {
-      effectiveProvider = 'rainforest';
-    } else {
-      effectiveProvider = 'curated';
-    }
+  if (activeProvider === 'amazon_paapi' && paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
+  else if (activeProvider === 'rainforest' && rainforestConfigured && !rainforestQuotaExhausted) effectiveProvider = 'rainforest';
+  else if (activeProvider === 'curated') effectiveProvider = 'curated';
+  else if (activeProvider === 'auto') {
+    if (paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
+    else if (rainforestConfigured && !rainforestQuotaExhausted) effectiveProvider = 'rainforest';
+    else effectiveProvider = 'none';
   }
 
   return {
@@ -68,152 +43,101 @@ async function getProviderStatus() {
       partnerTag: paapiConfig.partnerTag,
       region: paapiConfig.region,
       host: paapiConfig.host,
-      status: paapiConfig.isConfigured ? 'Ready (Credentials Configured)' : 'Pending Amazon Approval / Credentials Missing',
+      status: paapiConfig.isConfigured ? 'Ready' : 'Not configured',
     },
     rainforest: {
       isConfigured: rainforestConfigured,
       isQuotaExhausted: rainforestQuotaExhausted,
-      status: rainforestQuotaExhausted
-        ? 'Quota Exhausted (Fallback Mode)'
-        : rainforestConfigured
-          ? 'Active & Ready'
-          : 'API Key Missing',
+      status: rainforestQuotaExhausted ? 'Quota exhausted' : rainforestConfigured ? 'Ready' : 'Not configured',
     },
     curated: {
       isReady: true,
       poolSize: SAMPLE_DEAL_POOL.length,
-      status: 'Ready (Zero-API Fallback with Full Reviews)',
+      status: 'Development/demo data only',
     },
   };
 }
 
-/**
- * Fetches single product details by ASIN using active provider routing.
- */
-async function fetchProductByAsin(asin, options = {}) {
-  const cleanAsin = (asin || '').trim().toUpperCase();
-  const status = await getProviderStatus();
-
-  // 1. Try PA-API if effective provider is amazon_paapi
-  if (status.effectiveProvider === 'amazon_paapi' || (activeProvider === 'auto' && status.paapi.isConfigured)) {
-    try {
-      const items = await getItems([cleanAsin]);
-      if (items.length > 0) {
-        return items[0];
-      }
-    } catch (err) {
-      console.warn(`[ProviderRouter PA-API notice for ${cleanAsin}, falling back to Rainforest/Curated]:`, err.message);
-    }
-  }
-
-  // 2. Try Rainforest API
-  if (status.rainforest.isConfigured && !status.rainforest.isQuotaExhausted) {
-    try {
-      return await fetchRainforestProduct(cleanAsin, options);
-    } catch (err) {
-      console.warn(`[ProviderRouter Rainforest notice for ${cleanAsin}, falling back to Curated]:`, err.message);
-    }
-  }
-
-  // 3. Check curated pool if known ASIN
-  const sample = SAMPLE_DEAL_POOL.find((d) => d.asin === cleanAsin);
-  if (sample) {
-    return {
-      asin: cleanAsin,
-      title: sample.title,
-      brand: 'Amazon Curated',
-      category: sample.category,
-      salePrice: sample.sale_price,
-      originalPrice: sample.original_price,
-      discountPercent: sample.discount_percent,
-      savingsAmount: Number((sample.original_price - sample.sale_price).toFixed(2)),
-      imageUrl: sample.image_url,
-      productUrl: sample.product_url,
-      rating: sample.rating,
-      ratingsTotal: sample.ratings_total,
-      shortBio: sample.short_bio,
-      fullSummary: sample.full_summary,
-      pros: sample.pros,
-      cons: sample.cons,
-      reviews: typeof sample.reviews === 'string' ? JSON.parse(sample.reviews) : (sample.reviews || []),
-      isPrime: true,
-      availability: 'In Stock',
-      sourceProvider: 'CURATED_POOL',
-      rawSourceData: `Curated Deal Pool | ASIN: ${cleanAsin}`,
-    };
-  }
-
-  // 4. Live Scraper + Gemini AI Grounding (Resolves accurate title, images, prices, specs & reviews)
-  try {
-    const liveResolved = await resolveProductDetails(cleanAsin, options.customUrl || options.url);
-    if (liveResolved && liveResolved.title && !liveResolved.title.startsWith('Amazon Prime Product')) {
-      return liveResolved;
-    }
-  } catch (err) {
-    console.warn(`[ProviderRouter Scraper/AI resolution notice for ${cleanAsin}]:`, err.message);
-  }
-
-  // Generic fallback if not in pool and scraper unavailable
+function normalizeVerifiedProduct(product, provider) {
+  if (!product || !product.asin || !product.title) return null;
+  const originalPrice = Number(product.originalPrice ?? product.original_price);
+  const salePrice = Number(product.salePrice ?? product.sale_price);
+  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice) || originalPrice <= 0 || salePrice < 0 || salePrice > originalPrice) return null;
+  const discountPercent = Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1));
   return {
-    asin: cleanAsin,
-    title: `Amazon Prime Product (${cleanAsin})`,
-    brand: 'Verified Brand',
-    category: 'Electronics',
-    salePrice: 69.99,
-    originalPrice: 99.99,
-    discountPercent: 30,
-    savingsAmount: 30.00,
-    imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
-    productUrl: `https://www.amazon.com/dp/${cleanAsin}?tag=${process.env.AMAZON_ASSOCIATE_TAG || 'dealscout-20'}`,
-    rating: 4.6,
-    ratingsTotal: 1420,
-    shortBio: 'High-performance Amazon verified deal with fast Prime shipping.',
-    fullSummary: 'Engineered for exceptional day-to-day durability and optimal performance. Verified authentic customer rating.',
-    pros: '• Premium hardware architecture delivering responsive daily operation.\n• High-efficiency design minimizing battery drain and heat build-up.\n• Complete manufacturer warranty with standard Prime returns.',
-    cons: '• Promotional discounted pricing is active for a limited time window.\n• High customer demand may lead to limited inventory availability.',
-    reviews: generateAuthenticReviewsForProduct({ asin: cleanAsin, title: `Amazon Product (${cleanAsin})`, category: 'Electronics', rating: 4.6, ratingsTotal: 1420 }),
-    isPrime: true,
-    availability: 'In Stock',
-    sourceProvider: 'CURATED_FALLBACK',
-    rawSourceData: `Synthesized Fallback | ASIN: ${cleanAsin}`,
+    ...product,
+    asin: String(product.asin).trim().toUpperCase(),
+    originalPrice,
+    salePrice,
+    discountPercent,
+    savingsAmount: Number((originalPrice - salePrice).toFixed(2)),
+    sourceProvider: provider,
+    sourceVerified: true,
   };
 }
 
-/**
- * Fetches batch deals list using active provider.
- */
-async function fetchDealsList(options = {}) {
+async function fetchProductByAsin(asin, options = {}) {
+  const cleanAsin = (asin || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{10}$/.test(cleanAsin)) throw new Error('Invalid Amazon ASIN');
   const status = await getProviderStatus();
 
-  // 1. Try PA-API search if forced
   if (status.effectiveProvider === 'amazon_paapi') {
     try {
-      const searchRes = await searchItems('deals of the day', { itemCount: options.maxResults || 15 });
-      if (searchRes.results?.length > 0) {
-        return searchRes.results;
-      }
+      const items = await getItems([cleanAsin]);
+      const verified = normalizeVerifiedProduct(items?.[0], 'AMAZON_PAAPI');
+      if (verified) return verified;
     } catch (err) {
-      console.warn('[ProviderRouter PA-API searchDeals notice]:', err.message);
+      console.warn(`[ProviderRouter PA-API notice for ${cleanAsin}]:`, err.message);
     }
   }
 
-  // 2. Try Rainforest API
-  if (status.rainforest.isConfigured && !status.rainforest.isQuotaExhausted) {
+  if (status.effectiveProvider === 'rainforest' || (activeProvider === 'auto' && status.rainforest.isConfigured && !status.rainforest.isQuotaExhausted)) {
     try {
-      return await fetchRainforestDeals(options);
+      const product = await fetchRainforestProduct(cleanAsin, options);
+      const verified = normalizeVerifiedProduct(product, 'RAINFOREST');
+      if (verified) return verified;
     } catch (err) {
-      console.warn('[ProviderRouter Rainforest deals notice]:', err.message);
+      console.warn(`[ProviderRouter Rainforest notice for ${cleanAsin}]:`, err.message);
     }
   }
 
-  // 3. Return Curated Sample Deals Pool
-  return getCuratedSampleDeals(options.maxResults || 15, options.minDiscount || 10);
+  if (activeProvider === 'curated') {
+    const sample = SAMPLE_DEAL_POOL.find((d) => d.asin === cleanAsin);
+    if (sample) return normalizeVerifiedProduct({ ...sample, originalPrice: sample.original_price, salePrice: sample.sale_price }, 'CURATED_DEMO');
+    return null;
+  }
+
+  // Scraping/AI may enrich a product, but it is never allowed to manufacture a deal.
+  try {
+    const resolved = await resolveProductDetails(cleanAsin, options.customUrl || options.url);
+    if (resolved?.sourceVerified && resolved.title) {
+      return normalizeVerifiedProduct(resolved, resolved.sourceProvider || 'LIVE_VERIFIED');
+    }
+  } catch (err) {
+    console.warn(`[ProviderRouter live resolution notice for ${cleanAsin}]:`, err.message);
+  }
+
+  return null;
 }
 
-module.exports = {
-  getActiveProvider,
-  setActiveProvider,
-  getProviderStatus,
-  fetchProductByAsin,
-  fetchDealsList,
-};
+async function fetchDealsList(options = {}) {
+  const status = await getProviderStatus();
+  if (status.effectiveProvider === 'amazon_paapi') {
+    try {
+      const result = await searchItems('deals of the day', { itemCount: options.maxResults || 15 });
+      const verified = (result?.results || []).map((x) => normalizeVerifiedProduct(x, 'AMAZON_PAAPI')).filter(Boolean);
+      if (verified.length) return verified;
+    } catch (err) { console.warn('[ProviderRouter PA-API search notice]:', err.message); }
+  }
+  if (status.effectiveProvider === 'rainforest' || (activeProvider === 'auto' && status.rainforest.isConfigured && !status.rainforest.isQuotaExhausted)) {
+    try {
+      const result = await fetchRainforestDeals(options);
+      const verified = (result || []).map((x) => normalizeVerifiedProduct(x, 'RAINFOREST')).filter(Boolean);
+      if (verified.length) return verified;
+    } catch (err) { console.warn('[ProviderRouter Rainforest deals notice]:', err.message); }
+  }
+  if (activeProvider === 'curated') return getCuratedSampleDeals(options.maxResults || 15, options.minDiscount || 10);
+  return [];
+}
+
+module.exports = { getActiveProvider, setActiveProvider, getProviderStatus, fetchProductByAsin, fetchDealsList };
