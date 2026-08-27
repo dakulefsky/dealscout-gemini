@@ -95,10 +95,10 @@ export default function Home() {
       <section className="border-b border-slate-200/80 bg-white">
         <div className="max-w-7xl mx-auto px-4 py-8 sm:py-10">
           <div className="max-w-3xl space-y-3">
-            <h1 className="font-heading text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">Verified Amazon Price Drops</h1>
-            <p className="text-base text-slate-600 leading-normal">Automated deal discovery with provider-verified pricing. Deals explicitly chosen by a human are labeled separately as DealScout Picks.</p>
+            <h1 className="font-heading text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">Amazon deals worth checking</h1>
+            <p className="text-base text-slate-600 leading-normal">Fresh price drops, clean comparisons, and a short list of standout finds.</p>
             <div className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5">
-              <ShieldCheck className="w-4 h-4" /> No invented prices or discounts
+              <ShieldCheck className="w-4 h-4" /> Prices checked regularly
             </div>
           </div>
         </div>
@@ -109,9 +109,9 @@ export default function Home() {
           <div className="rounded-3xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-6">
             <div className="flex items-end justify-between gap-4 mb-4">
               <div>
-                <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-emerald-700"><Star className="w-4 h-4 fill-emerald-600 text-emerald-600" /> Human selected</div>
+                <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-emerald-700"><Star className="w-4 h-4 fill-emerald-600 text-emerald-600" /> Standout finds</div>
                 <h2 className="font-heading text-xl sm:text-2xl font-black text-slate-900 mt-1">DealScout Picks</h2>
-                <p className="text-xs sm:text-sm text-slate-600 mt-1">Verified deals that received an explicit human editorial decision.</p>
+                <p className="text-xs sm:text-sm text-slate-600 mt-1">A few deals we think deserve a closer look.</p>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
