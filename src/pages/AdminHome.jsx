@@ -21,19 +21,22 @@ export default function AdminHome() {
   const [stats, setStats] = useState({});
   const [lifecycle, setLifecycle] = useState({});
   const [provider, setProvider] = useState({});
+  const [images, setImages] = useState({});
   const { toast } = useToast();
 
   async function load() {
     setLoading(true);
     try {
-      const [s, l, p] = await Promise.all([
+      const [s, l, p, i] = await Promise.all([
         dealsApi.getStats().catch(() => ({})),
         dealsApi.getLifecycleStats().catch(() => ({})),
         functions.providerStatus().catch(() => ({})),
+        functions.imageHealth().catch(() => ({})),
       ]);
       setStats(s || {});
       setLifecycle(l || {});
       setProvider(p || {});
+      setImages(i || {});
     } finally {
       setLoading(false);
     }
@@ -67,10 +70,11 @@ export default function AdminHome() {
         <Button variant="outline" onClick={load} className="rounded-xl gap-2"><RefreshCw className="w-4 h-4" /> Refresh</Button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <Stat label="Live deals" value={stats.approvedCount ?? lifecycle.activeDeals} />
         <Stat label="Needs review" value={stats.pendingCount ?? 0} hint="Main review queue" />
         <Stat label="Ended" value={lifecycle.expiredDeals ?? 0} />
+        <Stat label="Missing images" value={images.missingImages ?? '—'} hint={images.missingImages > 0 ? 'Auto-repair is enabled' : 'Images healthy'} />
         <Stat label="Average discount" value={stats.avgDiscount != null ? `${Number(stats.avgDiscount).toFixed(0)}%` : '—'} />
       </div>
 
@@ -93,6 +97,7 @@ export default function AdminHome() {
             <div className="flex justify-between"><span className="text-slate-500">Provider</span><span className="font-bold text-slate-800">{provider.activeProvider || 'auto'}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Rainforest</span><span className={provider.rainforest?.configured ? 'font-bold text-emerald-700' : 'font-bold text-amber-700'}>{provider.rainforest?.configured ? 'Ready' : 'Not configured'}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Price monitor</span><span className="font-bold text-slate-800">{provider.cron?.running ? 'Running' : 'Idle'}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Product images</span><span className={images.missingImages > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{images.missingImages > 0 ? `${images.missingImages} need repair` : 'Healthy'}</span></div>
           </div>
         </div>
       </div>
