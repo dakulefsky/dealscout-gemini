@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TrendingDown, Heart, ImageOff, ArrowRight, Clock, AlertCircle, ShieldCheck } from 'lucide-react';
 import { useBookmarks } from '@/lib/BookmarksContext';
+import { verificationFreshness } from '@/lib/verificationFreshness';
 
 export function formatPrice(price) {
   if (price == null || isNaN(price)) return '';
@@ -16,6 +17,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
   const saved = isSaved(dealId);
   const isExpired = Boolean(deal.isExpired || deal.status === 'EXPIRED');
   const hoursLeft = deal.expiresInHours ? Math.max(1, Math.ceil(deal.expiresInHours)) : null;
+  const freshness = verificationFreshness(deal.priceCheckAt);
 
   const handleBookmarkClick = (e) => {
     e.preventDefault();
@@ -24,8 +26,9 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
   };
 
   const sourceBadge = !isExpired && deal.sourceVerified ? (
-    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-      <ShieldCheck className="w-3 h-3 text-emerald-600" /> Price verified
+    <span title={freshness.label} className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded ${freshness.stale ? 'text-amber-800 bg-amber-100' : 'text-slate-600 bg-slate-100'}`}>
+      <ShieldCheck className={`w-3 h-3 ${freshness.stale ? 'text-amber-600' : 'text-emerald-600'}`} />
+      {freshness.ageSeconds === null ? 'Price verified' : freshness.label.replace('Price checked ', '')}
     </span>
   ) : null;
 
