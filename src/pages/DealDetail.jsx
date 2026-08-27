@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Image } from '@/components/ui/image';
 import { useToast } from '@/components/ui/use-toast';
 import { formatPrice } from '@/components/DealCard';
+import { verificationFreshness } from '@/lib/verificationFreshness';
 import { deals as dealsApi, functions, editorial as editorialApi } from '@/lib/api';
 import { useBookmarks } from '@/lib/BookmarksContext';
 import SidebarAds from '@/components/SidebarAds';
@@ -94,6 +95,7 @@ export default function DealDetail() {
 
   const pros = (deal.pros || '').split('\n').map((s) => s.trim()).filter(Boolean);
   const cons = (deal.cons || '').split('\n').map((s) => s.trim()).filter(Boolean);
+  const freshness = verificationFreshness(deal.priceCheckAt);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8 space-y-8">
@@ -132,7 +134,12 @@ export default function DealDetail() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs uppercase tracking-wider text-emerald-700 font-bold bg-emerald-50 px-2.5 py-0.5 rounded-md">{deal.category || 'Deals'}</span>
-                  {deal.sourceVerified && <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-600"><ShieldCheck className="w-4 h-4 text-emerald-600" /> Provider-verified price</span>}
+                  {deal.sourceVerified && (
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg ${freshness.stale ? 'text-amber-800 bg-amber-50' : 'text-slate-600 bg-slate-50'}`}>
+                      <ShieldCheck className={`w-4 h-4 ${freshness.stale ? 'text-amber-600' : 'text-emerald-600'}`} />
+                      {freshness.label}
+                    </span>
+                  )}
                 </div>
                 <h1 className={`font-heading text-xl sm:text-2xl font-bold leading-snug ${deal.isExpired ? 'text-slate-700' : 'text-slate-900'}`}>{deal.title}</h1>
                 <p className="text-[11px] text-slate-400 font-mono">ASIN: {deal.asin}</p>
@@ -142,6 +149,10 @@ export default function DealDetail() {
                   {deal.originalPrice > deal.salePrice && <span className="text-base text-slate-400 line-through font-normal">{formatPrice(deal.originalPrice)}</span>}
                   {!deal.isExpired && deal.discountPercent > 0 && <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">Save {formatPrice(deal.originalPrice - deal.salePrice)}</span>}
                 </div>
+
+                {freshness.stale && !deal.isExpired && (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-2">This verification is older than our preferred freshness window. Confirm the current offer on Amazon before buying.</p>
+                )}
 
                 {deal.shortBio && <p className="text-xs sm:text-sm text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">{deal.shortBio}</p>}
               </div>
