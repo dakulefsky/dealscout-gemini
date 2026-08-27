@@ -21,9 +21,17 @@ async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users (reset_token);
   `);
 
+  if (process.env.NODE_ENV === 'production') {
+    await postgres.query(
+      `DELETE FROM users WHERE id = $1 OR email = $2`,
+      ['usr-admin-1', 'admin@dealscout.local']
+    );
+  }
+
   const count = await postgres.query('SELECT COUNT(*)::int AS count FROM users');
   if (count.rows[0].count === 0 && Array.isArray(db.tables.users) && db.tables.users.length) {
     for (const user of db.tables.users) {
+      if (process.env.NODE_ENV === 'production' && (user.id === 'usr-admin-1' || user.email === 'admin@dealscout.local')) continue;
       await postgres.query(
         `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, created_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
