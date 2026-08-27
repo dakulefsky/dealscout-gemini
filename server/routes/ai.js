@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { analyzeDealWithGemini, askDealAssistantWithGemini } = require('../gemini');
-const db = require('../db');
+const deals = require('../repositories/dealRepository');
 const { requireAdmin } = require('../middleware/auth');
 const { robustExtractAsin, resolveShortlink } = require('../services/siteStripeService');
 const { fetchProductByAsin } = require('../services/providerRouter');
@@ -79,7 +79,7 @@ router.post('/ask-deal-assistant', rateLimitAssistant, async (req, res) => {
     if (question.length > 1000) return res.status(400).json({ error: 'Question is too long' });
     if (!dealId) return res.status(400).json({ error: 'Deal ID is required' });
 
-    const deal = db.tables.deals.find((d) => d.id === dealId || d.asin === dealId);
+    const deal = await deals.findByIdOrAsin(dealId);
     if (!deal || deal.status !== 'APPROVED' || deal.is_expired === 1 || deal.source_verified !== 1) {
       return res.status(404).json({ error: 'Deal context not found' });
     }
