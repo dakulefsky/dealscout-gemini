@@ -112,8 +112,13 @@ async function fetchProductByAsin(asin, options = {}) {
       const product = await fetchRainforestProduct(cleanAsin, options);
       const verified = normalizeVerifiedProduct(product, 'RAINFOREST');
       if (verified) return verified;
+      if (activeProvider === 'rainforest') {
+        console.warn(`[ProviderRouter Rainforest notice for ${cleanAsin}]: Rainforest returned product data but no verifiable original/sale price pair.`);
+        return null;
+      }
     } catch (err) {
       console.warn(`[ProviderRouter Rainforest notice for ${cleanAsin}]:`, err.message);
+      if (activeProvider === 'rainforest') return null;
     }
   }
 
@@ -121,6 +126,8 @@ async function fetchProductByAsin(asin, options = {}) {
     const sample = SAMPLE_DEAL_POOL.find((d) => d.asin === cleanAsin);
     return normalizeDemoProduct(sample);
   }
+
+  if (activeProvider !== 'auto') return null;
 
   try {
     const resolved = await resolveProductDetails(cleanAsin, options.customUrl || options.url);
