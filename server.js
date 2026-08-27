@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
@@ -32,6 +33,7 @@ async function startServer() {
   const bookmarkRepository = require('./server/repositories/bookmarkRepository.js');
   const editorialRepository = require('./server/repositories/editorialRepository.js');
   const activityRepository = require('./server/repositories/activityRepository.js');
+  const seo = require('./server/services/seoService.js');
   if (isProduction) hardenJsonUsers(db);
 
   await Promise.all([
@@ -55,6 +57,21 @@ async function startServer() {
   app.use(amazonContentPolicy.blockThirdPartyAmazonReviews);
   app.use(amazonContentPolicy.strictRainforestSearch);
   app.use(require('./server/middleware/adminActivityAudit.js').adminActivityAudit);
+
+  app.get('/robots.txt', (req, res) => {
+    res.type('text/plain').send(seo.buildRobots(seo.siteBase(req, configuredOrigin)));
+  });
+
+  app.get('/sitemap.xml', async (req, res) => {
+    try {
+      const [allDeals, categories] = await Promise.all([dealRepository.listAll(), categoryRepository.list()]);
+      const liveDeals = allDeals.filter((d) => d.status === 'APPROVED' && d.source_verified === 1 && d.is_expired !== 1);
+      res.type('application/xml').send(seo.buildSitemap({ baseUrl: seo.siteBase(req, configuredOrigin), deals: liveDeals, categories }));
+    } catch (err) {
+      console.warn('[DealScout] Sitemap generation failed:', err.message);
+      res.status(503).type('text/plain').send('Sitemap temporarily unavailable');
+    }
+  });
 
   app.use('/api/auth', require('./server/routes/auth.js'));
   app.use('/api/deals', require('./server/routes/priceHistory.js'));
@@ -94,10 +111,34 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(__dirname, 'dist');
+    const indexPath = path.join(distPath, 'index.html');
     app.use(express.static(distPath, { index: false }));
-    app.use((req, res, next) => {
+    app.use(async (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
-      res.sendFile(path.join(distPath, 'index.html'));
+      try {
+        let html = fs.readFileSync(indexPath, 'utf8');
+        const baseUrl = seo.siteBase(req, configuredOrigin);
+        let meta = seo.homeMeta(baseUrl);
+
+        const dealMatch = req.path.match(/^\/deal\/([^/]+)$/);
+        const categoryMatch = req.path.match(/^\/category\/([^/]+)$/);
+        if (req.path.startsWith('/admin')) {
+          meta = { ...seo.homeMeta(baseUrl), title: 'DealScout Admin', description: 'Private DealScout administration.', canonical: null, robots: 'noindex,nofollow' };
+        } else if (dealMatch) {
+          const deal = await dealRepository.findByIdOrAsin(decodeURIComponent(dealMatch[1]));
+          if (deal && deal.status === 'APPROVED' && deal.source_verified === 1 && deal.is_expired !== 1) meta = seo.dealMeta(baseUrl, deal);
+        } else if (categoryMatch) {
+          const rows = await categoryRepository.list({ slug: decodeURIComponent(categoryMatch[1]) });
+          if (rows[0]) meta = seo.categoryMeta(baseUrl, rows[0]);
+        } else if (req.path === '/disclosure') {
+          meta = { title: 'Affiliate Disclosure — DealScout', description: 'How DealScout uses Amazon affiliate links and how deal pricing is presented.', canonical: `${baseUrl}/disclosure` };
+        }
+        html = seo.replaceMeta(html, meta);
+        res.type('html').send(html);
+      } catch (err) {
+        console.warn('[DealScout] SEO render fallback:', err.message);
+        res.sendFile(indexPath);
+      }
     });
   }
 
