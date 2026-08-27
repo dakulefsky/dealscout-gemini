@@ -37,11 +37,8 @@ async function startServer() {
   if (isProduction) hardenJsonUsers(db);
 
   await Promise.all([
-    dealRepository.ensureSchema(),
-    userRepository.ensureSchema(),
-    categoryRepository.ensureSchema(),
-    editorialRepository.ensureSchema(),
-    activityRepository.ensureSchema(),
+    dealRepository.ensureSchema(), userRepository.ensureSchema(), categoryRepository.ensureSchema(),
+    editorialRepository.ensureSchema(), activityRepository.ensureSchema(),
   ]);
   await bookmarkRepository.ensureSchema();
   if (isProduction) await dealRepository.hardenProduction();
@@ -58,10 +55,7 @@ async function startServer() {
   app.use(amazonContentPolicy.strictRainforestSearch);
   app.use(require('./server/middleware/adminActivityAudit.js').adminActivityAudit);
 
-  app.get('/robots.txt', (req, res) => {
-    res.type('text/plain').send(seo.buildRobots(seo.siteBase(req, configuredOrigin)));
-  });
-
+  app.get('/robots.txt', (req, res) => res.type('text/plain').send(seo.buildRobots(seo.siteBase(req, configuredOrigin))));
   app.get('/sitemap.xml', async (req, res) => {
     try {
       const [allDeals, categories] = await Promise.all([dealRepository.listAll(), categoryRepository.list()]);
@@ -73,6 +67,10 @@ async function startServer() {
     }
   });
 
+  app.use('/api/auth/register', (req, res, next) => {
+    if (process.env.ALLOW_PUBLIC_REGISTRATION === 'true') return next();
+    return res.status(404).json({ error: 'Not found' });
+  });
   app.use('/api/auth', require('./server/routes/auth.js'));
   app.use('/api/deals', require('./server/routes/priceHistory.js'));
   app.use('/api/deals', require('./server/middleware/verifiedAiIngestGuard.js').verifiedAiIngestGuard);
@@ -90,9 +88,7 @@ async function startServer() {
   try {
     require('./server/services/cronService.js').start();
     require('./server/services/imageRepairService.js').startImageRepairScheduler();
-  } catch (cronErr) {
-    console.warn('[DealScout] Scheduler initialization warning:', cronErr.message);
-  }
+  } catch (cronErr) { console.warn('[DealScout] Scheduler initialization warning:', cronErr.message); }
 
   app.get('/api/health', async (_req, res) => {
     let cronStatus = null;
@@ -119,7 +115,6 @@ async function startServer() {
         let html = fs.readFileSync(indexPath, 'utf8');
         const baseUrl = seo.siteBase(req, configuredOrigin);
         let meta = seo.homeMeta(baseUrl);
-
         const dealMatch = req.path.match(/^\/deal\/([^/]+)$/);
         const categoryMatch = req.path.match(/^\/category\/([^/]+)$/);
         if (req.path.startsWith('/admin')) {
@@ -132,9 +127,10 @@ async function startServer() {
           if (rows[0]) meta = seo.categoryMeta(baseUrl, rows[0]);
         } else if (req.path === '/disclosure') {
           meta = { title: 'Affiliate Disclosure — DealScout', description: 'How DealScout uses Amazon affiliate links and how deal pricing is presented.', canonical: `${baseUrl}/disclosure` };
+        } else if (req.path === '/saved') {
+          meta = { ...seo.homeMeta(baseUrl), title: 'Saved Deals — DealScout', description: 'Your saved DealScout deals.', canonical: null, robots: 'noindex,follow' };
         }
-        html = seo.replaceMeta(html, meta);
-        res.type('html').send(html);
+        res.type('html').send(seo.replaceMeta(html, meta));
       } catch (err) {
         console.warn('[DealScout] SEO render fallback:', err.message);
         res.sendFile(indexPath);
@@ -142,21 +138,13 @@ async function startServer() {
     });
   }
 
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'API route not found' });
-    next();
-  });
-
+  app.use((req, res, next) => { if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'API route not found' }); next(); });
   app.use((err, req, res, _next) => {
     console.error('[DealScout] Unhandled request error:', err);
-    if (res.headersSent) return;
-    res.status(500).json({ error: 'Internal server error' });
+    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
   });
 
   app.listen(PORT, '0.0.0.0', () => console.log(`[DealScout] Server running on port ${PORT}`));
 }
 
-startServer().catch((err) => {
-  console.error('[DealScout] Failed to start server:', err);
-  process.exit(1);
-});
+startServer().catch((err) => { console.error('[DealScout] Failed to start server:', err); process.exit(1); });
