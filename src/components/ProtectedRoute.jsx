@@ -14,12 +14,9 @@ export default function ProtectedRoute({ children, adminOnly = false }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to={`/login?returnTo=${encodeURIComponent(location.pathname)}`} replace />;
+    return <Navigate to={`/admin/access?returnTo=${encodeURIComponent(location.pathname)}`} replace />;
   }
 
-  if (adminOnly && user?.role !== 'admin') {
-    return <Navigate to="/" replace />;
-  }
-
+  if (adminOnly && user?.role !== 'admin') return <Navigate to="/" replace />;
   return children;
 }
