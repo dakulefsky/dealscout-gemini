@@ -29,6 +29,7 @@ async function startServer() {
   const dealRepository = require('./server/repositories/dealRepository.js');
   const userRepository = require('./server/repositories/userRepository.js');
   const categoryRepository = require('./server/repositories/categoryRepository.js');
+  const bookmarkRepository = require('./server/repositories/bookmarkRepository.js');
   if (isProduction) hardenJsonUsers(db);
 
   await Promise.all([
@@ -36,6 +37,7 @@ async function startServer() {
     userRepository.ensureSchema(),
     categoryRepository.ensureSchema(),
   ]);
+  await bookmarkRepository.ensureSchema();
   if (isProduction) await dealRepository.hardenProduction();
 
   app.disable('x-powered-by');
