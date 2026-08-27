@@ -1,7 +1,9 @@
 function verificationAgeKey(deal) {
+  const attempted = Number(deal?.last_verify_attempt_at ?? deal?.lastVerifyAttemptAt ?? 0);
   const checked = Number(deal?.price_check_at ?? deal?.priceCheckAt ?? 0);
-  if (!Number.isFinite(checked) || checked <= 0) return 0;
-  return checked;
+  const value = attempted > 0 ? attempted : checked;
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return value;
 }
 
 function oldestCheckedFirst(deals = [], limit = 10) {
