@@ -134,6 +134,7 @@ export const functions = {
   integrityHealth:   ()                     => api.get('/api/functions/integrity-health'),
   legacyEnrichmentPreview: ()               => api.get('/api/functions/legacy-enrichment-cleanup'),
   cleanupLegacyEnrichment: ()               => api.post('/api/functions/legacy-enrichment-cleanup'),
+  adminActivity:     (limit = 12)           => api.get(`/api/functions/admin-activity?limit=${encodeURIComponent(limit)}`),
   repairImages:      (limit = 20)           => api.post('/api/functions/repair-images', { limit }),
   purgeExpired:      ()                     => api.post('/api/functions/purge-expired'),
   siteStripeImport:  (input, autoApprove = false) => api.post('/api/functions/sitestripe-import', typeof input === 'object' ? input : { input, inputUrl: input, autoApprove }),
