@@ -56,6 +56,7 @@ async function startServer() {
   app.use('/api/deals', require('./server/routes/deals.js'));
   app.use('/api/editorial', require('./server/routes/editorial.js'));
   app.use('/api/categories', require('./server/routes/categories.js'));
+  app.use('/api/functions', require('./server/middleware/imageRepairEndpoint.js').imageRepairEndpoint);
   app.use('/api/functions', require('./server/routes/functions.js'));
   app.use('/api/ai', require('./server/routes/ai.js'));
   app.use('/api/bookmarks', require('./server/routes/bookmarks.js'));
