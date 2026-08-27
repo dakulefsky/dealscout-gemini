@@ -22,21 +22,24 @@ export default function AdminHome() {
   const [lifecycle, setLifecycle] = useState({});
   const [provider, setProvider] = useState({});
   const [images, setImages] = useState({});
+  const [integrity, setIntegrity] = useState({});
   const { toast } = useToast();
 
   async function load() {
     setLoading(true);
     try {
-      const [s, l, p, i] = await Promise.all([
+      const [s, l, p, i, h] = await Promise.all([
         dealsApi.getStats().catch(() => ({})),
         dealsApi.getLifecycleStats().catch(() => ({})),
         functions.providerStatus().catch(() => ({})),
         functions.imageHealth().catch(() => ({})),
+        functions.integrityHealth().catch(() => ({})),
       ]);
       setStats(s || {});
       setLifecycle(l || {});
       setProvider(p || {});
       setImages(i || {});
+      setIntegrity(h || {});
     } finally {
       setLoading(false);
     }
@@ -59,6 +62,8 @@ export default function AdminHome() {
 
   if (loading) return <div className="max-w-6xl mx-auto px-4 py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-600" /></div>;
 
+  const integrityIssues = Number(integrity.unverifiedApproved || 0) + Number(integrity.missingImages || 0) + Number(integrity.stalePrices || 0);
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-7">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -74,7 +79,7 @@ export default function AdminHome() {
         <Stat label="Live deals" value={stats.approvedCount ?? lifecycle.activeDeals} />
         <Stat label="Needs review" value={stats.pendingCount ?? 0} hint="Main review queue" />
         <Stat label="Ended" value={lifecycle.expiredDeals ?? 0} />
-        <Stat label="Missing images" value={images.missingImages ?? '—'} hint={images.missingImages > 0 ? 'Auto-repair is enabled' : 'Images healthy'} />
+        <Stat label="Integrity issues" value={integrityIssues || 0} hint={integrityIssues > 0 ? 'Check system health' : 'Core checks clean'} />
         <Stat label="Average discount" value={stats.avgDiscount != null ? `${Number(stats.avgDiscount).toFixed(0)}%` : '—'} />
       </div>
 
@@ -97,7 +102,10 @@ export default function AdminHome() {
             <div className="flex justify-between"><span className="text-slate-500">Provider</span><span className="font-bold text-slate-800">{provider.activeProvider || 'auto'}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Rainforest</span><span className={provider.rainforest?.configured ? 'font-bold text-emerald-700' : 'font-bold text-amber-700'}>{provider.rainforest?.configured ? 'Ready' : 'Not configured'}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Price monitor</span><span className="font-bold text-slate-800">{provider.cron?.running ? 'Running' : 'Idle'}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Product images</span><span className={images.missingImages > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{images.missingImages > 0 ? `${images.missingImages} need repair` : 'Healthy'}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Missing images</span><span className={integrity.missingImages > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{integrity.missingImages || 0}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Stale prices</span><span className={integrity.stalePrices > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{integrity.stalePrices || 0}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Approved unverified</span><span className={integrity.unverifiedApproved > 0 ? 'font-bold text-rose-700' : 'font-bold text-emerald-700'}>{integrity.unverifiedApproved || 0}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Legacy enrichment</span><span className={integrity.legacyEnrichment > 0 ? 'font-bold text-amber-700' : 'font-bold text-slate-700'}>{integrity.legacyEnrichment || 0}</span></div>
           </div>
         </div>
       </div>
