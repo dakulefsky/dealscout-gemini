@@ -1,5 +1,14 @@
 const db = require('../db');
 const { fetchDealsList, fetchProductByAsin } = require('./providerRouter');
+const { recordObservation } = require('./priceHistoryService');
+
+async function safeRecordObservation(observation) {
+  try {
+    await recordObservation(observation);
+  } catch (err) {
+    console.warn('[DealCronService] Price history observation skipped:', err.message);
+  }
+}
 
 class DealCronService {
   constructor() {
@@ -59,6 +68,15 @@ class DealCronService {
         const discount = Number(liveInfo.discountPercent);
         const discountEnded = Number.isFinite(discount) && discount < 5 && Number.isFinite(original) && Number.isFinite(sale) && sale >= original;
 
+        if (Number.isFinite(original) && Number.isFinite(sale) && original > 0 && sale > 0 && sale <= original) {
+          await safeRecordObservation({
+            asin: deal.asin,
+            salePrice: sale,
+            originalPrice: original,
+            sourceProvider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER',
+          });
+        }
+
         if (outOfStock || discountEnded) {
           db.expireDeal(deal.id, outOfStock ? 'Product unavailable at verified source' : 'Verified deal ended');
           expiredCount += 1;
@@ -96,8 +114,15 @@ class DealCronService {
         const sale = Number(item.salePrice ?? item.sale_price);
         if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0 || sale <= 0 || sale > original) continue;
         const discount = Number((((original - sale) / original) * 100).toFixed(1));
-        const existing = db.tables.deals.find((d) => d.asin === item.asin || d.id === item.asin);
 
+        await safeRecordObservation({
+          asin: item.asin,
+          salePrice: sale,
+          originalPrice: original,
+          sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER',
+        });
+
+        const existing = db.tables.deals.find((d) => d.asin === item.asin || d.id === item.asin);
         if (existing) {
           if (sale !== Number(existing.sale_price) || original !== Number(existing.original_price)) {
             existing.sale_price = sale;
