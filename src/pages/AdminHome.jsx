@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowRight, CheckCircle2, Clock, Loader2, RefreshCw, Settings2, ShieldCheck, Sparkles, Wrench } from 'lucide-react';
+import { Activity, ArrowRight, CheckCircle2, Clock, Image, Loader2, RefreshCw, Settings2, ShieldCheck, Sparkles, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { deals as dealsApi, functions } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
@@ -41,11 +41,11 @@ export default function AdminHome() {
 
   useEffect(() => { load(); }, []);
 
-  async function run(name, fn, success) {
+  async function run(name, fn, success, describe) {
     setBusy(name);
     try {
       const result = await fn();
-      toast({ title: success, description: result?.created != null ? `${result.created} new deals added.` : undefined });
+      toast({ title: success, description: describe ? describe(result) : undefined });
       await load();
     } catch (error) {
       toast({ title: 'Action failed', description: error.message, variant: 'destructive' });
@@ -62,14 +62,14 @@ export default function AdminHome() {
         <div>
           <div className="text-xs font-bold uppercase tracking-wider text-emerald-600">DealScout Operations</div>
           <h1 className="text-3xl font-black text-slate-900 mt-1">Admin</h1>
-          <p className="text-sm text-slate-500 mt-1">Review what needs attention, check site health, and leave the rest on autopilot.</p>
+          <p className="text-sm text-slate-500 mt-1">Review what needs attention, check site health, and manage the essentials.</p>
         </div>
         <Button variant="outline" onClick={load} className="rounded-xl gap-2"><RefreshCw className="w-4 h-4" /> Refresh</Button>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Stat label="Live deals" value={stats.approvedCount ?? lifecycle.activeDeals} />
-        <Stat label="Needs review" value={stats.pendingCount ?? 0} hint="Your main manual queue" />
+        <Stat label="Needs review" value={stats.pendingCount ?? 0} hint="Main review queue" />
         <Stat label="Ended" value={lifecycle.expiredDeals ?? 0} />
         <Stat label="Average discount" value={stats.avgDiscount != null ? `${Number(stats.avgDiscount).toFixed(0)}%` : '—'} />
       </div>
@@ -79,8 +79,8 @@ export default function AdminHome() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider"><CheckCircle2 className="w-4 h-4" /> Review queue</div>
-              <h2 className="text-2xl font-black mt-3">Review the deals that need you</h2>
-              <p className="text-sm text-slate-300 mt-2 max-w-xl">Quickly approve, feature, or leave a short note. Everything else stays automated.</p>
+              <h2 className="text-2xl font-black mt-3">Review deals that need attention</h2>
+              <p className="text-sm text-slate-300 mt-2 max-w-xl">Approve, feature, or add a short note from one focused queue.</p>
             </div>
             <ArrowRight className="w-5 h-5 mt-1 group-hover:translate-x-1 transition" />
           </div>
@@ -102,7 +102,8 @@ export default function AdminHome() {
           <div className="flex items-center gap-2 mb-4"><ShieldCheck className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">Quick actions</h2></div>
           <div className="grid sm:grid-cols-2 gap-2">
             <Button disabled={busy === 'verify'} onClick={() => run('verify', () => functions.verifyPrices(25), 'Prices checked')} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'verify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check prices</Button>
-            <Button disabled={busy === 'sync'} onClick={() => run('sync', () => functions.fetchDeals(15), 'Deal discovery complete')} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Find deals now</Button>
+            <Button disabled={busy === 'sync'} onClick={() => run('sync', () => functions.fetchDeals(15), 'Deal discovery complete', (r) => `${r?.created || 0} new deals added.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Find deals now</Button>
+            <Button disabled={busy === 'images'} onClick={() => run('images', () => functions.repairImages(30), 'Image repair complete', (r) => `${r?.repaired || 0} repaired, ${r?.failed || 0} still missing.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-2">{busy === 'images' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />} Repair missing images</Button>
           </div>
         </div>
 
@@ -110,7 +111,7 @@ export default function AdminHome() {
           <div className="flex items-center gap-2 mb-4"><Wrench className="w-5 h-5 text-slate-600" /><h2 className="font-black text-slate-900">Tools</h2></div>
           <div className="space-y-2">
             <Link to="/admin/operations" className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-sm font-bold text-slate-700"><span className="inline-flex items-center gap-2"><Settings2 className="w-4 h-4" /> Imports, categories & provider controls</span><ArrowRight className="w-4 h-4" /></Link>
-            <Link to="/admin/editorial" className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-sm font-bold text-slate-700"><span className="inline-flex items-center gap-2"><Clock className="w-4 h-4" /> Editorial queue</span><ArrowRight className="w-4 h-4" /></Link>
+            <Link to="/admin/editorial" className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-sm font-bold text-slate-700"><span className="inline-flex items-center gap-2"><Clock className="w-4 h-4" /> Review queue</span><ArrowRight className="w-4 h-4" /></Link>
           </div>
         </div>
       </div>
