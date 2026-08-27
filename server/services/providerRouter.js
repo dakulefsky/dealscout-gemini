@@ -4,6 +4,7 @@ const {
   isQuotaExhausted,
   fetchProductByAsin: fetchRainforestProduct,
   fetchRainforestDeals,
+  getCuratedSampleDeals,
   SAMPLE_DEAL_POOL,
 } = require('./rainforestService');
 const { resolveProductDetails } = require('./amazonScraperService');
@@ -31,7 +32,6 @@ async function getProviderStatus() {
   else if (activeProvider === 'auto') {
     if (paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
     else if (rainforestConfigured && !rainforestQuotaExhausted) effectiveProvider = 'rainforest';
-    else effectiveProvider = 'none';
   }
 
   return {
@@ -53,7 +53,7 @@ async function getProviderStatus() {
     curated: {
       isReady: true,
       poolSize: SAMPLE_DEAL_POOL.length,
-      status: 'Development/demo data only',
+      status: 'Development/demo data only; never source-verified',
     },
   };
 }
@@ -62,7 +62,7 @@ function normalizeVerifiedProduct(product, provider) {
   if (!product || !product.asin || !product.title) return null;
   const originalPrice = Number(product.originalPrice ?? product.original_price);
   const salePrice = Number(product.salePrice ?? product.sale_price);
-  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice) || originalPrice <= 0 || salePrice < 0 || salePrice > originalPrice) return null;
+  if (!Number.isFinite(originalPrice) || !Number.isFinite(salePrice) || originalPrice <= 0 || salePrice <= 0 || salePrice > originalPrice) return null;
   const discountPercent = Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1));
   return {
     ...product,
@@ -73,6 +73,22 @@ function normalizeVerifiedProduct(product, provider) {
     savingsAmount: Number((originalPrice - salePrice).toFixed(2)),
     sourceProvider: provider,
     sourceVerified: true,
+  };
+}
+
+function normalizeDemoProduct(product) {
+  if (!product) return null;
+  const originalPrice = Number(product.originalPrice ?? product.original_price);
+  const salePrice = Number(product.salePrice ?? product.sale_price);
+  return {
+    ...product,
+    originalPrice,
+    salePrice,
+    discountPercent: originalPrice > 0 && salePrice > 0 && salePrice <= originalPrice
+      ? Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1))
+      : 0,
+    sourceProvider: 'CURATED_DEMO',
+    sourceVerified: false,
   };
 }
 
@@ -103,11 +119,9 @@ async function fetchProductByAsin(asin, options = {}) {
 
   if (activeProvider === 'curated') {
     const sample = SAMPLE_DEAL_POOL.find((d) => d.asin === cleanAsin);
-    if (sample) return normalizeVerifiedProduct({ ...sample, originalPrice: sample.original_price, salePrice: sample.sale_price }, 'CURATED_DEMO');
-    return null;
+    return normalizeDemoProduct(sample);
   }
 
-  // Scraping/AI may enrich a product, but it is never allowed to manufacture a deal.
   try {
     const resolved = await resolveProductDetails(cleanAsin, options.customUrl || options.url);
     if (resolved?.sourceVerified && resolved.title) {
@@ -136,7 +150,9 @@ async function fetchDealsList(options = {}) {
       if (verified.length) return verified;
     } catch (err) { console.warn('[ProviderRouter Rainforest deals notice]:', err.message); }
   }
-  if (activeProvider === 'curated') return getCuratedSampleDeals(options.maxResults || 15, options.minDiscount || 10);
+  if (activeProvider === 'curated') {
+    return getCuratedSampleDeals(options.maxResults || 15, options.minDiscount || 10).map(normalizeDemoProduct);
+  }
   return [];
 }
 
