@@ -1,353 +1,303 @@
 const express = require('express');
 const router = express.Router();
-const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
-const { requireAdmin } = require('../middleware/auth');
+const { optionalAuth, requireAdmin } = require('../middleware/auth');
+const { isConfigured, isQuotaExhausted, fetchProductReviews } = require('../services/rainforestService');
 
 function rowToDeal(r) {
   if (!r) return null;
-  let parsedReviews = [];
-  try {
-    parsedReviews = typeof r.reviews === 'string' ? JSON.parse(r.reviews) : (r.reviews || []);
-  } catch {
-    parsedReviews = [];
-  }
-
+  let reviews = [];
+  try { reviews = typeof r.reviews === 'string' ? JSON.parse(r.reviews) : (r.reviews || []); } catch {}
   const now = Math.floor(Date.now() / 1000);
-  const isExpired = Boolean(r.is_expired === 1 || r.status === 'EXPIRED');
+  const isExpired = r.is_expired === 1 || r.status === 'EXPIRED';
   const expiredAt = r.expired_at || null;
-  const expiresInSeconds = (isExpired && expiredAt)
-    ? Math.max(0, 86400 - (now - expiredAt))
-    : null;
-  const expiresInHours = expiresInSeconds !== null ? Number((expiresInSeconds / 3600).toFixed(1)) : null;
-
+  const purgeInSeconds = isExpired && expiredAt ? Math.max(0, 86400 - (now - expiredAt)) : null;
   return {
     id: r.id,
     title: r.title,
     asin: r.asin,
     category: r.category,
-    originalPrice: Number(r.original_price || r.originalPrice || 0),
-    salePrice: Number(r.sale_price || r.salePrice || 0),
-    discountPercent: Number(r.discount_percent || r.discountPercent || 0),
-    imageUrl: r.image_url || r.imageUrl,
-    productUrl: r.product_url || r.productUrl,
-    rating: Number(r.rating || 4.5),
-    ratingsTotal: Number(r.ratings_total || r.ratingsTotal || 100),
-    shortBio: r.short_bio || r.shortBio,
-    fullSummary: r.full_summary || r.fullSummary,
+    originalPrice: Number(r.original_price ?? 0),
+    salePrice: Number(r.sale_price ?? 0),
+    discountPercent: Number(r.discount_percent ?? 0),
+    imageUrl: r.image_url,
+    productUrl: r.product_url,
+    rating: Number(r.rating ?? 0),
+    ratingsTotal: Number(r.ratings_total ?? 0),
+    shortBio: r.short_bio,
+    fullSummary: r.full_summary,
     pros: r.pros,
     cons: r.cons,
-    reviews: parsedReviews,
-    sourceSufficient: r.source_sufficient === 1 || r.sourceSufficient === true,
+    reviews,
+    sourceSufficient: r.source_sufficient === 1,
+    sourceVerified: r.source_verified === 1,
+    sourceProvider: r.source_provider || null,
     status: r.status,
     isExpired,
     expiredAt,
-    expiresInSeconds,
-    expiresInHours,
+    purgeInSeconds,
+    purgeInHours: purgeInSeconds === null ? null : Number((purgeInSeconds / 3600).toFixed(1)),
     priceCheckAt: r.price_check_at || null,
-    rawSourceData: r.raw_source_data || r.rawSourceData,
-    created_date: r.created_at ? new Date(r.created_at * 1000).toISOString() : new Date().toISOString(),
+    rawSourceData: r.raw_source_data || null,
+    created_date: r.created_at ? new Date(r.created_at * 1000).toISOString() : null,
   };
 }
 
-// GET /api/deals/stats
-router.get('/stats', (req, res) => {
-  const deals = db.tables.deals || [];
-  const approved = deals.filter((d) => !d.is_expired && d.status === 'APPROVED');
-  const pending = deals.filter((d) => d.status === 'PENDING_REVIEW');
-  const expired = deals.filter((d) => d.is_expired === 1 || d.status === 'EXPIRED');
-  const rejected = deals.filter((d) => d.status === 'REJECTED');
-  const avgDiscount = approved.length
-    ? Math.round(approved.reduce((acc, d) => acc + (d.discount_percent || 0), 0) / approved.length)
-    : 0;
+function canSeeDeal(req, deal) {
+  return req.user?.role === 'admin' || (deal.status === 'APPROVED' && deal.is_expired !== 1 && deal.source_verified === 1);
+}
 
+function validatePrices(original, sale) {
+  const o = Number(original);
+  const s = Number(sale);
+  if (!Number.isFinite(o) || !Number.isFinite(s) || o <= 0 || s <= 0 || s > o) throw new Error('Invalid price values');
+  return { original: o, sale: s, discount: Number((((o - s) / o) * 100).toFixed(1)) };
+}
+
+function validStatus(status) {
+  return ['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'EXPIRED'].includes(status);
+}
+
+router.get('/stats', optionalAuth, (req, res) => {
+  const all = db.tables.deals || [];
+  if (req.user?.role !== 'admin') {
+    const approved = all.filter((d) => canSeeDeal(req, d));
+    return res.json({
+      total: approved.length,
+      approvedCount: approved.length,
+      avgDiscount: approved.length ? Math.round(approved.reduce((sum, d) => sum + Number(d.discount_percent || 0), 0) / approved.length) : 0,
+      categoriesCount: new Set(approved.map((d) => d.category).filter(Boolean)).size,
+    });
+  }
+
+  const approved = all.filter((d) => d.status === 'APPROVED' && !d.is_expired);
+  const pending = all.filter((d) => d.status === 'PENDING_REVIEW');
+  const expired = all.filter((d) => d.is_expired === 1 || d.status === 'EXPIRED');
+  const rejected = all.filter((d) => d.status === 'REJECTED');
   const lifecycle = db.getDealLifecycleStats();
-
   res.json({
-    total: deals.length,
+    total: all.length,
     approvedCount: approved.length,
     pendingCount: pending.length,
     expiredCount: expired.length,
     rejectedCount: rejected.length,
     readyToPurgeCount: lifecycle.readyToPurgeCount,
-    avgDiscount,
+    avgDiscount: approved.length ? Math.round(approved.reduce((sum, d) => sum + Number(d.discount_percent || 0), 0) / approved.length) : 0,
     categoriesCount: (db.tables.categories || []).length,
     bookmarksCount: (db.tables.bookmarks || []).length,
     lifecycle,
   });
 });
 
-// GET /api/deals/:id/price-history
-router.get('/:id/price-history', (req, res) => {
+router.get('/:id/price-history', optionalAuth, (req, res) => {
   const deal = db.tables.deals.find((d) => d.id === req.params.id || d.asin === req.params.id);
-  if (!deal) {
-    return res.status(404).json({ error: 'Deal not found' });
-  }
-  const history = db.getDealPriceHistory(deal);
-  res.json({ history, deal: rowToDeal(deal) });
+  if (!deal || !canSeeDeal(req, deal)) return res.status(404).json({ error: 'Deal not found' });
+  res.json({ history: db.getDealPriceHistory(deal), deal: rowToDeal(deal) });
 });
 
-// GET /api/deals
-router.get('/', (req, res) => {
-  const {
-    status,
-    category,
-    q,
-    minDiscount,
-    maxPrice,
-    minPrice,
-    minRating,
-    sort = '-created_date',
-    limit = 100
-  } = req.query;
-
+router.get('/', optionalAuth, (req, res) => {
+  const { status, category, q, minDiscount, maxPrice, minPrice, minRating, sort = '-created_date', limit = 100 } = req.query;
+  const isAdmin = req.user?.role === 'admin';
   let list = [...(db.tables.deals || [])];
 
-  // Filter by status
-  if (status) {
-    list = list.filter((d) => d.status === status);
+  if (isAdmin) {
+    if (status) list = list.filter((d) => d.status === status);
+  } else {
+    list = list.filter((d) => canSeeDeal(req, d));
   }
 
-  // Filter by category
   if (category && category !== 'All' && category !== 'All Deals') {
-    list = list.filter((d) => d.category && d.category.toLowerCase() === category.toLowerCase());
+    list = list.filter((d) => String(d.category || '').toLowerCase() === String(category).toLowerCase());
   }
-
-  // Search filter
   if (q && typeof q === 'string' && q.trim()) {
     const term = q.trim().toLowerCase();
-    list = list.filter((d) =>
-      (d.title && d.title.toLowerCase().includes(term)) ||
-      (d.short_bio && d.short_bio.toLowerCase().includes(term)) ||
-      (d.full_summary && d.full_summary.toLowerCase().includes(term)) ||
-      (d.asin && d.asin.toLowerCase().includes(term)) ||
-      (d.category && d.category.toLowerCase().includes(term))
-    );
+    list = list.filter((d) => [d.title, d.short_bio, d.full_summary, d.asin, d.category].some((v) => String(v || '').toLowerCase().includes(term)));
   }
 
-  // Min discount filter
-  if (minDiscount) {
-    const minD = Number(minDiscount);
-    if (!isNaN(minD)) {
-      list = list.filter((d) => (d.discount_percent || 0) >= minD);
-    }
-  }
+  const n = (v) => Number(v);
+  if (minDiscount !== undefined && Number.isFinite(n(minDiscount))) list = list.filter((d) => n(d.discount_percent) >= n(minDiscount));
+  if (minPrice !== undefined && Number.isFinite(n(minPrice))) list = list.filter((d) => n(d.sale_price) >= n(minPrice));
+  if (maxPrice !== undefined && Number.isFinite(n(maxPrice))) list = list.filter((d) => n(d.sale_price) <= n(maxPrice));
+  if (minRating !== undefined && Number.isFinite(n(minRating))) list = list.filter((d) => n(d.rating) >= n(minRating));
 
-  // Price range filters
-  if (minPrice) {
-    const minP = Number(minPrice);
-    if (!isNaN(minP)) {
-      list = list.filter((d) => (d.sale_price || 0) >= minP);
-    }
-  }
-  if (maxPrice) {
-    const maxP = Number(maxPrice);
-    if (!isNaN(maxP)) {
-      list = list.filter((d) => (d.sale_price || 0) <= maxP);
-    }
-  }
+  if (sort === 'discount_desc' || sort === '-discount_percent') list.sort((a, b) => n(b.discount_percent) - n(a.discount_percent));
+  else if (sort === 'price_asc') list.sort((a, b) => n(a.sale_price) - n(b.sale_price));
+  else if (sort === 'price_desc') list.sort((a, b) => n(b.sale_price) - n(a.sale_price));
+  else if (sort === 'rating_desc') list.sort((a, b) => n(b.rating) - n(a.rating));
+  else list.sort((a, b) => n(b.created_at) - n(a.created_at));
 
-  // Min rating filter
-  if (minRating) {
-    const minR = Number(minRating);
-    if (!isNaN(minR)) {
-      list = list.filter((d) => (d.rating || 0) >= minR);
-    }
-  }
-
-  // Sorting
-  if (sort === 'discount_desc' || sort === '-discount_percent') {
-    list.sort((a, b) => (b.discount_percent || 0) - (a.discount_percent || 0));
-  } else if (sort === 'price_asc') {
-    list.sort((a, b) => (a.sale_price || 0) - (b.sale_price || 0));
-  } else if (sort === 'price_desc') {
-    list.sort((a, b) => (b.sale_price || 0) - (a.sale_price || 0));
-  } else if (sort === 'rating_desc') {
-    list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-  } else if (sort === 'created_date' || sort === 'created_at') {
-    list.sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
-  } else {
-    // Default -created_date
-    list.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
-  }
-
-  const results = list.slice(0, Number(limit) || 100);
-  res.json(results.map(rowToDeal));
+  const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 100, 1), 100);
+  res.json(list.slice(0, safeLimit).map(rowToDeal));
 });
 
-const { ensureDealHasReviews } = require('../services/rainforestService');
-
-// GET /api/deals/:id
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, (req, res) => {
   const row = db.tables.deals.find((x) => x.id === req.params.id || x.asin === req.params.id);
-  if (!row) return res.status(404).json({ error: 'Deal not found' });
-
-  // Ensure substantive customer reviews are populated for this deal
-  let reviews = [];
-  try {
-    reviews = typeof row.reviews === 'string' ? JSON.parse(row.reviews) : (row.reviews || []);
-  } catch {
-    reviews = [];
-  }
-
-  if (!reviews || reviews.length === 0) {
-    try {
-      await ensureDealHasReviews(row, db);
-    } catch (err) {
-      console.warn(`[deals/:id ensureDealHasReviews notice for ${row.asin || row.id}]:`, err.message);
-    }
-  }
-
+  if (!row || !canSeeDeal(req, row)) return res.status(404).json({ error: 'Deal not found' });
   res.json(rowToDeal(row));
 });
 
-// POST /api/deals/:id/sync-reviews
-// Force refresh or pull real customer reviews for a specific deal
-router.post('/:id/sync-reviews', async (req, res) => {
+router.post('/:id/sync-reviews', requireAdmin, async (req, res) => {
   const row = db.tables.deals.find((x) => x.id === req.params.id || x.asin === req.params.id);
   if (!row) return res.status(404).json({ error: 'Deal not found' });
-
-  // Clear existing to force fresh pull
-  row.reviews = '[]';
-  const reviews = await ensureDealHasReviews(row, db);
-
-  res.json({
-    success: true,
-    dealId: row.id,
-    asin: row.asin,
-    reviews,
-    count: reviews.length,
-    deal: rowToDeal(row)
-  });
-});
-
-// POST /api/deals  (admin only)
-router.post('/', requireAdmin, (req, res) => {
-  const b = req.body;
-  const id = b.asin || uuidv4();
-  const reviewsStr = typeof b.reviews === 'string' ? b.reviews : JSON.stringify(b.reviews || []);
-
-  const dealObj = {
-    id,
-    title: b.title || 'Untitled Deal',
-    asin: b.asin || id,
-    category: b.category || 'Electronics',
-    original_price: Number(b.originalPrice) || 0,
-    sale_price: Number(b.salePrice) || 0,
-    discount_percent: Number(b.discountPercent) || 0,
-    image_url: b.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
-    product_url: b.productUrl || `https://www.amazon.com/dp/${b.asin || id}`,
-    rating: Number(b.rating) || 4.7,
-    ratings_total: Number(b.ratingsTotal) || 500,
-    short_bio: b.shortBio || '',
-    full_summary: b.fullSummary || '',
-    pros: Array.isArray(b.pros) ? b.pros.join('\n') : (b.pros || ''),
-    cons: Array.isArray(b.cons) ? b.cons.join('\n') : (b.cons || ''),
-    reviews: reviewsStr,
-    source_sufficient: b.sourceSufficient !== false ? 1 : 0,
-    status: b.status || 'APPROVED',
-    raw_source_data: b.rawSourceData || 'Manual / AI Entry',
-    created_at: Math.floor(Date.now() / 1000),
-  };
-
-  // Replace or push
-  const existIdx = db.tables.deals.findIndex((d) => d.id === id || d.asin === id);
-  if (existIdx !== -1) {
-    db.tables.deals[existIdx] = { ...db.tables.deals[existIdx], ...dealObj }; db.saveDb();
-    return res.status(200).json(rowToDeal(db.tables.deals[existIdx]));
+  if (row.source_verified !== 1) return res.status(409).json({ error: 'Deal is not source-verified' });
+  if (!isConfigured() || isQuotaExhausted()) return res.status(503).json({ error: 'Verified review source is unavailable' });
+  try {
+    const reviews = await fetchProductReviews(row.asin, { sortBy: 'most_helpful' });
+    if (!Array.isArray(reviews)) return res.status(502).json({ error: 'Verified review source returned invalid data' });
+    row.reviews = JSON.stringify(reviews);
+    db.saveDb();
+    res.json({ success: true, dealId: row.id, asin: row.asin, reviews, count: reviews.length, deal: rowToDeal(row) });
+  } catch (err) {
+    console.warn(`[deals] review synchronization failed for ${row.asin}:`, err.message);
+    res.status(502).json({ error: 'Unable to synchronize verified reviews' });
   }
-
-  db.tables.deals.unshift(dealObj); db.saveDb();
-  res.status(201).json(rowToDeal(dealObj));
 });
 
-// PATCH /api/deals/:id  (admin only)
+router.post('/', requireAdmin, (req, res) => {
+  try {
+    const b = req.body || {};
+    const asin = String(b.asin || '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{10}$/.test(asin)) throw new Error('Valid 10-character Amazon ASIN is required');
+    if (!String(b.title || '').trim()) throw new Error('Title is required');
+    const prices = validatePrices(b.originalPrice, b.salePrice);
+    const sourceVerified = b.sourceVerified === true;
+    const status = b.status || 'PENDING_REVIEW';
+    if (!validStatus(status)) throw new Error('Invalid deal status');
+    if (status === 'APPROVED' && !sourceVerified) throw new Error('Only source-verified deals can be approved');
+
+    const deal = {
+      id: asin,
+      title: String(b.title).trim(),
+      asin,
+      category: String(b.category || 'Electronics').trim(),
+      original_price: prices.original,
+      sale_price: prices.sale,
+      discount_percent: prices.discount,
+      image_url: b.imageUrl || '',
+      product_url: b.productUrl || `https://www.amazon.com/dp/${asin}`,
+      rating: Number(b.rating) || 0,
+      ratings_total: Number(b.ratingsTotal) || 0,
+      short_bio: b.shortBio || '',
+      full_summary: b.fullSummary || '',
+      pros: Array.isArray(b.pros) ? b.pros.join('\n') : (b.pros || ''),
+      cons: Array.isArray(b.cons) ? b.cons.join('\n') : (b.cons || ''),
+      reviews: typeof b.reviews === 'string' ? b.reviews : JSON.stringify(b.reviews || []),
+      source_sufficient: sourceVerified ? 1 : 0,
+      source_verified: sourceVerified ? 1 : 0,
+      source_provider: sourceVerified ? (b.sourceProvider || 'MANUAL_VERIFIED') : null,
+      status,
+      raw_source_data: b.rawSourceData || '',
+      created_at: Math.floor(Date.now() / 1000),
+    };
+
+    const index = db.tables.deals.findIndex((x) => x.id === asin || x.asin === asin);
+    if (index >= 0) db.tables.deals[index] = { ...db.tables.deals[index], ...deal };
+    else db.tables.deals.unshift(deal);
+    db.saveDb();
+    res.status(index >= 0 ? 200 : 201).json(rowToDeal(deal));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.patch('/:id', requireAdmin, (req, res) => {
-  const b = req.body;
-  const d = db.tables.deals.find((x) => x.id === req.params.id || x.asin === req.params.id);
-  if (!d) return res.status(404).json({ error: 'Deal not found' });
+  const deal = db.tables.deals.find((x) => x.id === req.params.id || x.asin === req.params.id);
+  if (!deal) return res.status(404).json({ error: 'Deal not found' });
+  const b = req.body || {};
 
-  if (b.title !== undefined) d.title = b.title;
-  if (b.asin !== undefined) d.asin = b.asin;
-  if (b.category !== undefined) d.category = b.category;
-  if (b.originalPrice !== undefined) d.original_price = Number(b.originalPrice);
-  if (b.salePrice !== undefined) d.sale_price = Number(b.salePrice);
-  if (b.discountPercent !== undefined) d.discount_percent = Number(b.discountPercent);
-  if (b.imageUrl !== undefined) d.image_url = b.imageUrl;
-  if (b.productUrl !== undefined) d.product_url = b.productUrl;
-  if (b.rating !== undefined) d.rating = Number(b.rating);
-  if (b.ratingsTotal !== undefined) d.ratings_total = Number(b.ratingsTotal);
-  if (b.shortBio !== undefined) d.short_bio = b.shortBio;
-  if (b.fullSummary !== undefined) d.full_summary = b.fullSummary;
-  if (b.pros !== undefined) d.pros = Array.isArray(b.pros) ? b.pros.join('\n') : b.pros;
-  if (b.cons !== undefined) d.cons = Array.isArray(b.cons) ? b.cons.join('\n') : b.cons;
-  if (b.reviews !== undefined) d.reviews = typeof b.reviews === 'string' ? b.reviews : JSON.stringify(b.reviews);
-  if (b.sourceSufficient !== undefined) d.source_sufficient = b.sourceSufficient ? 1 : 0;
-  if (b.status !== undefined) d.status = b.status;
-  if (b.rawSourceData !== undefined) d.raw_source_data = b.rawSourceData;
-
-  res.json(rowToDeal(d));
+  try {
+    if (b.asin !== undefined) {
+      const asin = String(b.asin).trim().toUpperCase();
+      if (!/^[A-Z0-9]{10}$/.test(asin)) throw new Error('Invalid ASIN');
+      deal.asin = asin;
+    }
+    if (b.title !== undefined) deal.title = String(b.title).trim();
+    if (b.category !== undefined) deal.category = String(b.category).trim();
+    if (b.originalPrice !== undefined || b.salePrice !== undefined) {
+      const p = validatePrices(b.originalPrice ?? deal.original_price, b.salePrice ?? deal.sale_price);
+      deal.original_price = p.original;
+      deal.sale_price = p.sale;
+      deal.discount_percent = p.discount;
+    }
+    if (b.imageUrl !== undefined) deal.image_url = b.imageUrl;
+    if (b.productUrl !== undefined) deal.product_url = b.productUrl;
+    if (b.rating !== undefined) deal.rating = Number(b.rating) || 0;
+    if (b.ratingsTotal !== undefined) deal.ratings_total = Number(b.ratingsTotal) || 0;
+    if (b.shortBio !== undefined) deal.short_bio = b.shortBio;
+    if (b.fullSummary !== undefined) deal.full_summary = b.fullSummary;
+    if (b.pros !== undefined) deal.pros = Array.isArray(b.pros) ? b.pros.join('\n') : b.pros;
+    if (b.cons !== undefined) deal.cons = Array.isArray(b.cons) ? b.cons.join('\n') : b.cons;
+    if (b.reviews !== undefined) deal.reviews = typeof b.reviews === 'string' ? b.reviews : JSON.stringify(b.reviews);
+    if (b.sourceVerified !== undefined) {
+      deal.source_verified = b.sourceVerified ? 1 : 0;
+      deal.source_sufficient = b.sourceVerified ? 1 : 0;
+      if (!b.sourceVerified && deal.status === 'APPROVED') deal.status = 'PENDING_REVIEW';
+    }
+    if (b.sourceProvider !== undefined) deal.source_provider = b.sourceProvider;
+    if (b.rawSourceData !== undefined) deal.raw_source_data = b.rawSourceData;
+    if (b.status !== undefined) {
+      if (!validStatus(b.status)) throw new Error('Invalid deal status');
+      if (b.status === 'APPROVED' && deal.source_verified !== 1) throw new Error('Only source-verified deals can be approved');
+      deal.status = b.status;
+    }
+    db.saveDb();
+    res.json(rowToDeal(deal));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
-// POST /api/deals/approve-all (admin only)
-router.post('/approve-all', requireAdmin, (req, res) => {
-  const deals = db.tables.deals || [];
+router.post('/approve-all', requireAdmin, (_req, res) => {
   let updatedCount = 0;
-  for (const d of deals) {
-    if (d.status === 'PENDING_REVIEW') {
-      d.status = 'APPROVED';
+  for (const deal of db.tables.deals || []) {
+    if (deal.status === 'PENDING_REVIEW' && deal.source_verified === 1) {
+      deal.status = 'APPROVED';
       updatedCount += 1;
     }
   }
+  if (updatedCount) db.saveDb();
   res.json({ success: true, approvedCount: updatedCount });
 });
 
-// POST /api/deals/bulk-status (admin only)
 router.post('/bulk-status', requireAdmin, (req, res) => {
   const { ids = [], status = 'APPROVED' } = req.body || {};
-  const deals = db.tables.deals || [];
+  if (!Array.isArray(ids) || !validStatus(status)) return res.status(400).json({ error: 'Invalid ids or status' });
   let updatedCount = 0;
-  for (const d of deals) {
-    if (ids.includes(d.id) || ids.includes(d.asin)) {
-      d.status = status;
+  for (const deal of db.tables.deals || []) {
+    if ((ids.includes(deal.id) || ids.includes(deal.asin)) && (status !== 'APPROVED' || deal.source_verified === 1)) {
+      deal.status = status;
       updatedCount += 1;
     }
   }
+  if (updatedCount) db.saveDb();
   res.json({ success: true, updatedCount });
 });
 
-// POST /api/deals/:id/expire (admin only) - manually marks deal as expired / ended
 router.post('/:id/expire', requireAdmin, (req, res) => {
-  const { reason = 'Manually marked as expired by Admin' } = req.body || {};
-  const updated = db.expireDeal(req.params.id, reason);
-  if (!updated) {
-    return res.status(404).json({ error: 'Deal not found' });
-  }
+  const updated = db.expireDeal(req.params.id, req.body?.reason || 'Manually marked as expired by Admin');
+  if (!updated) return res.status(404).json({ error: 'Deal not found' });
   res.json({ success: true, deal: rowToDeal(updated) });
 });
 
-// POST /api/deals/:id/restore (admin only) - restores an expired deal
 router.post('/:id/restore', requireAdmin, (req, res) => {
+  const deal = db.tables.deals.find((d) => d.id === req.params.id || d.asin === req.params.id);
+  if (!deal) return res.status(404).json({ error: 'Deal not found' });
+  if (deal.source_verified !== 1) return res.status(409).json({ error: 'Unverified deal cannot be restored to active status' });
   const updated = db.restoreDeal(req.params.id);
-  if (!updated) {
-    return res.status(404).json({ error: 'Deal not found' });
-  }
   res.json({ success: true, deal: rowToDeal(updated) });
 });
 
-// POST /api/deals/purge-expired (admin only) - manually triggers 24h purge
 router.post('/purge-expired', requireAdmin, (req, res) => {
-  const { maxAgeHours = 24 } = req.body || {};
-  const maxAgeSeconds = Number(maxAgeHours) * 3600;
-  const result = db.purgeExpiredDeals(maxAgeSeconds);
-  res.json({ success: true, ...result });
+  const hours = Number(req.body?.maxAgeHours ?? 24);
+  if (!Number.isFinite(hours) || hours < 1) return res.status(400).json({ error: 'Invalid maxAgeHours' });
+  res.json({ success: true, ...db.purgeExpiredDeals(hours * 3600) });
 });
 
-// DELETE /api/deals/:id  (admin only)
 router.delete('/:id', requireAdmin, (req, res) => {
-  const idx = db.tables.deals.findIndex((x) => x.id === req.params.id || x.asin === req.params.id);
-  if (idx !== -1) {
-    db.tables.deals.splice(idx, 1); db.saveDb();
+  const index = db.tables.deals.findIndex((x) => x.id === req.params.id || x.asin === req.params.id);
+  if (index !== -1) {
+    db.tables.deals.splice(index, 1);
+    db.saveDb();
   }
   res.json({ success: true });
 });

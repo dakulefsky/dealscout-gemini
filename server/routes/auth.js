@@ -2,122 +2,176 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
+const mailer = require('../services/mailService');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = '7d';
+const OTP_TTL = 15 * 60 * 1000;
+const rateBuckets = new Map();
 
+function assertJwtSecret() {
+  if (!JWT_SECRET || JWT_SECRET.length < 32) throw new Error('JWT_SECRET must be configured with at least 32 characters');
+}
 function makeToken(user) {
-  return jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES }
-  );
+  assertJwtSecret();
+  return jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+}
+function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }
+function validEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
+function validPassword(password) { return typeof password === 'string' && password.length >= 8 && password.length <= 200; }
+function randomOtp() { return crypto.randomInt(100000, 1000000).toString(); }
+function hashToken(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
+function isDevelopment() { return process.env.NODE_ENV !== 'production'; }
+
+function limiter(name, max, windowMs) {
+  return (req, res, next) => {
+    const key = `${name}:${req.ip || req.socket?.remoteAddress || 'unknown'}`;
+    const now = Date.now();
+    let bucket = rateBuckets.get(key);
+    if (!bucket || now - bucket.startedAt >= windowMs) {
+      bucket = { startedAt: now, count: 0 };
+      rateBuckets.set(key, bucket);
+    }
+    bucket.count += 1;
+    if (bucket.count > max) return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    next();
+  };
 }
 
-// GET /api/auth/me
 router.get('/me', (req, res) => {
+  try { assertJwtSecret(); } catch { return res.status(503).json({ error: 'Authentication is not configured' }); }
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
   try {
     const payload = jwt.verify(header.slice(7), JWT_SECRET);
-    const user = db.prepare('SELECT id, email, role FROM users WHERE id = ?').get(payload.id);
+    const user = db.tables.users.find((u) => u.id === payload.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json(user);
+    res.json({ id: user.id, email: user.email, role: user.role });
   } catch {
     res.status(401).json({ error: 'Invalid token' });
   }
 });
 
-// POST /api/auth/login
-router.post('/login', (req, res) => {
-  const { email, password } = req.body;
+router.post('/login', limiter('login', 10, 10 * 60 * 1000), (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const password = req.body?.password;
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase());
-  if (!user || !user.password) return res.status(401).json({ error: 'Invalid email or password' });
-  if (!bcrypt.compareSync(password, user.password)) return res.status(401).json({ error: 'Invalid email or password' });
+  const user = db.tables.users.find((u) => u.email === email);
+  if (!user || !user.password || !bcrypt.compareSync(password, user.password)) return res.status(401).json({ error: 'Invalid email or password' });
   if (!user.verified) return res.status(403).json({ error: 'Email not verified' });
-
-  res.json({ access_token: makeToken(user), user: { id: user.id, email: user.email, role: user.role } });
+  try {
+    return res.json({ access_token: makeToken(user), user: { id: user.id, email: user.email, role: user.role } });
+  } catch {
+    return res.status(503).json({ error: 'Authentication is not configured' });
+  }
 });
 
-// POST /api/auth/register
-router.post('/register', (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-  if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+router.post('/register', limiter('register', 5, 15 * 60 * 1000), async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const password = req.body?.password;
+  if (!validEmail(email)) return res.status(400).json({ error: 'Valid email required' });
+  if (!validPassword(password)) return res.status(400).json({ error: 'Password must be 8-200 characters' });
+  if (db.tables.users.some((u) => u.email === email)) return res.status(409).json({ error: 'Email already registered' });
+  if (!isDevelopment() && !mailer.isConfigured()) return res.status(503).json({ error: 'Email verification is temporarily unavailable' });
 
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase());
-  if (existing) return res.status(409).json({ error: 'Email already registered' });
-
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const expires = Date.now() + 15 * 60 * 1000; // 15 min
-  const hash = bcrypt.hashSync(password, 10);
+  const otp = randomOtp();
   const id = uuidv4();
+  db.tables.users.push({
+    id,
+    email,
+    password: bcrypt.hashSync(password, 12),
+    role: 'user',
+    verified: 0,
+    otp_code: otp,
+    otp_expires: Date.now() + OTP_TTL,
+    reset_token: null,
+    reset_expires: null,
+    created_at: Math.floor(Date.now() / 1000),
+  });
+  db.saveDb();
 
-  db.prepare(
-    'INSERT INTO users (id, email, password, otp_code, otp_expires) VALUES (?, ?, ?, ?, ?)'
-  ).run(id, email.toLowerCase(), hash, otp, expires);
+  try {
+    if (mailer.isConfigured()) await mailer.sendVerificationCode(email, otp);
+  } catch (err) {
+    console.error('[auth] Verification email failed:', err.message);
+    if (!isDevelopment()) return res.status(503).json({ error: 'Verification email could not be sent. Please use resend later.' });
+  }
 
-  // In production wire up a real mailer; for local dev we log to console and return in payload
-  console.log(`[auth] OTP for ${email}: ${otp}`);
-  res.json({ message: 'Verification code generated.', otpCode: otp });
+  const payload = { message: 'Verification code sent.' };
+  if (isDevelopment()) payload.otpCode = otp;
+  res.status(201).json(payload);
 });
 
-// POST /api/auth/verify-otp
-router.post('/verify-otp', (req, res) => {
-  const { email, otpCode } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email?.toLowerCase());
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  if (user.otp_code !== otpCode) return res.status(400).json({ error: 'Invalid verification code' });
-  if (Date.now() > user.otp_expires) return res.status(400).json({ error: 'Code expired — request a new one' });
-
-  db.prepare('UPDATE users SET verified = 1, otp_code = NULL, otp_expires = NULL WHERE id = ?').run(user.id);
-  res.json({ access_token: makeToken(user) });
+router.post('/verify-otp', limiter('verify', 10, 15 * 60 * 1000), (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const otpCode = String(req.body?.otpCode || '').trim();
+  const user = db.tables.users.find((u) => u.email === email);
+  if (!user || user.otp_code !== otpCode || !user.otp_expires || Date.now() > user.otp_expires) {
+    return res.status(400).json({ error: 'Invalid or expired verification code' });
+  }
+  user.verified = 1;
+  user.otp_code = null;
+  user.otp_expires = null;
+  db.saveDb();
+  try {
+    return res.json({ access_token: makeToken(user), user: { id: user.id, email: user.email, role: user.role } });
+  } catch {
+    return res.status(503).json({ error: 'Authentication is not configured' });
+  }
 });
 
-// POST /api/auth/resend-otp
-router.post('/resend-otp', (req, res) => {
-  const { email } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email?.toLowerCase());
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const expires = Date.now() + 15 * 60 * 1000;
-  db.prepare('UPDATE users SET otp_code = ?, otp_expires = ? WHERE id = ?').run(otp, expires, user.id);
-  console.log(`[auth] Resent OTP for ${email}: ${otp}`);
-  res.json({ message: 'OTP resent', otpCode: otp });
+router.post('/resend-otp', limiter('resend', 5, 15 * 60 * 1000), async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const user = db.tables.users.find((u) => u.email === email);
+  let devOtp = null;
+  if (user && !user.verified) {
+    user.otp_code = randomOtp();
+    user.otp_expires = Date.now() + OTP_TTL;
+    db.saveDb();
+    devOtp = user.otp_code;
+    if (mailer.isConfigured()) {
+      try { await mailer.sendVerificationCode(email, user.otp_code); }
+      catch (err) { console.error('[auth] Resend verification email failed:', err.message); }
+    }
+  }
+  const payload = { message: 'If the account exists and is unverified, a verification code will be sent.' };
+  if (isDevelopment() && devOtp) payload.otpCode = devOtp;
+  res.json(payload);
 });
 
-// POST /api/auth/forgot-password
-router.post('/forgot-password', (req, res) => {
-  const { email } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email?.toLowerCase());
-  let token = null;
+router.post('/forgot-password', limiter('forgot', 5, 15 * 60 * 1000), async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const user = db.tables.users.find((u) => u.email === email);
+  let devToken = null;
   if (user) {
-    token = uuidv4();
-    const expires = Date.now() + 60 * 60 * 1000; // 1 hour
-    db.prepare('UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?').run(token, expires, user.id);
-    console.log(`[auth] Password reset link for ${email}: /reset-password?token=${token}`);
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    user.reset_token = hashToken(rawToken);
+    user.reset_expires = Date.now() + 60 * 60 * 1000;
+    db.saveDb();
+    devToken = rawToken;
+    if (mailer.isConfigured()) {
+      try { await mailer.sendPasswordReset(email, rawToken); }
+      catch (err) { console.error('[auth] Password reset email failed:', err.message); }
+    }
   }
-  // Respond success with token for preview testing
-  res.json({ message: 'If that email exists, a reset link has been sent', resetToken: token });
+  const payload = { message: 'If that email exists, a reset link has been sent' };
+  if (isDevelopment() && devToken) payload.resetToken = devToken;
+  res.json(payload);
 });
 
-// POST /api/auth/reset-password
-router.post('/reset-password', (req, res) => {
-  const { resetToken, newPassword } = req.body;
-  if (!resetToken || !newPassword) return res.status(400).json({ error: 'Token and new password required' });
-
-  const user = db.prepare('SELECT * FROM users WHERE reset_token = ?').get(resetToken);
-  if (!user || Date.now() > user.reset_expires) {
-    return res.status(400).json({ error: 'Reset link is invalid or has expired' });
-  }
-
-  const hash = bcrypt.hashSync(newPassword, 10);
-  db.prepare('UPDATE users SET password = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?').run(hash, user.id);
+router.post('/reset-password', limiter('reset', 10, 15 * 60 * 1000), (req, res) => {
+  const { resetToken, newPassword } = req.body || {};
+  if (!resetToken || !validPassword(newPassword)) return res.status(400).json({ error: 'Valid token and password (8-200 characters) required' });
+  const tokenHash = hashToken(String(resetToken));
+  const user = db.tables.users.find((u) => u.reset_token === tokenHash);
+  if (!user || !user.reset_expires || Date.now() > user.reset_expires) return res.status(400).json({ error: 'Reset link is invalid or has expired' });
+  user.password = bcrypt.hashSync(newPassword, 12);
+  user.reset_token = null;
+  user.reset_expires = null;
+  db.saveDb();
   res.json({ message: 'Password reset successfully' });
 });
 
