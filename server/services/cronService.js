@@ -1,6 +1,7 @@
 const deals = require('../repositories/dealRepository');
 const { fetchDealsList, fetchProductByAsin } = require('./providerRouter');
 const { recordObservation } = require('./priceHistoryService');
+const { scoreVerifiedDeal } = require('./dealQualityService');
 
 async function safeRecordObservation(observation) {
   try { await recordObservation(observation); }
@@ -15,7 +16,7 @@ class DealCronService {
     this.lastPriceCheck = null;
     this.lastPurgeRun = null;
     this.isRunning = false;
-    this.stats = { totalRuns: 0, dealsAdded: 0, dealsUpdated: 0, dealsExpired: 0, dealsPurged: 0, lastError: null, nextRunEstimate: null };
+    this.stats = { totalRuns: 0, dealsAdded: 0, dealsUpdated: 0, dealsAutoApproved: 0, dealsPendingReview: 0, dealsRejected: 0, dealsExpired: 0, dealsPurged: 0, lastError: null, nextRunEstimate: null };
   }
 
   start() {
@@ -65,12 +66,7 @@ class DealCronService {
         const discountEnded = Number.isFinite(discount) && discount < 5 && Number.isFinite(original) && Number.isFinite(sale) && sale >= original;
 
         if (Number.isFinite(original) && Number.isFinite(sale) && original > 0 && sale > 0 && sale <= original) {
-          await safeRecordObservation({
-            asin: deal.asin,
-            salePrice: sale,
-            originalPrice: original,
-            sourceProvider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER',
-          });
+          await safeRecordObservation({ asin: deal.asin, salePrice: sale, originalPrice: original, sourceProvider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
         }
 
         if (outOfStock || discountEnded) {
@@ -99,31 +95,37 @@ class DealCronService {
     this.stats.lastError = null;
     let createdCount = 0;
     let updatedCount = 0;
+    let autoApprovedCount = 0;
+    let pendingCount = 0;
+    let rejectedCount = 0;
 
     try {
       const providerDeals = await fetchDealsList({ amazonDomain: 'amazon.com', maxResults: 20, minDiscount: 15 });
       for (const item of providerDeals) {
-        if (!item?.sourceVerified || !item.asin || !item.title) continue;
+        const quality = scoreVerifiedDeal(item);
+        if (quality.decision === 'REJECT') { rejectedCount += 1; continue; }
+
         const original = Number(item.originalPrice ?? item.original_price);
         const sale = Number(item.salePrice ?? item.sale_price);
-        if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0 || sale <= 0 || sale > original) continue;
         const discount = Number((((original - sale) / original) * 100).toFixed(1));
+        const status = quality.decision === 'AUTO_APPROVE' ? 'APPROVED' : 'PENDING_REVIEW';
 
         await safeRecordObservation({ asin: item.asin, salePrice: sale, originalPrice: original, sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER' });
         const existing = await deals.findByIdOrAsin(item.asin);
         if (existing) {
-          if (sale !== Number(existing.sale_price) || original !== Number(existing.original_price)) {
-            await deals.update(existing.id, {
-              sale_price: sale,
-              original_price: original,
-              discount_percent: discount,
-              price_check_at: Math.floor(Date.now() / 1000),
-              source_verified: 1,
-              source_sufficient: 1,
-              source_provider: item.sourceProvider || existing.source_provider,
-            });
-            updatedCount += 1;
-          }
+          const changes = {
+            sale_price: sale,
+            original_price: original,
+            discount_percent: discount,
+            price_check_at: Math.floor(Date.now() / 1000),
+            source_verified: 1,
+            source_sufficient: 1,
+            source_provider: item.sourceProvider || existing.source_provider,
+            quality_score: quality.score,
+          };
+          if (existing.status !== 'APPROVED' && status === 'APPROVED') changes.status = 'APPROVED';
+          await deals.update(existing.id, changes);
+          updatedCount += 1;
           continue;
         }
 
@@ -131,7 +133,7 @@ class DealCronService {
           id: item.asin,
           title: item.title,
           asin: item.asin,
-          category: item.category || 'Electronics',
+          category: item.category || 'Amazon',
           original_price: original,
           sale_price: sale,
           discount_percent: discount,
@@ -147,7 +149,8 @@ class DealCronService {
           source_sufficient: 1,
           source_verified: 1,
           source_provider: item.sourceProvider || 'VERIFIED_PROVIDER',
-          status: 'PENDING_REVIEW',
+          status,
+          quality_score: quality.score,
           is_expired: 0,
           expired_at: null,
           price_check_at: Math.floor(Date.now() / 1000),
@@ -155,11 +158,16 @@ class DealCronService {
           created_at: Math.floor(Date.now() / 1000),
         });
         createdCount += 1;
+        if (status === 'APPROVED') autoApprovedCount += 1;
+        else pendingCount += 1;
       }
       this.stats.dealsAdded += createdCount;
       this.stats.dealsUpdated += updatedCount;
+      this.stats.dealsAutoApproved += autoApprovedCount;
+      this.stats.dealsPendingReview += pendingCount;
+      this.stats.dealsRejected += rejectedCount;
       this.stats.nextRunEstimate = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
-      return { created: createdCount, updated: updatedCount, status: 'SUCCESS' };
+      return { created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount, pendingReview: pendingCount, rejected: rejectedCount, status: 'SUCCESS' };
     } catch (err) {
       this.stats.lastError = err.message;
       return { error: err.message, status: 'NOTICE' };
