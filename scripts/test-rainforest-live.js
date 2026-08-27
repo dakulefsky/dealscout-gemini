@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import { createRequire } from 'module';
+import axios from 'axios';
 
 process.env.DEAL_DATA_PROVIDER = 'rainforest';
 
@@ -12,6 +13,44 @@ const TEST_ASIN = process.env.TEST_ASIN || 'B0GGGQDY9H';
 function fail(message) {
   console.error(`FAIL: ${message}`);
   process.exitCode = 1;
+}
+
+function pick(obj, keys) {
+  if (!obj || typeof obj !== 'object') return {};
+  return Object.fromEntries(keys.filter((key) => obj[key] !== undefined).map((key) => [key, obj[key]]));
+}
+
+async function printSafeRainforestDiagnostics() {
+  try {
+    const response = await axios.get('https://api.rainforestapi.com/request', {
+      params: {
+        api_key: process.env.RAINFOREST_API_KEY,
+        type: 'product',
+        amazon_domain: 'amazon.com',
+        asin: TEST_ASIN,
+      },
+      timeout: 20000,
+    });
+    const data = response.data || {};
+    const product = data.product || {};
+    const buybox = product.buybox_winner || {};
+
+    console.log('\nSafe Rainforest diagnostic');
+    console.log(`request_info.success: ${data.request_info?.success}`);
+    console.log(`product keys: ${Object.keys(product).sort().join(', ')}`);
+    console.log('product pricing fields:', JSON.stringify(pick(product, [
+      'price', 'list_price', 'rrp', 'was_price', 'deal_price', 'deal_badge', 'availability', 'rating', 'ratings_total',
+    ])));
+    console.log(`buybox keys: ${Object.keys(buybox).sort().join(', ')}`);
+    console.log('buybox pricing fields:', JSON.stringify(pick(buybox, [
+      'price', 'list_price', 'rrp', 'was_price', 'deal_price', 'availability', 'is_prime', 'condition',
+    ])));
+  } catch (error) {
+    console.error(`Rainforest diagnostic request failed: ${error.response?.status || ''} ${error.message}`.trim());
+    if (error.response?.data?.request_info?.message) {
+      console.error(`Rainforest message: ${error.response.data.request_info.message}`);
+    }
+  }
 }
 
 async function main() {
@@ -27,7 +66,10 @@ async function main() {
   if (status.effectiveProvider !== 'rainforest') return fail(`Expected Rainforest, got ${status.effectiveProvider}`);
 
   const product = await fetchProductByAsin(TEST_ASIN);
-  if (!product) return fail(`Rainforest did not return a verifiable deal for ${TEST_ASIN}`);
+  if (!product) {
+    await printSafeRainforestDiagnostics();
+    return fail(`Rainforest did not return a verifiable deal for ${TEST_ASIN}`);
+  }
 
   console.log('\nASIN lookup');
   console.log(`ASIN: ${product.asin}`);
