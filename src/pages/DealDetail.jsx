@@ -78,8 +78,6 @@ export default function DealDetail() {
     );
   }
 
-  const pros = (deal.pros || '').split('\n').map((s) => s.trim()).filter(Boolean);
-  const cons = (deal.cons || '').split('\n').map((s) => s.trim()).filter(Boolean);
   const freshness = verificationFreshness(deal.priceCheckAt);
   const savings = Math.max(0, Number(deal.originalPrice || 0) - Number(deal.salePrice || 0));
 
@@ -126,8 +124,6 @@ export default function DealDetail() {
                   {deal.originalPrice > deal.salePrice && <span className="text-sm sm:text-base text-slate-400 line-through mb-1">{formatPrice(deal.originalPrice)}</span>}
                 </div>
                 {!deal.isExpired && savings > 0 && <p className="text-sm font-bold text-emerald-700 mt-1">You save {formatPrice(savings)} ({deal.discountPercent}% off)</p>}
-
-                {deal.shortBio && <p className="text-sm text-slate-600 leading-relaxed mt-5">{deal.shortBio}</p>}
                 {freshness.stale && !deal.isExpired && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mt-4">Price check is older than usual. Confirm the current offer on Amazon.</p>}
               </div>
 
@@ -147,22 +143,8 @@ export default function DealDetail() {
             </section>
           )}
 
-          {deal.fullSummary && (
-            <section className="bg-white rounded-3xl p-5 sm:p-7 border border-slate-200 shadow-xs">
-              <h2 className="font-heading text-lg font-black text-slate-900">Worth knowing</h2>
-              <p className="text-slate-600 leading-relaxed text-sm sm:text-base mt-3">{deal.fullSummary}</p>
-            </section>
-          )}
-
-          {(pros.length > 0 || cons.length > 0) && (
-            <section className="grid sm:grid-cols-2 gap-4">
-              {pros.length > 0 && <div className="bg-white rounded-2xl border border-slate-200 p-5"><h3 className="font-black text-slate-900 text-sm">What stands out</h3><ul className="mt-3 space-y-2 text-sm text-slate-600">{pros.map((p, i) => <li key={i} className="flex gap-2"><span className="text-emerald-600 font-bold">✓</span><span>{p.replace(/^•\s*/, '')}</span></li>)}</ul></div>}
-              {cons.length > 0 && <div className="bg-white rounded-2xl border border-slate-200 p-5"><h3 className="font-black text-slate-900 text-sm">Tradeoffs</h3><ul className="mt-3 space-y-2 text-sm text-slate-600">{cons.map((c, i) => <li key={i} className="flex gap-2"><span className="text-slate-400">•</span><span>{c.replace(/^•\s*/, '')}</span></li>)}</ul></div>}
-            </section>
-          )}
-
           <AdSensePlaceholder format="in-content" slotId="5432109876" label="Advertisement" className="w-full" />
-          <p className="text-xs text-slate-500 text-center">Want customer ratings and reviews? You can see the current Amazon listing when you open the deal.</p>
+          <p className="text-xs text-slate-500 text-center">Product details and customer feedback are available on the current Amazon listing.</p>
         </main>
 
         <aside className="lg:col-span-4 lg:sticky lg:top-20"><SidebarAds category={deal.category || 'Electronics'} /></aside>
