@@ -2,100 +2,93 @@ const express = require('express');
 const router = express.Router();
 const { analyzeDealWithGemini, askDealAssistantWithGemini } = require('../gemini');
 const db = require('../db');
+const { requireAdmin } = require('../middleware/auth');
 const { robustExtractAsin, resolveShortlink } = require('../services/siteStripeService');
 const { fetchProductByAsin } = require('../services/providerRouter');
 
-// POST /api/ai/analyze-deal
-router.post('/analyze-deal', async (req, res) => {
+const assistantRate = new Map();
+function rateLimitAssistant(req, res, next) {
+  const now = Date.now();
+  const key = req.ip || req.socket?.remoteAddress || 'unknown';
+  const current = assistantRate.get(key);
+  if (!current || now - current.startedAt > 10 * 60 * 1000) {
+    assistantRate.set(key, { startedAt: now, count: 1 });
+    return next();
+  }
+  current.count += 1;
+  if (current.count > 20) return res.status(429).json({ error: 'Too many AI requests. Please try again later.' });
+  next();
+}
+
+router.post('/analyze-deal', requireAdmin, async (req, res) => {
   try {
-    let { title, asin, url, price, originalPrice, rawText, category, imageUrl } = req.body || {};
+    let { title, asin, url, rawText, category } = req.body || {};
+    let targetUrl = String(url || '').trim();
+    let extractedAsin = asin ? (robustExtractAsin(asin) || String(asin).trim().toUpperCase()) : null;
+    if (!extractedAsin && targetUrl) extractedAsin = robustExtractAsin(targetUrl);
 
-    let targetUrl = (url || '').trim();
-    let extractedAsin = asin ? (robustExtractAsin(asin) || asin.trim()) : null;
+    if (!extractedAsin && targetUrl && /amzn\.to|a\.co|amazon\./i.test(targetUrl)) {
+      const resolved = await resolveShortlink(targetUrl);
+      extractedAsin = resolved.asin || null;
+      targetUrl = resolved.finalUrl || targetUrl;
+    }
+    if (!extractedAsin) return res.status(400).json({ error: 'A valid Amazon ASIN is required for deal analysis.' });
 
-    if (!extractedAsin && targetUrl) {
-      extractedAsin = robustExtractAsin(targetUrl);
+    const liveDetails = await fetchProductByAsin(extractedAsin, { customUrl: targetUrl });
+    if (!liveDetails?.sourceVerified) {
+      return res.status(422).json({ error: 'The product could not be verified from a live source. AI analysis was not run.' });
     }
 
-    if ((!extractedAsin || !title || !imageUrl) && targetUrl && (targetUrl.includes('amzn.to') || targetUrl.includes('a.co') || targetUrl.includes('amazon.'))) {
-      try {
-        const resolved = await resolveShortlink(targetUrl);
-        if (resolved.asin) {
-          extractedAsin = resolved.asin;
-          targetUrl = resolved.finalUrl || targetUrl;
-        }
-      } catch (err) {
-        console.warn('[AI Analyze shortlink resolve notice]:', err.message);
-      }
-    }
-
-    // If we have an ASIN, fetch ground-truth product data to guarantee accurate title, real photo, and real price
-    if (extractedAsin && (!title || !price || !imageUrl || imageUrl.includes('unsplash.com'))) {
-      try {
-        const liveDetails = await fetchProductByAsin(extractedAsin, { customUrl: targetUrl });
-        if (liveDetails) {
-          title = title || liveDetails.title;
-          extractedAsin = liveDetails.asin || extractedAsin;
-          price = price !== undefined && price !== null && price !== '' ? price : liveDetails.salePrice;
-          originalPrice = originalPrice !== undefined && originalPrice !== null && originalPrice !== '' ? originalPrice : liveDetails.originalPrice;
-          category = (category && category !== 'All') ? category : (liveDetails.category || 'Electronics');
-          imageUrl = liveDetails.imageUrl || imageUrl;
-          if (!rawText && (liveDetails.shortBio || liveDetails.fullSummary)) {
-            rawText = `${liveDetails.shortBio || ''}\n${liveDetails.fullSummary || ''}\n${Array.isArray(liveDetails.pros) ? liveDetails.pros.join('\n') : ''}`;
-          }
-        }
-      } catch (err) {
-        console.warn('[AI Analyze live ground-truth fetch notice]:', err.message);
-      }
+    title = liveDetails.title;
+    category = category && category !== 'All' ? category : liveDetails.category;
+    if (!rawText) {
+      rawText = [liveDetails.shortBio, liveDetails.fullSummary, Array.isArray(liveDetails.pros) ? liveDetails.pros.join('\n') : liveDetails.pros]
+        .filter(Boolean)
+        .join('\n');
     }
 
     const analysis = await analyzeDealWithGemini({
       title,
-      asin: extractedAsin,
-      url: targetUrl,
-      price: price ? Number(price) : undefined,
-      originalPrice: originalPrice ? Number(originalPrice) : undefined,
+      asin: liveDetails.asin || extractedAsin,
+      url: targetUrl || liveDetails.productUrl,
+      price: liveDetails.salePrice,
+      originalPrice: liveDetails.originalPrice,
       rawText,
       category,
-      imageUrl,
+      imageUrl: liveDetails.imageUrl,
     });
 
-    if (imageUrl && (!analysis.imageUrl || analysis.imageUrl.includes('unsplash.com'))) {
-      analysis.imageUrl = imageUrl;
-    }
-    if (extractedAsin && !analysis.asin) {
-      analysis.asin = extractedAsin;
-    }
-
+    analysis.asin = liveDetails.asin || extractedAsin;
+    analysis.title = liveDetails.title;
+    analysis.price = liveDetails.salePrice;
+    analysis.originalPrice = liveDetails.originalPrice;
+    analysis.imageUrl = liveDetails.imageUrl;
+    analysis.sourceVerified = true;
+    analysis.sourceProvider = liveDetails.sourceProvider;
     res.json({ success: true, data: analysis });
   } catch (err) {
     console.error('[API /ai/analyze-deal error]', err);
-    res.status(500).json({ error: err.message || 'AI deal analysis failed' });
+    res.status(500).json({ error: 'AI deal analysis failed' });
   }
 });
 
-// POST /api/ai/ask-deal-assistant
-router.post('/ask-deal-assistant', async (req, res) => {
+router.post('/ask-deal-assistant', rateLimitAssistant, async (req, res) => {
   try {
-    const { dealId, dealData, question } = req.body || {};
-    if (!question || typeof question !== 'string') {
-      return res.status(400).json({ error: 'Question is required' });
-    }
+    const { dealId, question } = req.body || {};
+    if (!question || typeof question !== 'string' || question.trim().length === 0) return res.status(400).json({ error: 'Question is required' });
+    if (question.length > 1000) return res.status(400).json({ error: 'Question is too long' });
+    if (!dealId) return res.status(400).json({ error: 'Deal ID is required' });
 
-    let deal = dealData;
-    if (!deal && dealId) {
-      deal = db.prepare('SELECT * FROM deals WHERE id = ?').get(dealId);
-    }
-
-    if (!deal) {
+    const deal = db.tables.deals.find((d) => d.id === dealId || d.asin === dealId);
+    if (!deal || deal.status !== 'APPROVED' || deal.is_expired === 1 || deal.source_verified !== 1) {
       return res.status(404).json({ error: 'Deal context not found' });
     }
 
-    const response = await askDealAssistantWithGemini({ deal, question });
+    const response = await askDealAssistantWithGemini({ deal, question: question.trim() });
     res.json({ success: true, answer: response.answer });
   } catch (err) {
     console.error('[API /ai/ask-deal-assistant error]', err);
-    res.status(500).json({ error: err.message || 'AI shopping assistant failed' });
+    res.status(500).json({ error: 'AI shopping assistant failed' });
   }
 });
 
