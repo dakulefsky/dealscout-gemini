@@ -4,10 +4,10 @@ export default function AffiliateBanner() {
   return (
     <div className="bg-slate-100 border-t border-slate-200">
       <div className="max-w-7xl mx-auto px-4 py-3 text-center">
-        <p className="text-[11px] text-slate-500 leading-relaxed">
-          DealScout is a participant in the Amazon Services LLC Associates Program.{' '}
-          <Link to="/disclosure" className="underline hover:text-slate-700">
-            Affiliate Disclosure
+        <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+          As an Amazon Associate I earn from qualifying purchases.{' '}
+          <Link to="/disclosure" className="underline underline-offset-2 hover:text-slate-900">
+            See how DealScout verifies and reviews deals.
           </Link>
         </p>
       </div>
