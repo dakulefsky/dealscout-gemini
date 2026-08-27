@@ -50,6 +50,9 @@ async function startServer() {
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/api/auth', require('./server/routes/auth.js'));
+  // Mount real observed price history before the general deals router so the
+  // legacy simulated-history handler can no longer answer this endpoint.
+  app.use('/api/deals', require('./server/routes/priceHistory.js'));
   app.use('/api/deals', require('./server/routes/deals.js'));
   app.use('/api/categories', require('./server/routes/categories.js'));
   app.use('/api/functions', require('./server/routes/functions.js'));
