@@ -46,6 +46,10 @@ async function startServer() {
   app.use(cors({ origin: isProduction ? (configuredOrigin || false) : true, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
 
+  const amazonContentPolicy = require('./server/middleware/amazonContentPolicy.js');
+  app.use(amazonContentPolicy.blockThirdPartyAmazonReviews);
+  app.use(amazonContentPolicy.strictRainforestSearch);
+
   app.use('/api/auth', require('./server/routes/auth.js'));
   app.use('/api/deals', require('./server/routes/priceHistory.js'));
   app.use('/api/deals', require('./server/middleware/verifiedAiIngestGuard.js').verifiedAiIngestGuard);
