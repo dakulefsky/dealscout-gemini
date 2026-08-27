@@ -2,6 +2,14 @@ const db = require('../db');
 const { fetchDealsList, fetchProductByAsin } = require('./providerRouter');
 const { recordObservation } = require('./priceHistoryService');
 
+async function safeRecordObservation(observation) {
+  try {
+    await recordObservation(observation);
+  } catch (err) {
+    console.warn('[DealCronService] Price history observation skipped:', err.message);
+  }
+}
+
 class DealCronService {
   constructor() {
     this.intervalId = null;
@@ -61,7 +69,7 @@ class DealCronService {
         const discountEnded = Number.isFinite(discount) && discount < 5 && Number.isFinite(original) && Number.isFinite(sale) && sale >= original;
 
         if (Number.isFinite(original) && Number.isFinite(sale) && original > 0 && sale > 0 && sale <= original) {
-          recordObservation({
+          await safeRecordObservation({
             asin: deal.asin,
             salePrice: sale,
             originalPrice: original,
@@ -107,7 +115,7 @@ class DealCronService {
         if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0 || sale <= 0 || sale > original) continue;
         const discount = Number((((original - sale) / original) * 100).toFixed(1));
 
-        recordObservation({
+        await safeRecordObservation({
           asin: item.asin,
           salePrice: sale,
           originalPrice: original,
