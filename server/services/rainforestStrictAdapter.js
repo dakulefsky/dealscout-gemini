@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { imageCandidates } = require('./rainforestImage');
 
 const ENDPOINT = 'https://api.rainforestapi.com/request';
 
@@ -51,9 +52,7 @@ async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com',
   });
 
   const data = response.data || {};
-  if (data.request_info?.success === false) {
-    throw new Error(data.request_info.message || 'Rainforest request failed');
-  }
+  if (data.request_info?.success === false) throw new Error(data.request_info.message || 'Rainforest request failed');
 
   const product = data.product;
   if (!product?.asin || !product?.title) throw new Error(`Rainforest returned no product for ${asin}`);
@@ -61,17 +60,12 @@ async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com',
   const buybox = product.buybox_winner || {};
   const salePrice = moneyValue(buybox.price) ?? moneyValue(product.price);
   const originalPrice = moneyValue(buybox.rrp) ?? moneyValue(product.rrp);
-
-  if (!Number.isFinite(salePrice) || salePrice <= 0) {
-    throw new Error('Rainforest product has no verifiable current buy-box price');
-  }
-  if (!Number.isFinite(originalPrice) || originalPrice <= salePrice) {
-    throw new Error('Rainforest product has no verifiable higher RRP/list price, so it is not treated as a deal');
-  }
+  if (!Number.isFinite(salePrice) || salePrice <= 0) throw new Error('Rainforest product has no verifiable current buy-box price');
+  if (!Number.isFinite(originalPrice) || originalPrice <= salePrice) throw new Error('Rainforest product has no verifiable higher RRP/list price, so it is not treated as a deal');
 
   const categories = Array.isArray(product.categories) ? product.categories : [];
   const category = categories[0]?.name || product.search_alias || 'Amazon';
-  const imageUrl = product.main_image?.link || product.images?.[0]?.link || null;
+  const gallery = imageCandidates(product.main_image, product.images, product.images_flat, product.image);
 
   return {
     asin: String(product.asin).toUpperCase(),
@@ -82,8 +76,8 @@ async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com',
     originalPrice,
     discountPercent: Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1)),
     savingsAmount: Number((originalPrice - salePrice).toFixed(2)),
-    imageUrl,
-    imageGallery: Array.isArray(product.images) ? product.images.map((image) => image.link).filter(Boolean) : [],
+    imageUrl: gallery[0] || null,
+    imageGallery: gallery,
     productUrl: affiliateUrl(product.asin),
     rawProductUrl: product.link || `https://www.amazon.com/dp/${product.asin}`,
     rating: Number(product.rating) || null,
