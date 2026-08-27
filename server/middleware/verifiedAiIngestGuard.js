@@ -26,10 +26,14 @@ function normalizeVerifiedAiBody(body = {}, live = {}) {
     productUrl: live.productUrl || `https://www.amazon.com/dp/${asin}`,
     rating: Number(live.rating) || 0,
     ratingsTotal: Number(live.ratingsTotal) || 0,
+    shortBio: '',
+    fullSummary: '',
+    pros: [],
+    cons: [],
     reviews: [],
     sourceVerified: true,
     sourceProvider: live.sourceProvider || 'VERIFIED_PROVIDER',
-    rawSourceData: `${live.sourceProvider || 'Verified provider'} | AI-assisted editorial content | ASIN: ${asin}`,
+    rawSourceData: `${live.sourceProvider || 'Verified provider'} | AI-assisted product verification only | ASIN: ${asin}`,
   };
 }
 
