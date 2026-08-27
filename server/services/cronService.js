@@ -1,13 +1,10 @@
-const db = require('../db');
+const deals = require('../repositories/dealRepository');
 const { fetchDealsList, fetchProductByAsin } = require('./providerRouter');
 const { recordObservation } = require('./priceHistoryService');
 
 async function safeRecordObservation(observation) {
-  try {
-    await recordObservation(observation);
-  } catch (err) {
-    console.warn('[DealCronService] Price history observation skipped:', err.message);
-  }
+  try { await recordObservation(observation); }
+  catch (err) { console.warn('[DealCronService] Price history observation skipped:', err.message); }
 }
 
 class DealCronService {
@@ -44,24 +41,23 @@ class DealCronService {
 
   async purgeOldExpiredDeals() {
     this.lastPurgeRun = new Date();
-    const result = db.purgeExpiredDeals(86400);
+    const result = await deals.purgeExpired(86400);
     this.stats.dealsPurged += result.purgedCount || 0;
     return result;
   }
 
   async checkDealPricesAndAvailability() {
     this.lastPriceCheck = new Date();
-    const activeDeals = (db.tables.deals || []).filter((d) => !d.is_expired && d.status === 'APPROVED' && (d.source_verified === 1 || d.source_sufficient === 1));
+    const all = await deals.listAll();
+    const activeDeals = all.filter((d) => !d.is_expired && d.status === 'APPROVED' && d.source_verified === 1);
     let expiredCount = 0;
     let checkedCount = 0;
-    let changed = false;
 
     for (const deal of activeDeals.slice(0, 10)) {
       checkedCount += 1;
       try {
         const liveInfo = await fetchProductByAsin(deal.asin);
         if (!liveInfo?.sourceVerified) continue;
-        deal.price_check_at = Math.floor(Date.now() / 1000);
         const outOfStock = liveInfo.availability && /out of stock|unavailable/i.test(liveInfo.availability);
         const original = Number(liveInfo.originalPrice);
         const sale = Number(liveInfo.salePrice);
@@ -78,20 +74,19 @@ class DealCronService {
         }
 
         if (outOfStock || discountEnded) {
-          db.expireDeal(deal.id, outOfStock ? 'Product unavailable at verified source' : 'Verified deal ended');
+          await deals.expire(deal.id, outOfStock ? 'Product unavailable at verified source' : 'Verified deal ended');
           expiredCount += 1;
-          changed = true;
-        } else if (Number.isFinite(sale) && sale > 0 && sale !== Number(deal.sale_price)) {
-          deal.sale_price = sale;
-          if (Number.isFinite(original) && original >= sale) deal.original_price = original;
-          if (Number.isFinite(discount) && discount >= 0) deal.discount_percent = discount;
-          changed = true;
+        } else {
+          const changes = { price_check_at: Math.floor(Date.now() / 1000) };
+          if (Number.isFinite(sale) && sale > 0) changes.sale_price = sale;
+          if (Number.isFinite(original) && original >= sale) changes.original_price = original;
+          if (Number.isFinite(discount) && discount >= 0) changes.discount_percent = discount;
+          await deals.update(deal.id, changes);
         }
       } catch (err) {
         console.warn(`[DealCronService] Price verification for ${deal.asin}:`, err.message);
       }
     }
-    if (changed) db.saveDb();
     this.stats.dealsExpired += expiredCount;
     return { checkedCount, expiredCount };
   }
@@ -104,40 +99,35 @@ class DealCronService {
     this.stats.lastError = null;
     let createdCount = 0;
     let updatedCount = 0;
-    let changed = false;
 
     try {
-      const deals = await fetchDealsList({ amazonDomain: 'amazon.com', maxResults: 20, minDiscount: 15 });
-      for (const item of deals) {
+      const providerDeals = await fetchDealsList({ amazonDomain: 'amazon.com', maxResults: 20, minDiscount: 15 });
+      for (const item of providerDeals) {
         if (!item?.sourceVerified || !item.asin || !item.title) continue;
         const original = Number(item.originalPrice ?? item.original_price);
         const sale = Number(item.salePrice ?? item.sale_price);
         if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0 || sale <= 0 || sale > original) continue;
         const discount = Number((((original - sale) / original) * 100).toFixed(1));
 
-        await safeRecordObservation({
-          asin: item.asin,
-          salePrice: sale,
-          originalPrice: original,
-          sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER',
-        });
-
-        const existing = db.tables.deals.find((d) => d.asin === item.asin || d.id === item.asin);
+        await safeRecordObservation({ asin: item.asin, salePrice: sale, originalPrice: original, sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER' });
+        const existing = await deals.findByIdOrAsin(item.asin);
         if (existing) {
           if (sale !== Number(existing.sale_price) || original !== Number(existing.original_price)) {
-            existing.sale_price = sale;
-            existing.original_price = original;
-            existing.discount_percent = discount;
-            existing.price_check_at = Math.floor(Date.now() / 1000);
-            existing.source_verified = 1;
-            existing.source_provider = item.sourceProvider || existing.source_provider;
+            await deals.update(existing.id, {
+              sale_price: sale,
+              original_price: original,
+              discount_percent: discount,
+              price_check_at: Math.floor(Date.now() / 1000),
+              source_verified: 1,
+              source_sufficient: 1,
+              source_provider: item.sourceProvider || existing.source_provider,
+            });
             updatedCount += 1;
-            changed = true;
           }
           continue;
         }
 
-        db.tables.deals.unshift({
+        await deals.upsert({
           id: item.asin,
           title: item.title,
           asin: item.asin,
@@ -153,7 +143,7 @@ class DealCronService {
           full_summary: item.fullSummary || item.full_summary || '',
           pros: item.pros || '',
           cons: item.cons || '',
-          reviews: typeof item.reviews === 'string' ? item.reviews : JSON.stringify(item.reviews || []),
+          reviews: item.reviews || [],
           source_sufficient: 1,
           source_verified: 1,
           source_provider: item.sourceProvider || 'VERIFIED_PROVIDER',
@@ -165,9 +155,7 @@ class DealCronService {
           created_at: Math.floor(Date.now() / 1000),
         });
         createdCount += 1;
-        changed = true;
       }
-      if (changed) db.saveDb();
       this.stats.dealsAdded += createdCount;
       this.stats.dealsUpdated += updatedCount;
       this.stats.nextRunEstimate = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
@@ -180,14 +168,14 @@ class DealCronService {
     }
   }
 
-  getStatus() {
+  async getStatus() {
     return {
       running: Boolean(this.intervalId),
       lastRun: this.lastRun ? this.lastRun.toISOString() : null,
       lastPriceCheck: this.lastPriceCheck ? this.lastPriceCheck.toISOString() : null,
       lastPurgeRun: this.lastPurgeRun ? this.lastPurgeRun.toISOString() : null,
       nextRunEstimate: this.stats.nextRunEstimate,
-      lifecycle: db.getDealLifecycleStats(),
+      lifecycle: await deals.lifecycleStats(),
       stats: this.stats,
     };
   }
