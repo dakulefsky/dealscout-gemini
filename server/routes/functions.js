@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const deals = require('../repositories/dealRepository');
 const { requireAdmin } = require('../middleware/auth');
 const {
   isConfigured,
@@ -49,13 +49,47 @@ function requireVerifiedProduct(item) {
   };
 }
 
+function providerDealRecord(item, status = 'PENDING_REVIEW', productUrl) {
+  return {
+    id: item.asin,
+    title: item.title,
+    asin: item.asin,
+    category: item.category || 'Electronics',
+    original_price: item.originalPrice,
+    sale_price: item.salePrice,
+    discount_percent: item.discountPercent,
+    image_url: item.imageUrl || item.image_url || '',
+    product_url: formatAffiliateUrl(productUrl || item.productUrl || item.product_url || `https://www.amazon.com/dp/${item.asin}`, AMAZON_ASSOCIATE_TAG),
+    rating: Number(item.rating) || 0,
+    ratings_total: Number(item.ratingsTotal || item.ratings_total) || 0,
+    short_bio: item.shortBio || item.short_bio || '',
+    full_summary: item.fullSummary || item.full_summary || '',
+    pros: item.pros || '',
+    cons: item.cons || '',
+    reviews: item.reviews || [],
+    source_sufficient: 1,
+    source_verified: 1,
+    source_provider: item.sourceProvider || 'VERIFIED_PROVIDER',
+    status,
+    is_expired: 0,
+    expired_at: null,
+    price_check_at: Math.floor(Date.now() / 1000),
+    raw_source_data: item.rawSourceData || item.raw_source_data || `${item.sourceProvider || 'Verified provider'} | ASIN: ${item.asin}`,
+    created_at: Math.floor(Date.now() / 1000),
+  };
+}
+
 router.get('/provider-status', async (_req, res) => {
-  res.json({
-    ...(await getProviderStatus()),
-    lifecycle: db.getDealLifecycleStats(),
-    cron: dealCron.getStatus(),
-    associateTag: AMAZON_ASSOCIATE_TAG,
-  });
+  try {
+    res.json({
+      ...(await getProviderStatus()),
+      lifecycle: await deals.lifecycleStats(),
+      cron: await dealCron.getStatus(),
+      associateTag: AMAZON_ASSOCIATE_TAG,
+    });
+  } catch (err) {
+    res.status(503).json({ error: 'Provider status is temporarily unavailable', details: err.message });
+  }
 });
 
 async function switchProvider(req, res) {
@@ -109,7 +143,6 @@ async function handleSiteStripeImportReq(req, res) {
     const parsed = parseSiteStripeInput(rawInput);
     let asin = parsed.asin || robustExtractAsin(rawInput);
     let customUrl = parsed.cleanUrl || parsed.shortlinkUrl || (/^https?:/i.test(rawInput) ? rawInput : null);
-
     if ((!asin || parsed.isShortlink) && /^https?:/i.test(rawInput)) {
       const resolved = await resolveShortlink(parsed.shortlinkUrl || rawInput);
       asin = resolved.asin || asin;
@@ -117,48 +150,16 @@ async function handleSiteStripeImportReq(req, res) {
     }
     if (!asin) return res.status(400).json({ error: 'Could not extract a valid Amazon ASIN.' });
 
-    const existing = db.tables.deals.find((d) => d.asin === asin || d.id === asin);
+    const existing = await deals.findByIdOrAsin(asin);
     if (existing) return res.json({ success: true, alreadyExists: true, deal: existing, affiliateTag: AMAZON_ASSOCIATE_TAG });
 
     const item = requireVerifiedProduct(await fetchProductByAsin(asin, { customUrl }));
     if (!item) {
-      return res.status(422).json({
-        error: 'Deal could not be verified from a live source. It was not imported.',
-        code: 'UNVERIFIED_DEAL',
-      });
+      return res.status(422).json({ error: 'Deal could not be verified from a live source. It was not imported.', code: 'UNVERIFIED_DEAL' });
     }
 
-    const autoApprove = req.body?.autoApprove === true;
-    const dealObj = {
-      id: asin,
-      title: item.title,
-      asin,
-      category: item.category || 'Electronics',
-      original_price: item.originalPrice,
-      sale_price: item.salePrice,
-      discount_percent: item.discountPercent,
-      image_url: item.imageUrl || item.image_url || '',
-      product_url: formatAffiliateUrl(customUrl || item.productUrl || item.product_url || `https://www.amazon.com/dp/${asin}`, AMAZON_ASSOCIATE_TAG),
-      rating: Number(item.rating) || 0,
-      ratings_total: Number(item.ratingsTotal || item.ratings_total) || 0,
-      short_bio: item.shortBio || item.short_bio || '',
-      full_summary: item.fullSummary || item.full_summary || '',
-      pros: item.pros || '',
-      cons: item.cons || '',
-      reviews: typeof item.reviews === 'string' ? item.reviews : JSON.stringify(item.reviews || []),
-      source_sufficient: 1,
-      source_verified: 1,
-      source_provider: item.sourceProvider || 'VERIFIED_PROVIDER',
-      status: autoApprove ? 'APPROVED' : 'PENDING_REVIEW',
-      is_expired: 0,
-      expired_at: null,
-      price_check_at: Math.floor(Date.now() / 1000),
-      raw_source_data: item.rawSourceData || item.raw_source_data || `${item.sourceProvider || 'Verified provider'} | ASIN: ${asin}`,
-      created_at: Math.floor(Date.now() / 1000),
-    };
-    db.tables.deals.unshift(dealObj);
-    db.saveDb();
-    res.json({ success: true, alreadyExists: false, deal: dealObj, affiliateTag: AMAZON_ASSOCIATE_TAG });
+    const deal = await deals.upsert(providerDealRecord(item, req.body?.autoApprove === true ? 'APPROVED' : 'PENDING_REVIEW', customUrl));
+    res.json({ success: true, alreadyExists: false, deal, affiliateTag: AMAZON_ASSOCIATE_TAG });
   } catch (err) {
     console.error('[SiteStripe Import Error]', err);
     res.status(500).json({ error: err.message || 'Failed to import SiteStripe deal.' });
@@ -170,37 +171,33 @@ router.post('/sitestripe-import', requireAdmin, handleSiteStripeImportReq);
 router.post('/verify-prices', requireAdmin, async (_req, res) => {
   try {
     const result = await dealCron.checkDealPricesAndAvailability();
-    res.json({ success: true, ...result, lifecycle: db.getDealLifecycleStats() });
+    res.json({ success: true, ...result, lifecycle: await deals.lifecycleStats() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-router.post('/purge-expired', requireAdmin, (req, res) => {
-  const maxAgeHours = Math.max(1, Number(req.body?.maxAgeHours) || 24);
-  const result = db.purgeExpiredDeals(maxAgeHours * 3600);
-  res.json({ success: true, ...result, lifecycle: db.getDealLifecycleStats() });
+router.post('/purge-expired', requireAdmin, async (req, res) => {
+  try {
+    const maxAgeHours = Math.max(1, Number(req.body?.maxAgeHours) || 24);
+    const result = await deals.purgeExpired(maxAgeHours * 3600);
+    res.json({ success: true, ...result, lifecycle: await deals.lifecycleStats() });
+  } catch (err) {
+    res.status(503).json({ error: err.message });
+  }
 });
 
 router.get('/rainforest-status', async (_req, res) => {
   const configured = isConfigured();
   const accountInfo = configured ? await getAccountStatus().catch(() => null) : null;
-  res.json({
-    configured,
-    quotaExhausted: Boolean(isQuotaExhausted() || accountInfo?.quotaExhausted),
-    provider: 'Rainforest API',
-    account: accountInfo?.account || null,
-  });
+  res.json({ configured, quotaExhausted: Boolean(isQuotaExhausted() || accountInfo?.quotaExhausted), provider: 'Rainforest API', account: accountInfo?.account || null });
 });
 
 router.post('/amazon-redirect', (req, res) => {
   const url = req.body?.url;
   if (!url || typeof url !== 'string') return res.status(400).json({ error: 'Missing or invalid url' });
-  try {
-    res.json({ redirectUrl: formatAffiliateUrl(url, AMAZON_ASSOCIATE_TAG), tag: AMAZON_ASSOCIATE_TAG });
-  } catch (err) {
-    res.status(400).json({ error: err.message || 'Invalid Amazon URL' });
-  }
+  try { res.json({ redirectUrl: formatAffiliateUrl(url, AMAZON_ASSOCIATE_TAG), tag: AMAZON_ASSOCIATE_TAG }); }
+  catch (err) { res.status(400).json({ error: err.message || 'Invalid Amazon URL' }); }
 });
 
 router.post('/rainforest-lookup', requireAdmin, async (req, res) => {
@@ -240,11 +237,8 @@ router.post('/rainforest-reviews', requireAdmin, async (req, res) => {
     if (!cleanAsin) return res.status(400).json({ error: 'Valid ASIN required.' });
     if (!isConfigured() || isQuotaExhausted()) return res.status(503).json({ error: 'Verified reviews are unavailable.' });
     const reviews = await fetchProductReviews(cleanAsin, { amazonDomain: req.body?.amazonDomain || 'amazon.com', sortBy: req.body?.sortBy || 'most_helpful' });
-    const deal = db.tables.deals.find((d) => d.asin === cleanAsin || d.id === cleanAsin);
-    if (deal && Array.isArray(reviews)) {
-      deal.reviews = JSON.stringify(reviews);
-      db.saveDb();
-    }
+    const deal = await deals.findByIdOrAsin(cleanAsin);
+    if (deal && Array.isArray(reviews)) await deals.update(deal.id, { reviews });
     res.json({ configured: true, asin: cleanAsin, reviews: reviews || [], count: reviews?.length || 0 });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to fetch reviews' });
@@ -264,38 +258,13 @@ router.post('/fetch-deals', requireAdmin, async (req, res) => {
         skipped.push({ asin: rawItem?.asin || null, reason: 'unverified' });
         continue;
       }
-      if (db.tables.deals.some((d) => d.asin === item.asin || d.id === item.asin)) {
+      if (await deals.findByIdOrAsin(item.asin)) {
         skipped.push({ asin: item.asin, reason: 'exists' });
         continue;
       }
-      const deal = {
-        id: item.asin,
-        title: item.title,
-        asin: item.asin,
-        category: item.category || 'Electronics',
-        original_price: item.originalPrice,
-        sale_price: item.salePrice,
-        discount_percent: item.discountPercent,
-        image_url: item.imageUrl || item.image_url || '',
-        product_url: formatAffiliateUrl(item.productUrl || item.product_url || `https://www.amazon.com/dp/${item.asin}`, AMAZON_ASSOCIATE_TAG),
-        rating: Number(item.rating) || 0,
-        ratings_total: Number(item.ratingsTotal || item.ratings_total) || 0,
-        short_bio: item.shortBio || item.short_bio || '',
-        full_summary: item.fullSummary || item.full_summary || '',
-        pros: item.pros || '',
-        cons: item.cons || '',
-        reviews: typeof item.reviews === 'string' ? item.reviews : JSON.stringify(item.reviews || []),
-        source_sufficient: 1,
-        source_verified: 1,
-        source_provider: item.sourceProvider || 'VERIFIED_PROVIDER',
-        status: 'PENDING_REVIEW',
-        raw_source_data: item.rawSourceData || item.raw_source_data || 'Verified provider ingest',
-        created_at: Math.floor(Date.now() / 1000),
-      };
-      db.tables.deals.unshift(deal);
+      await deals.upsert(providerDealRecord(item));
       created += 1;
     }
-    if (created) db.saveDb();
     res.json({ created, skipped, processed: dealsToIngest.length });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to fetch deals' });
