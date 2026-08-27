@@ -2,6 +2,7 @@ const deals = require('../repositories/dealRepository');
 const { fetchDealsList, fetchProductByAsin } = require('./providerRouter');
 const { recordObservation } = require('./priceHistoryService');
 const { scoreVerifiedDeal } = require('./dealQualityService');
+const { publishingDecision, getHoldbackPercent } = require('./editorialCadenceService');
 
 async function safeRecordObservation(observation) {
   try { await recordObservation(observation); }
@@ -16,7 +17,7 @@ class DealCronService {
     this.lastPriceCheck = null;
     this.lastPurgeRun = null;
     this.isRunning = false;
-    this.stats = { totalRuns: 0, dealsAdded: 0, dealsUpdated: 0, dealsAutoApproved: 0, dealsPendingReview: 0, dealsRejected: 0, dealsExpired: 0, dealsPurged: 0, lastError: null, nextRunEstimate: null };
+    this.stats = { totalRuns: 0, dealsAdded: 0, dealsUpdated: 0, dealsAutoApproved: 0, dealsPendingReview: 0, dealsEditorialHoldback: 0, dealsRejected: 0, dealsExpired: 0, dealsPurged: 0, lastError: null, nextRunEstimate: null };
   }
 
   start() {
@@ -97,6 +98,7 @@ class DealCronService {
     let updatedCount = 0;
     let autoApprovedCount = 0;
     let pendingCount = 0;
+    let holdbackCount = 0;
     let rejectedCount = 0;
 
     try {
@@ -108,7 +110,9 @@ class DealCronService {
         const original = Number(item.originalPrice ?? item.original_price);
         const sale = Number(item.salePrice ?? item.sale_price);
         const discount = Number((((original - sale) / original) * 100).toFixed(1));
-        const status = quality.decision === 'AUTO_APPROVE' ? 'APPROVED' : 'PENDING_REVIEW';
+        const publication = publishingDecision(item, quality);
+        const status = publication.status;
+        if (publication.reason === 'EDITORIAL_HOLDBACK') holdbackCount += 1;
 
         await safeRecordObservation({ asin: item.asin, salePrice: sale, originalPrice: original, sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER' });
         const existing = await deals.findByIdOrAsin(item.asin);
@@ -145,7 +149,7 @@ class DealCronService {
           full_summary: item.fullSummary || item.full_summary || '',
           pros: item.pros || '',
           cons: item.cons || '',
-          reviews: item.reviews || [],
+          reviews: [],
           source_sufficient: 1,
           source_verified: 1,
           source_provider: item.sourceProvider || 'VERIFIED_PROVIDER',
@@ -154,7 +158,7 @@ class DealCronService {
           is_expired: 0,
           expired_at: null,
           price_check_at: Math.floor(Date.now() / 1000),
-          raw_source_data: item.rawSourceData || item.raw_source_data || `${item.sourceProvider || 'Verified provider'} | ASIN: ${item.asin}`,
+          raw_source_data: `${item.sourceProvider || 'Verified provider'} | ASIN: ${item.asin} | publication=${publication.reason}`,
           created_at: Math.floor(Date.now() / 1000),
         });
         createdCount += 1;
@@ -165,9 +169,10 @@ class DealCronService {
       this.stats.dealsUpdated += updatedCount;
       this.stats.dealsAutoApproved += autoApprovedCount;
       this.stats.dealsPendingReview += pendingCount;
+      this.stats.dealsEditorialHoldback += holdbackCount;
       this.stats.dealsRejected += rejectedCount;
       this.stats.nextRunEstimate = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
-      return { created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount, pendingReview: pendingCount, rejected: rejectedCount, status: 'SUCCESS' };
+      return { created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount, pendingReview: pendingCount, editorialHoldback: holdbackCount, rejected: rejectedCount, editorialHoldbackPercent: getHoldbackPercent(), status: 'SUCCESS' };
     } catch (err) {
       this.stats.lastError = err.message;
       return { error: err.message, status: 'NOTICE' };
@@ -183,6 +188,7 @@ class DealCronService {
       lastPriceCheck: this.lastPriceCheck ? this.lastPriceCheck.toISOString() : null,
       lastPurgeRun: this.lastPurgeRun ? this.lastPurgeRun.toISOString() : null,
       nextRunEstimate: this.stats.nextRunEstimate,
+      editorialHoldbackPercent: getHoldbackPercent(),
       lifecycle: await deals.lifecycleStats(),
       stats: this.stats,
     };
