@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowRight, CheckCircle2, Clock, Eraser, Image, Loader2, RefreshCw, Settings2, ShieldCheck, Sparkles, Wrench } from 'lucide-react';
+import { Activity, ArrowRight, CheckCircle2, Clock, Eraser, History, Image, Loader2, RefreshCw, Settings2, ShieldCheck, Sparkles, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { deals as dealsApi, functions } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
@@ -15,34 +15,60 @@ function Stat({ label, value, hint }) {
   );
 }
 
+function activityLabel(action = '') {
+  const labels = {
+    'deal.expire': 'Expired deal',
+    'deal.restore': 'Restored deal',
+    'deal.bulk_status': 'Updated deal statuses',
+    'deal.approve_all': 'Approved review queue',
+    'images.repair': 'Repaired product images',
+    'legacy_enrichment.cleanup': 'Cleaned legacy copy',
+    'prices.verify': 'Checked deal prices',
+    'deals.discover': 'Ran deal discovery',
+    'provider.switch': 'Changed data provider',
+    'deal.import': 'Imported deal',
+    'editorial.save': 'Saved DealScout Pick review',
+    'editorial.remove': 'Removed DealScout Pick review',
+  };
+  return labels[action] || String(action).replace(/[._]/g, ' ');
+}
+
+function relativeTime(unix) {
+  const seconds = Math.max(0, Math.floor(Date.now() / 1000) - Number(unix || 0));
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
 export default function AdminHome() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
   const [stats, setStats] = useState({});
   const [lifecycle, setLifecycle] = useState({});
   const [provider, setProvider] = useState({});
-  const [images, setImages] = useState({});
   const [integrity, setIntegrity] = useState({});
   const [legacyCleanup, setLegacyCleanup] = useState({});
+  const [recentActivity, setRecentActivity] = useState([]);
   const { toast } = useToast();
 
   async function load() {
     setLoading(true);
     try {
-      const [s, l, p, i, h, c] = await Promise.all([
+      const [s, l, p, h, c, a] = await Promise.all([
         dealsApi.getStats().catch(() => ({})),
         dealsApi.getLifecycleStats().catch(() => ({})),
         functions.providerStatus().catch(() => ({})),
-        functions.imageHealth().catch(() => ({})),
         functions.integrityHealth().catch(() => ({})),
         functions.legacyEnrichmentPreview().catch(() => ({})),
+        functions.adminActivity(8).catch(() => ({ activity: [] })),
       ]);
       setStats(s || {});
       setLifecycle(l || {});
       setProvider(p || {});
-      setImages(i || {});
       setIntegrity(h || {});
       setLegacyCleanup(c || {});
+      setRecentActivity(a?.activity || []);
     } finally {
       setLoading(false);
     }
@@ -105,7 +131,6 @@ export default function AdminHome() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-slate-500">Provider</span><span className="font-bold text-slate-800">{provider.activeProvider || 'auto'}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Rainforest</span><span className={provider.rainforest?.configured ? 'font-bold text-emerald-700' : 'font-bold text-amber-700'}>{provider.rainforest?.configured ? 'Ready' : 'Not configured'}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Price monitor</span><span className="font-bold text-slate-800">{provider.cron?.running ? 'Running' : 'Idle'}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Missing images</span><span className={integrity.missingImages > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{integrity.missingImages || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Stale prices</span><span className={integrity.stalePrices > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{integrity.stalePrices || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Approved unverified</span><span className={integrity.unverifiedApproved > 0 ? 'font-bold text-rose-700' : 'font-bold text-emerald-700'}>{integrity.unverifiedApproved || 0}</span></div>
@@ -137,6 +162,25 @@ export default function AdminHome() {
           </div>
         </div>
       </div>
+
+      <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6">
+        <div className="flex items-center gap-2 mb-4"><History className="w-5 h-5 text-slate-600" /><h2 className="font-black text-slate-900">Recent activity</h2></div>
+        {recentActivity.length === 0 ? (
+          <p className="text-sm text-slate-500">Admin actions will appear here as they happen.</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {recentActivity.map((item) => (
+              <div key={item.id} className="py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-slate-800 capitalize">{activityLabel(item.action)}</div>
+                  <div className="text-xs text-slate-500 mt-0.5 truncate">{item.target_id ? `${item.target_type || 'item'}: ${item.target_id}` : item.path}</div>
+                </div>
+                <div className="text-right shrink-0"><div className="text-xs text-slate-500">{relativeTime(item.created_at)}</div><div className="text-[10px] text-slate-400 mt-0.5 max-w-[180px] truncate">{item.actor || 'admin'}</div></div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
