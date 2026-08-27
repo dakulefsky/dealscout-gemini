@@ -3,6 +3,7 @@ const { fetchDealsList, fetchProductByAsin } = require('./providerRouter');
 const { recordObservation } = require('./priceHistoryService');
 const { scoreVerifiedDeal } = require('./dealQualityService');
 const { publishingDecision, getHoldbackPercent } = require('./editorialCadenceService');
+const { oldestCheckedFirst } = require('./verificationQueue');
 
 async function safeRecordObservation(observation) {
   try { await recordObservation(observation); }
@@ -52,10 +53,11 @@ class DealCronService {
     this.lastPriceCheck = new Date();
     const all = await deals.listAll();
     const activeDeals = all.filter((d) => !d.is_expired && d.status === 'APPROVED' && d.source_verified === 1);
+    const verificationBatch = oldestCheckedFirst(activeDeals, 10);
     let expiredCount = 0;
     let checkedCount = 0;
 
-    for (const deal of activeDeals.slice(0, 10)) {
+    for (const deal of verificationBatch) {
       checkedCount += 1;
       try {
         const liveInfo = await fetchProductByAsin(deal.asin);
@@ -86,7 +88,7 @@ class DealCronService {
       }
     }
     this.stats.dealsExpired += expiredCount;
-    return { checkedCount, expiredCount };
+    return { checkedCount, expiredCount, eligibleCount: activeDeals.length };
   }
 
   async syncDailyDeals() {
@@ -147,10 +149,10 @@ class DealCronService {
           product_url: item.productUrl || item.product_url || `https://www.amazon.com/dp/${item.asin}`,
           rating: Number(item.rating) || 0,
           ratings_total: Number(item.ratingsTotal || item.ratings_total) || 0,
-          short_bio: item.shortBio || item.short_bio || '',
-          full_summary: item.fullSummary || item.full_summary || '',
-          pros: item.pros || '',
-          cons: item.cons || '',
+          short_bio: '',
+          full_summary: '',
+          pros: '',
+          cons: '',
           reviews: [],
           source_sufficient: 1,
           source_verified: 1,
