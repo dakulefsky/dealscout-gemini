@@ -9,27 +9,10 @@ const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function hardenProductionData(db) {
-  let changed = false;
-
+function hardenJsonUsers(db) {
   const beforeUsers = db.tables.users.length;
   db.tables.users = db.tables.users.filter((user) => user.id !== 'usr-admin-1' && user.email !== 'admin@dealscout.local');
-  if (db.tables.users.length !== beforeUsers) changed = true;
-
-  for (const deal of db.tables.deals || []) {
-    if (deal.source_verified !== 1) {
-      if (deal.source_sufficient !== 0) {
-        deal.source_sufficient = 0;
-        changed = true;
-      }
-      if (deal.status === 'APPROVED') {
-        deal.status = 'PENDING_REVIEW';
-        changed = true;
-      }
-    }
-  }
-
-  if (changed) db.saveDb();
+  if (db.tables.users.length !== beforeUsers) db.saveDb();
 }
 
 async function startServer() {
@@ -43,15 +26,23 @@ async function startServer() {
   }
 
   const db = require('./server/db.js');
-  if (isProduction) hardenProductionData(db);
+  const dealRepository = require('./server/repositories/dealRepository.js');
+  const userRepository = require('./server/repositories/userRepository.js');
+  const categoryRepository = require('./server/repositories/categoryRepository.js');
+  if (isProduction) hardenJsonUsers(db);
+
+  await Promise.all([
+    dealRepository.ensureSchema(),
+    userRepository.ensureSchema(),
+    categoryRepository.ensureSchema(),
+  ]);
+  if (isProduction) await dealRepository.hardenProduction();
 
   app.disable('x-powered-by');
   app.use(cors({ origin: isProduction ? (configuredOrigin || false) : true, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
 
   app.use('/api/auth', require('./server/routes/auth.js'));
-  // Mount real observed price history before the general deals router so the
-  // legacy simulated-history handler can no longer answer this endpoint.
   app.use('/api/deals', require('./server/routes/priceHistory.js'));
   app.use('/api/deals', require('./server/routes/deals.js'));
   app.use('/api/categories', require('./server/routes/categories.js'));
@@ -67,11 +58,14 @@ async function startServer() {
 
   app.get('/api/health', async (_req, res) => {
     let cronStatus = null;
-    try { cronStatus = require('./server/services/cronService.js').getStatus(); } catch {}
+    try { cronStatus = await require('./server/services/cronService.js').getStatus(); } catch {}
     let priceHistoryStorage = { backend: 'unknown', healthy: false };
     try { priceHistoryStorage = await require('./server/services/priceHistoryService.js').health(); }
     catch (err) { priceHistoryStorage = { backend: process.env.DATABASE_URL ? 'postgres' : 'json', healthy: false, error: err.message }; }
-    res.json({ status: 'ok', time: new Date().toISOString(), scheduler: cronStatus, storage: { priceHistory: priceHistoryStorage } });
+    let postgres = { configured: false, healthy: false };
+    try { postgres = await require('./server/storage/postgres.js').health(); }
+    catch (err) { postgres = { configured: Boolean(process.env.DATABASE_URL), healthy: false, error: err.message }; }
+    res.json({ status: 'ok', time: new Date().toISOString(), scheduler: cronStatus, storage: { postgres, priceHistory: priceHistoryStorage } });
   });
 
   if (!isProduction) {
