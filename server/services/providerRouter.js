@@ -7,14 +7,17 @@ const {
 } = require('./rainforestService');
 const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
-const { resolveProductDetails } = require('./amazonScraperService');
 
 let activeProvider = process.env.DEAL_DATA_PROVIDER || 'auto';
 
 function getActiveProvider() { return activeProvider; }
 
+function curatedAllowed() {
+  return process.env.NODE_ENV !== 'production';
+}
+
 function setActiveProvider(provider) {
-  const valid = ['auto', 'amazon_paapi', 'rainforest', 'curated'];
+  const valid = curatedAllowed() ? ['auto', 'amazon_paapi', 'rainforest', 'curated'] : ['auto', 'amazon_paapi', 'rainforest'];
   if (!valid.includes(provider)) throw new Error(`Invalid provider '${provider}'. Allowed: ${valid.join(', ')}`);
   activeProvider = provider;
   return activeProvider;
@@ -28,7 +31,7 @@ async function getProviderStatus() {
 
   if (activeProvider === 'amazon_paapi' && paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
   else if (activeProvider === 'rainforest' && rainforestConfigured && !rainforestQuotaExhausted) effectiveProvider = 'rainforest';
-  else if (activeProvider === 'curated') effectiveProvider = 'curated';
+  else if (activeProvider === 'curated' && curatedAllowed()) effectiveProvider = 'curated';
   else if (activeProvider === 'auto') {
     if (paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
     else if (rainforestConfigured && !rainforestQuotaExhausted) effectiveProvider = 'rainforest';
@@ -51,9 +54,9 @@ async function getProviderStatus() {
       status: rainforestQuotaExhausted ? 'Quota exhausted' : rainforestConfigured ? 'Ready' : 'Not configured',
     },
     curated: {
-      isReady: true,
-      poolSize: SAMPLE_DEAL_POOL.length,
-      status: 'Development/demo data only; never source-verified',
+      isReady: curatedAllowed(),
+      poolSize: curatedAllowed() ? SAMPLE_DEAL_POOL.length : 0,
+      status: curatedAllowed() ? 'Development/demo data only; never source-verified' : 'Disabled in production',
     },
   };
 }
@@ -122,22 +125,12 @@ async function fetchProductByAsin(asin, options = {}) {
     }
   }
 
-  if (activeProvider === 'curated') {
+  if (activeProvider === 'curated' && curatedAllowed()) {
     const sample = SAMPLE_DEAL_POOL.find((d) => d.asin === cleanAsin);
     return normalizeDemoProduct(sample);
   }
 
-  if (activeProvider !== 'auto') return null;
-
-  try {
-    const resolved = await resolveProductDetails(cleanAsin, options.customUrl || options.url);
-    if (resolved?.sourceVerified && resolved.title) {
-      return normalizeVerifiedProduct(resolved, resolved.sourceProvider || 'LIVE_VERIFIED');
-    }
-  } catch (err) {
-    console.warn(`[ProviderRouter live resolution notice for ${cleanAsin}]:`, err.message);
-  }
-
+  // Fail closed. Do not fall back to the legacy direct scraper/curated metadata path.
   return null;
 }
 
@@ -161,7 +154,7 @@ async function fetchDealsList(options = {}) {
       if (activeProvider === 'rainforest') return [];
     }
   }
-  if (activeProvider === 'curated') {
+  if (activeProvider === 'curated' && curatedAllowed()) {
     return getCuratedSampleDeals(options.maxResults || 15, options.minDiscount || 10).map(normalizeDemoProduct);
   }
   return [];
