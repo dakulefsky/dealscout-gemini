@@ -90,6 +90,8 @@ export const deals = {
 
 export const editorial = {
   get:    (asin)       => api.get(`/api/editorial/${asin}`),
+  batch:  (asins)      => api.post('/api/editorial/batch', { asins }),
+  picks:  (limit = 8)  => api.get(`/api/editorial/picks?limit=${encodeURIComponent(limit)}`),
   save:   (asin, data) => api.put(`/api/editorial/${asin}`, data),
   remove: (asin)       => api.delete(`/api/editorial/${asin}`),
 };
