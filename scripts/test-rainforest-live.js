@@ -1,6 +1,9 @@
 /* eslint-disable no-console */
+import { createRequire } from 'module';
+
 process.env.DEAL_DATA_PROVIDER = 'rainforest';
 
+const require = createRequire(import.meta.url);
 const { getProviderStatus, fetchProductByAsin, fetchDealsList } = require('../server/services/providerRouter');
 const { formatAffiliateUrl } = require('../server/services/rainforestService');
 
