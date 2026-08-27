@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowRight, CheckCircle2, Clock, Image, Loader2, RefreshCw, Settings2, ShieldCheck, Sparkles, Wrench } from 'lucide-react';
+import { Activity, ArrowRight, CheckCircle2, Clock, Eraser, Image, Loader2, RefreshCw, Settings2, ShieldCheck, Sparkles, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { deals as dealsApi, functions } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
@@ -23,23 +23,26 @@ export default function AdminHome() {
   const [provider, setProvider] = useState({});
   const [images, setImages] = useState({});
   const [integrity, setIntegrity] = useState({});
+  const [legacyCleanup, setLegacyCleanup] = useState({});
   const { toast } = useToast();
 
   async function load() {
     setLoading(true);
     try {
-      const [s, l, p, i, h] = await Promise.all([
+      const [s, l, p, i, h, c] = await Promise.all([
         dealsApi.getStats().catch(() => ({})),
         dealsApi.getLifecycleStats().catch(() => ({})),
         functions.providerStatus().catch(() => ({})),
         functions.imageHealth().catch(() => ({})),
         functions.integrityHealth().catch(() => ({})),
+        functions.legacyEnrichmentPreview().catch(() => ({})),
       ]);
       setStats(s || {});
       setLifecycle(l || {});
       setProvider(p || {});
       setImages(i || {});
       setIntegrity(h || {});
+      setLegacyCleanup(c || {});
     } finally {
       setLoading(false);
     }
@@ -63,6 +66,7 @@ export default function AdminHome() {
   if (loading) return <div className="max-w-6xl mx-auto px-4 py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-600" /></div>;
 
   const integrityIssues = Number(integrity.unverifiedApproved || 0) + Number(integrity.missingImages || 0) + Number(integrity.stalePrices || 0);
+  const cleanupCandidates = Number(legacyCleanup.candidates || 0);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-7">
@@ -117,6 +121,11 @@ export default function AdminHome() {
             <Button disabled={busy === 'verify'} onClick={() => run('verify', () => functions.verifyPrices(25), 'Prices checked')} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'verify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check prices</Button>
             <Button disabled={busy === 'sync'} onClick={() => run('sync', () => functions.fetchDeals(15), 'Deal discovery complete', (r) => `${r?.created || 0} new deals added.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Find deals now</Button>
             <Button disabled={busy === 'images'} onClick={() => run('images', () => functions.repairImages(30), 'Image repair complete', (r) => `${r?.repaired || 0} repaired, ${r?.failed || 0} still missing.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-2">{busy === 'images' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />} Repair missing images</Button>
+            {cleanupCandidates > 0 && (
+              <Button disabled={busy === 'cleanup'} onClick={() => run('cleanup', () => functions.cleanupLegacyEnrichment(), 'Legacy copy cleaned', (r) => `${r?.cleaned || 0} known machine-generated rows cleaned.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-2 border-amber-200 text-amber-800 hover:bg-amber-50">
+                {busy === 'cleanup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />} Clean {cleanupCandidates} known legacy {cleanupCandidates === 1 ? 'row' : 'rows'}
+              </Button>
+            )}
           </div>
         </div>
 
