@@ -65,10 +65,13 @@ async function startServer() {
     console.warn('[DealScout] Scheduler initialization warning:', cronErr.message);
   }
 
-  app.get('/api/health', (_req, res) => {
+  app.get('/api/health', async (_req, res) => {
     let cronStatus = null;
     try { cronStatus = require('./server/services/cronService.js').getStatus(); } catch {}
-    res.json({ status: 'ok', time: new Date().toISOString(), scheduler: cronStatus });
+    let priceHistoryStorage = { backend: 'unknown', healthy: false };
+    try { priceHistoryStorage = await require('./server/services/priceHistoryService.js').health(); }
+    catch (err) { priceHistoryStorage = { backend: process.env.DATABASE_URL ? 'postgres' : 'json', healthy: false, error: err.message }; }
+    res.json({ status: 'ok', time: new Date().toISOString(), scheduler: cronStatus, storage: { priceHistory: priceHistoryStorage } });
   });
 
   if (!isProduction) {
