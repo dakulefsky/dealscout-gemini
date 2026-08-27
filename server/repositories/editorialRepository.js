@@ -47,6 +47,28 @@ async function getByAsin(asin) {
   return result.rows[0] || null;
 }
 
+async function listForAsins(asins = []) {
+  const keys = [...new Set((asins || []).map((asin) => String(asin || '').trim().toUpperCase()).filter((asin) => /^[A-Z0-9]{10}$/.test(asin)))];
+  if (!keys.length) return [];
+  if (!postgres.isConfigured()) return keys.map((key) => memory.get(key)).filter(Boolean);
+  await ensureSchema();
+  const result = await postgres.query('SELECT * FROM deal_editorial WHERE asin = ANY($1::varchar[])', [keys]);
+  return result.rows;
+}
+
+async function listHumanPicks(limit = 12) {
+  const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 12, 1), 50);
+  if (!postgres.isConfigured()) {
+    return [...memory.values()]
+      .filter((row) => row.is_human_pick === true)
+      .sort((a, b) => Number(b.reviewed_at || 0) - Number(a.reviewed_at || 0))
+      .slice(0, safeLimit);
+  }
+  await ensureSchema();
+  const result = await postgres.query('SELECT * FROM deal_editorial WHERE is_human_pick = TRUE ORDER BY reviewed_at DESC NULLS LAST LIMIT $1', [safeLimit]);
+  return result.rows;
+}
+
 async function upsert(input) {
   const row = normalizeEditorialInput(input);
   if (!postgres.isConfigured()) {
@@ -77,4 +99,4 @@ async function remove(asin) {
   return result.rowCount > 0;
 }
 
-module.exports = { ensureSchema, getByAsin, upsert, remove, normalizeEditorialInput };
+module.exports = { ensureSchema, getByAsin, listForAsins, listHumanPicks, upsert, remove, normalizeEditorialInput };

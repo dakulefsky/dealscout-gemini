@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { TrendingDown, Search, LayoutGrid, List, RotateCcw, ShieldCheck } from 'lucide-react';
+import { TrendingDown, Search, LayoutGrid, List, RotateCcw, ShieldCheck, Star } from 'lucide-react';
 import DealCard from '@/components/DealCard';
-import { deals as dealsApi, categories as categoriesApi } from '@/lib/api';
+import { deals as dealsApi, categories as categoriesApi, editorial as editorialApi } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -33,6 +33,7 @@ export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [deals, setDeals] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [picks, setPicks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeCat, setActiveCat] = useState(searchParams.get('category') || 'all');
@@ -50,8 +51,16 @@ export default function Home() {
   }, [searchParams]);
 
   useEffect(() => {
-    Promise.all([dealsApi.list({ status: 'APPROVED', limit: 100 }), categoriesApi.list()])
-      .then(([d, c]) => { setDeals(d || []); setCategories(c || []); })
+    Promise.all([
+      dealsApi.list({ status: 'APPROVED', limit: 100 }),
+      categoriesApi.list(),
+      editorialApi.picks(4).catch(() => ({ picks: [] })),
+    ])
+      .then(([d, c, p]) => {
+        setDeals(d || []);
+        setCategories(c || []);
+        setPicks(p?.picks || []);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
@@ -94,6 +103,32 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {picks.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4">
+          <div className="rounded-3xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-6">
+            <div className="flex items-end justify-between gap-4 mb-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-emerald-700"><Star className="w-4 h-4 fill-emerald-600 text-emerald-600" /> Human selected</div>
+                <h2 className="font-heading text-xl sm:text-2xl font-black text-slate-900 mt-1">DealScout Picks</h2>
+                <p className="text-xs sm:text-sm text-slate-600 mt-1">Verified deals that received an explicit human editorial decision.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {picks.map((pick) => (
+                <div key={pick.asin} className="flex flex-col gap-2">
+                  <DealCard deal={pick.deal} viewMode="grid" />
+                  {pick.editorialNote && (
+                    <div className="rounded-xl bg-white border border-emerald-200 px-3 py-2 text-xs text-slate-700 leading-relaxed">
+                      <span className="font-bold text-emerald-800">Why we picked it: </span>{pick.editorialNote}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="max-w-7xl mx-auto px-4 pb-16">
         <div className="flex items-center gap-2 overflow-x-auto pb-3 scrollbar-none mb-4">

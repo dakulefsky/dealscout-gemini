@@ -24,11 +24,8 @@ export default function EditorialReview() {
       const allDeals = await dealsApi.list({ limit: 100 });
       const verified = (allDeals || []).filter((d) => d.sourceVerified && !d.isExpired && ['APPROVED', 'PENDING_REVIEW'].includes(d.status));
       setDeals(verified);
-      const rows = await Promise.all(verified.map(async (deal) => {
-        try { return [deal.asin, await editorialApi.get(deal.asin)]; }
-        catch { return [deal.asin, emptyEditorial]; }
-      }));
-      setEditorialByAsin(Object.fromEntries(rows));
+      const batch = await editorialApi.batch(verified.map((deal) => deal.asin));
+      setEditorialByAsin(batch?.byAsin || {});
     } catch (error) {
       toast({ title: 'Could not load editorial queue', description: error.message, variant: 'destructive' });
     } finally {
@@ -58,9 +55,7 @@ export default function EditorialReview() {
         editorialNote: current.editorialNote || '',
         isHumanPick: Boolean(current.isHumanPick),
       });
-      if (publish && deal.status !== 'APPROVED') {
-        await dealsApi.update(deal.id || deal.asin, { status: 'APPROVED' });
-      }
+      if (publish && deal.status !== 'APPROVED') await dealsApi.update(deal.id || deal.asin, { status: 'APPROVED' });
       setEditorialByAsin((prev) => ({ ...prev, [deal.asin]: saved }));
       setDeals((prev) => prev.map((d) => d.asin === deal.asin ? { ...d, status: publish ? 'APPROVED' : d.status } : d));
       toast({
