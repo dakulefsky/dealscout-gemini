@@ -24,11 +24,13 @@ function normalizeRecord(input) {
   d.discount_percent = Number(d.discount_percent ?? d.discountPercent ?? 0);
   d.rating = Number(d.rating ?? 0);
   d.ratings_total = Number(d.ratings_total ?? d.ratingsTotal ?? 0);
+  d.quality_score = Number(d.quality_score ?? d.qualityScore ?? 0);
   d.source_sufficient = d.source_sufficient === 1 || d.sourceSufficient === true ? 1 : 0;
   d.source_verified = d.source_verified === 1 || d.sourceVerified === true ? 1 : 0;
   d.is_expired = d.is_expired === 1 || d.isExpired === true ? 1 : 0;
   d.expired_at = d.expired_at ?? d.expiredAt ?? null;
   d.price_check_at = d.price_check_at ?? d.priceCheckAt ?? null;
+  d.last_verify_attempt_at = d.last_verify_attempt_at ?? d.lastVerifyAttemptAt ?? null;
   d.created_at = d.created_at || nowUnix();
   d.reviews = normalizeReviews(d.reviews);
   if (process.env.NODE_ENV === 'production' && d.source_verified !== 1) {
@@ -62,6 +64,7 @@ async function ensureSchema() {
       product_url TEXT,
       rating NUMERIC(3,2) NOT NULL DEFAULT 0,
       ratings_total BIGINT NOT NULL DEFAULT 0,
+      quality_score NUMERIC(6,2) NOT NULL DEFAULT 0,
       short_bio TEXT,
       full_summary TEXT,
       pros TEXT,
@@ -74,12 +77,16 @@ async function ensureSchema() {
       is_expired INTEGER NOT NULL DEFAULT 0,
       expired_at BIGINT,
       price_check_at BIGINT,
+      last_verify_attempt_at BIGINT,
       raw_source_data TEXT,
       created_at BIGINT NOT NULL
     );
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS quality_score NUMERIC(6,2) NOT NULL DEFAULT 0;
+    ALTER TABLE deals ADD COLUMN IF NOT EXISTS last_verify_attempt_at BIGINT;
     CREATE INDEX IF NOT EXISTS idx_deals_visibility ON deals (status, is_expired, source_verified);
     CREATE INDEX IF NOT EXISTS idx_deals_category ON deals (category);
     CREATE INDEX IF NOT EXISTS idx_deals_created_at ON deals (created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_deals_verify_queue ON deals (last_verify_attempt_at ASC NULLS FIRST, price_check_at ASC NULLS FIRST);
   `);
 
   if (process.env.NODE_ENV === 'production') {
@@ -142,28 +149,29 @@ async function upsert(input, options = {}) {
   const result = await postgres.query(`
     INSERT INTO deals (
       id, asin, title, category, original_price, sale_price, discount_percent,
-      image_url, product_url, rating, ratings_total, short_bio, full_summary,
+      image_url, product_url, rating, ratings_total, quality_score, short_bio, full_summary,
       pros, cons, reviews, source_sufficient, source_verified, source_provider,
-      status, is_expired, expired_at, price_check_at, raw_source_data, created_at
+      status, is_expired, expired_at, price_check_at, last_verify_attempt_at, raw_source_data, created_at
     ) VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18,$19,$20,$21,$22,$23,$24,$25
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
     )
     ON CONFLICT (id) DO UPDATE SET
       asin=EXCLUDED.asin, title=EXCLUDED.title, category=EXCLUDED.category,
       original_price=EXCLUDED.original_price, sale_price=EXCLUDED.sale_price,
       discount_percent=EXCLUDED.discount_percent, image_url=EXCLUDED.image_url,
       product_url=EXCLUDED.product_url, rating=EXCLUDED.rating, ratings_total=EXCLUDED.ratings_total,
-      short_bio=EXCLUDED.short_bio, full_summary=EXCLUDED.full_summary, pros=EXCLUDED.pros,
-      cons=EXCLUDED.cons, reviews=EXCLUDED.reviews, source_sufficient=EXCLUDED.source_sufficient,
+      quality_score=EXCLUDED.quality_score, short_bio=EXCLUDED.short_bio, full_summary=EXCLUDED.full_summary,
+      pros=EXCLUDED.pros, cons=EXCLUDED.cons, reviews=EXCLUDED.reviews, source_sufficient=EXCLUDED.source_sufficient,
       source_verified=EXCLUDED.source_verified, source_provider=EXCLUDED.source_provider,
       status=EXCLUDED.status, is_expired=EXCLUDED.is_expired, expired_at=EXCLUDED.expired_at,
-      price_check_at=EXCLUDED.price_check_at, raw_source_data=EXCLUDED.raw_source_data
+      price_check_at=EXCLUDED.price_check_at, last_verify_attempt_at=EXCLUDED.last_verify_attempt_at,
+      raw_source_data=EXCLUDED.raw_source_data
     RETURNING *`,
     [
       d.id,d.asin,d.title,d.category||null,d.original_price,d.sale_price,d.discount_percent,
-      d.image_url||null,d.product_url||null,d.rating,d.ratings_total,d.short_bio||null,d.full_summary||null,
+      d.image_url||null,d.product_url||null,d.rating,d.ratings_total,d.quality_score,d.short_bio||null,d.full_summary||null,
       d.pros||null,d.cons||null,JSON.stringify(d.reviews),d.source_sufficient,d.source_verified,d.source_provider||null,
-      d.status||'PENDING_REVIEW',d.is_expired,d.expired_at,d.price_check_at,d.raw_source_data||null,d.created_at
+      d.status||'PENDING_REVIEW',d.is_expired,d.expired_at,d.price_check_at,d.last_verify_attempt_at,d.raw_source_data||null,d.created_at
     ]
   );
   return rowFromPg(result.rows[0]);
