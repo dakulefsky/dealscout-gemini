@@ -59,7 +59,9 @@ class DealCronService {
 
     for (const deal of verificationBatch) {
       checkedCount += 1;
+      const attemptAt = Math.floor(Date.now() / 1000);
       try {
+        await deals.update(deal.id, { last_verify_attempt_at: attemptAt });
         const liveInfo = await fetchProductByAsin(deal.asin);
         if (!liveInfo?.sourceVerified) continue;
         const outOfStock = liveInfo.availability && /out of stock|unavailable/i.test(liveInfo.availability);
@@ -76,7 +78,7 @@ class DealCronService {
           await deals.expire(deal.id, outOfStock ? 'Product unavailable at verified source' : 'Verified deal ended');
           expiredCount += 1;
         } else {
-          const changes = { price_check_at: Math.floor(Date.now() / 1000) };
+          const changes = { price_check_at: attemptAt, last_verify_attempt_at: attemptAt };
           if (Number.isFinite(sale) && sale > 0) changes.sale_price = sale;
           if (Number.isFinite(original) && original >= sale) changes.original_price = original;
           if (Number.isFinite(discount) && discount >= 0) changes.discount_percent = discount;
@@ -115,6 +117,7 @@ class DealCronService {
         const discount = Number((((original - sale) / original) * 100).toFixed(1));
         const publication = publishingDecision(item, quality);
         const status = publication.status;
+        const verifiedAt = Math.floor(Date.now() / 1000);
         if (publication.reason === 'EDITORIAL_HOLDBACK') holdbackCount += 1;
 
         await safeRecordObservation({ asin: item.asin, salePrice: sale, originalPrice: original, sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER' });
@@ -124,7 +127,8 @@ class DealCronService {
             sale_price: sale,
             original_price: original,
             discount_percent: discount,
-            price_check_at: Math.floor(Date.now() / 1000),
+            price_check_at: verifiedAt,
+            last_verify_attempt_at: verifiedAt,
             source_verified: 1,
             source_sufficient: 1,
             source_provider: item.sourceProvider || existing.source_provider,
@@ -161,9 +165,10 @@ class DealCronService {
           quality_score: quality.score,
           is_expired: 0,
           expired_at: null,
-          price_check_at: Math.floor(Date.now() / 1000),
+          price_check_at: verifiedAt,
+          last_verify_attempt_at: verifiedAt,
           raw_source_data: `${item.sourceProvider || 'Verified provider'} | ASIN: ${item.asin} | publication=${publication.reason}`,
-          created_at: Math.floor(Date.now() / 1000),
+          created_at: verifiedAt,
         });
         createdCount += 1;
         if (status === 'APPROVED') autoApprovedCount += 1;
