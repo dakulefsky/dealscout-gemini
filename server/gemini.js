@@ -4,188 +4,73 @@ let aiInstance = null;
 
 function getGeminiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return null;
-  }
+  if (!apiKey) return null;
   if (!aiInstance) {
     aiInstance = new GoogleGenAI({
       apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        },
-      },
+      httpOptions: { headers: { 'User-Agent': 'dealscout' } },
     });
   }
   return aiInstance;
 }
 
-/**
- * Intelligent deal analysis using Gemini 3.7 Flash with fallback
- */
-async function analyzeDealWithGemini({ title, asin, url, price, originalPrice, rawText, category, imageUrl }) {
+function requireGemini() {
   const ai = getGeminiClient();
-
   if (!ai) {
-    // High-quality deterministic fallback when GEMINI_API_KEY is not yet populated
-    const calculatedDiscount = (originalPrice && price && originalPrice > price)
-      ? Math.round(((originalPrice - price) / originalPrice) * 100)
-      : 20;
-
-    return {
-      title: title || `Amazon Deal ${asin || ''}`.trim(),
-      category: category || 'Electronics',
-      originalPrice: originalPrice || (price ? Number((price * 1.25).toFixed(2)) : 99.99),
-      price: price || 79.99,
-      discountPercent: calculatedDiscount,
-      dealScore: calculatedDiscount >= 30 ? 94 : calculatedDiscount >= 20 ? 88 : 80,
-      veracity: calculatedDiscount >= 25 ? 'Verified Authentic Discount' : 'Good Everyday Value',
-      shortBio: `Engineered for high daily reliability with substantial savings over standard MSRP.`,
-      fullSummary: `Delivers top-tier build standards, class-competitive power efficiency, and balanced ergonomics. At a verified ${calculatedDiscount}% discount, it offers exceptional price-to-performance against competing alternatives in the ${category || 'consumer hardware'} segment.`,
-      pros: [
-        'Class-leading efficiency and responsive performance tuned for sustained daily workloads.',
-        'High-density structural materials providing refined ergonomics and tactile durability.',
-        'Extensive compatibility across primary mobile, desktop, and smart home ecosystems.'
-      ],
-      cons: [
-        'Form factor is optimized for portability rather than high modularity or easy user-upgrades.',
-        'Fast-charge or full-feature bandwidth requires compatible high-wattage power supplies or specific cables.'
-      ],
-      reviews: [
-        { author: 'Verified Consumer', text: 'Remarkable balance of performance and efficiency. Build tolerances are tight and tactile.', rating: 5, date: 'Recent Purchase', verified: true },
-        { author: 'Hardware Reviewer', text: 'Exceeds benchmark expectations in this price bracket. Easily recommended at this promotional price.', rating: 5, date: 'Recent Purchase', verified: true }
-      ],
-      rating: 4.7,
-      ratingsTotal: 1850,
-      imageUrl: imageUrl || 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=600&auto=format&fit=crop&q=80',
-      sourceSufficient: true
-    };
+    const err = new Error('AI analysis is unavailable because GEMINI_API_KEY is not configured');
+    err.code = 'AI_NOT_CONFIGURED';
+    err.statusCode = 503;
+    throw err;
   }
+  return ai;
+}
 
-  const prompt = `You are DealScout's Senior Hardware Editor & Lead Product Analyst (in the style of Wirecutter and AnandTech). 
-Analyze this Amazon product and provide a sophisticated, deeply technical, and objective consumer breakdown.
+async function analyzeDealWithGemini({ title, asin, url, price, originalPrice, rawText, category, imageUrl }) {
+  const ai = requireGemini();
+  const verifiedDiscount = Number.isFinite(Number(originalPrice)) && Number.isFinite(Number(price)) && Number(originalPrice) > 0 && Number(price) >= 0
+    ? Number((((Number(originalPrice) - Number(price)) / Number(originalPrice)) * 100).toFixed(1))
+    : null;
 
-Product Info:
-- Title: ${title || 'N/A'}
-- ASIN: ${asin || 'N/A'}
-- URL: ${url || 'N/A'}
-- Current Sale Price: $${price || 'N/A'}
-- Original / MSRP List Price: $${originalPrice || 'N/A'}
-- Category: ${category || 'N/A'}
-- Raw Product Context & Specs: ${rawText || 'N/A'}
-
-GUIDELINES FOR SOPHISTICATED PROS & CONS:
-- NEVER use shallow, generic phrases like "Good value", "Easy to use", "High quality", "Limited stock", or "May cost money".
-- PROS MUST be precise, technical, and benefit-driven:
-  * Detail concrete specifications (e.g. driver architecture, thermal dissipation, battery chemistry, material alloy, wireless protocols, display latency, or specific software optimizations).
-  * Explain why the feature matters in daily operation compared to category peers.
-- CONS MUST be genuine, nuanced engineering trade-offs or usability limitations:
-  * Identify specific compromises (e.g., proprietary port reliance, absence of dust/water ingress rating, bulky non-folding hinges, lack of optical zoom, glossy fingerprint-prone finishes, companion app account requirement, or weight distribution).
-  * Give readers meaningful buying criteria so they know whether this product fits their exact use case.
-
-Respond with a valid JSON object ONLY (no markdown backticks, no wrapping):
-{
-  "title": "Clean, descriptive product title stripped of marketing buzzwords",
-  "category": "Electronics | Home & Kitchen | Sports & Outdoors | Health & Beauty | Amazon Devices | Other",
-  "originalPrice": number,
-  "price": number,
-  "discountPercent": number,
-  "dealScore": number between 70 and 99,
-  "veracity": "Verified Authentic Discount" | "Good Everyday Value" | "Inflated List Price",
-  "rating": number (e.g. 4.6),
-  "ratingsTotal": number (e.g. 3450),
-  "shortBio": "A single sophisticated, information-dense sentence highlighting key technical architecture and primary use case",
-  "fullSummary": "2-3 rigorous, articulate sentences detailing the engineering highlights, real-world utility, and who should buy this at this promotional price point",
-  "pros": [
-    "Sophisticated, spec-grounded Pro #1 explaining real-world performance/acoustic/battery/material advantage",
-    "Sophisticated Pro #2 detailing ergonomic, durability, or software ecosystem integration",
-    "Sophisticated Pro #3 highlighting class-leading engineering or value efficiency"
-  ],
-  "cons": [
-    "Sophisticated Con #1 identifying a legitimate physical/technical limitation or trade-off",
-    "Sophisticated Con #2 highlighting an ecosystem dependency, accessory omission, or ergonomic quirk"
-  ],
-  "reviews": [
-    {"author": "Verified Buyer", "text": "Detailed, authentic feedback quote commenting on specific usability and build quality", "rating": 5, "date": "Recent Purchase", "verified": true},
-    {"author": "Tech Enthusiast", "text": "Nuanced observation regarding daily performance and longevity", "rating": 4, "date": "Recent Purchase", "verified": true}
-  ],
-  "sourceSufficient": true
-}`;
+  const prompt = `You are DealScout's product-analysis assistant. Analyze only the supplied product context. Do not invent prices, ratings, review counts, customer reviews, certifications, availability, specifications, or verification claims. If a fact is not present in the supplied context, omit it or state that it is unknown. AI output is editorial enrichment and must never be treated as source verification.\n\nProduct context:\n- Title: ${title || 'Unknown'}\n- ASIN: ${asin || 'Unknown'}\n- URL: ${url || 'Unknown'}\n- Verified current price supplied by caller: ${price ?? 'Unknown'}\n- Verified original/list price supplied by caller: ${originalPrice ?? 'Unknown'}\n- Category: ${category || 'Unknown'}\n- Source context/specs: ${rawText || 'None supplied'}\n\nReturn JSON only with this shape:\n{\n  "title": string,\n  "category": string,\n  "shortBio": string,\n  "fullSummary": string,\n  "pros": string[],\n  "cons": string[],\n  "dealScore": number | null,\n  "editorialAssessment": string,\n  "unknowns": string[]\n}\nDo not include reviews, ratings, rating counts, prices, discount percentages, source verification flags, or claims that the deal is verified.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
+      model: process.env.GEMINI_MODEL || 'gemini-3.7-flash',
       contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
+      config: { responseMimeType: 'application/json' },
     });
-
-    const text = response.text?.trim() || '{}';
-    const parsed = JSON.parse(text);
-    if (imageUrl && (!parsed.imageUrl || parsed.imageUrl.includes('unsplash.com'))) {
-      parsed.imageUrl = imageUrl;
-    }
-    if (asin && !parsed.asin) {
-      parsed.asin = asin;
-    }
-    if (price && !parsed.price) {
-      parsed.price = price;
-    }
-    if (originalPrice && !parsed.originalPrice) {
-      parsed.originalPrice = originalPrice;
-    }
-    return parsed;
+    const parsed = JSON.parse(response.text?.trim() || '{}');
+    return {
+      ...parsed,
+      asin: asin || undefined,
+      imageUrl: imageUrl || undefined,
+      price: price == null ? undefined : Number(price),
+      originalPrice: originalPrice == null ? undefined : Number(originalPrice),
+      discountPercent: verifiedDiscount,
+      sourceSufficient: false,
+      sourceVerified: false,
+      aiGenerated: true,
+    };
   } catch (err) {
     console.error('[Gemini] Analyze deal failed:', err);
     throw err;
   }
 }
 
-/**
- * Ask Gemini about a deal / shopping assistant Q&A
- */
 async function askDealAssistantWithGemini({ deal, question }) {
-  const ai = getGeminiClient();
-
-  if (!ai) {
-    return {
-      answer: `Based on the specs for **${deal.title}** (priced at $${deal.price}): It offers ${deal.pros?.split?.('\n')?.[0] || 'great performance and reliability'}. If your priority is solid value under $${deal.price}, this is a verified editorial choice.`
-    };
-  }
-
-  const prompt = `You are DealScout AI, a helpful, honest personal shopping advisor. 
-Answer the user's question about the following product deal clearly, concisely, and objectively.
-
-Product: ${deal.title}
-Price: $${deal.sale_price || deal.price} (Discounted from $${deal.original_price || deal.originalPrice})
-Category: ${deal.category}
-Short Bio: ${deal.short_bio}
-Overview: ${deal.full_summary}
-Pros: ${deal.pros}
-Cons: ${deal.cons}
-
-User Question: "${question}"
-
-Provide a concise, helpful 2-4 sentence response in markdown. Be direct, address their specific question directly, highlight any relevant pros or cons, and offer genuine buying advice.`;
+  const ai = requireGemini();
+  const prompt = `You are DealScout AI, a shopping advisor. Answer using only the supplied deal record. Do not invent specifications, reviews, prices, availability, warranty terms, or verification claims. Distinguish factual fields in the record from editorial summaries. If the record does not answer the question, say so.\n\nProduct: ${deal.title || 'Unknown'}\nPrice: ${deal.sale_price ?? deal.price ?? 'Unknown'}\nOriginal price: ${deal.original_price ?? deal.originalPrice ?? 'Unknown'}\nCategory: ${deal.category || 'Unknown'}\nSummary: ${deal.full_summary || deal.fullSummary || ''}\nPros: ${deal.pros || ''}\nCons: ${deal.cons || ''}\nSource verified: ${deal.source_verified === 1 || deal.sourceVerified === true}\n\nUser question: ${question}\n\nAnswer in 2-4 concise sentences.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3.7-flash',
+      model: process.env.GEMINI_MODEL || 'gemini-3.7-flash',
       contents: prompt,
     });
-
-    return {
-      answer: response.text?.trim() || 'No response generated.'
-    };
+    return { answer: response.text?.trim() || 'No response generated.' };
   } catch (err) {
     console.error('[Gemini] Ask deal assistant failed:', err);
     throw err;
   }
 }
 
-module.exports = {
-  getGeminiClient,
-  analyzeDealWithGemini,
-  askDealAssistantWithGemini,
-};
+module.exports = { getGeminiClient, analyzeDealWithGemini, askDealAssistantWithGemini };
