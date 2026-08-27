@@ -78,6 +78,7 @@ class DealCronService {
           if (Number.isFinite(sale) && sale > 0) changes.sale_price = sale;
           if (Number.isFinite(original) && original >= sale) changes.original_price = original;
           if (Number.isFinite(discount) && discount >= 0) changes.discount_percent = discount;
+          if (liveInfo.imageUrl && liveInfo.imageUrl !== deal.image_url) changes.image_url = liveInfo.imageUrl;
           await deals.update(deal.id, changes);
         }
       } catch (err) {
@@ -127,6 +128,7 @@ class DealCronService {
             source_provider: item.sourceProvider || existing.source_provider,
             quality_score: quality.score,
           };
+          if (item.imageUrl && item.imageUrl !== existing.image_url) changes.image_url = item.imageUrl;
           if (existing.status !== 'APPROVED' && status === 'APPROVED') changes.status = 'APPROVED';
           await deals.update(existing.id, changes);
           updatedCount += 1;

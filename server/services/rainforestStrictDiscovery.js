@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { imageCandidates } = require('./rainforestImage');
 
 const ENDPOINT = 'https://api.rainforestapi.com/request';
 
@@ -28,7 +29,7 @@ function normalizeDeal(item) {
   if (!Number.isFinite(originalPrice) || originalPrice <= salePrice) return null;
 
   const discountPercent = Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1));
-  const imageUrl = item.image?.link || item.image || item.main_image?.link || null;
+  const gallery = imageCandidates(item.main_image, item.image, item.images, item.images_flat);
 
   return {
     asin,
@@ -38,7 +39,8 @@ function normalizeDeal(item) {
     salePrice,
     discountPercent,
     savingsAmount: Number((originalPrice - salePrice).toFixed(2)),
-    imageUrl,
+    imageUrl: gallery[0] || null,
+    imageGallery: gallery,
     productUrl: affiliateUrl(asin),
     rawProductUrl: item.link || `https://www.amazon.com/dp/${asin}`,
     rating: Number(item.rating) || null,
@@ -71,11 +73,7 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
   if (data.request_info?.success === false) throw new Error(data.request_info.message || 'Rainforest deals request failed');
 
   const items = Array.isArray(data.deals_results) ? data.deals_results : (Array.isArray(data.deals) ? data.deals : []);
-  return items
-    .map(normalizeDeal)
-    .filter(Boolean)
-    .filter((deal) => deal.discountPercent >= minDiscount)
-    .slice(0, maxResults);
+  return items.map(normalizeDeal).filter(Boolean).filter((deal) => deal.discountPercent >= minDiscount).slice(0, maxResults);
 }
 
 module.exports = { fetchStrictRainforestDeals, normalizeDeal };
