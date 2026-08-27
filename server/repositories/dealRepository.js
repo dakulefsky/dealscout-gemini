@@ -38,6 +38,11 @@ function normalizeRecord(input) {
   return d;
 }
 
+function shouldBootstrapDeal(input) {
+  if (process.env.NODE_ENV !== 'production') return true;
+  return normalizeRecord(input).source_verified === 1;
+}
+
 function toJsonFallback(record) {
   return { ...record, reviews: JSON.stringify(normalizeReviews(record.reviews)) };
 }
@@ -88,7 +93,10 @@ async function ensureSchema() {
 
   const count = await postgres.query('SELECT COUNT(*)::int AS count FROM deals');
   if (count.rows[0].count === 0 && Array.isArray(db.tables.deals) && db.tables.deals.length) {
-    for (const raw of db.tables.deals) await upsert(raw, { skipEnsure: true });
+    for (const raw of db.tables.deals) {
+      if (!shouldBootstrapDeal(raw)) continue;
+      await upsert(raw, { skipEnsure: true });
+    }
   }
   schemaReady = true;
 }
@@ -201,7 +209,15 @@ async function bulkStatus(ids, status) {
   for (const d of all) {
     if (!set.has(d.id) && !set.has(d.asin)) continue;
     if (status === 'APPROVED' && !isVerified(d)) continue;
-    await update(d.id, { status, is_expired: status === 'EXPIRED' ? 1 : d.is_expired, expired_at: status === 'EXPIRED' ? nowUnix() : d.expired_at });
+    const changes = { status };
+    if (status === 'EXPIRED') {
+      changes.is_expired = 1;
+      changes.expired_at = nowUnix();
+    } else if (status === 'APPROVED') {
+      changes.is_expired = 0;
+      changes.expired_at = null;
+    }
+    await update(d.id, changes);
     updatedCount += 1;
   }
   return updatedCount;
@@ -259,5 +275,5 @@ async function hardenProduction() {
 module.exports = {
   ensureSchema, listAll, findByIdOrAsin, upsert, update, remove,
   expire, restore, bulkStatus, approveAllVerified, purgeExpired, lifecycleStats,
-  hardenProduction, normalizeRecord, isVerified,
+  hardenProduction, normalizeRecord, isVerified, shouldBootstrapDeal,
 };
