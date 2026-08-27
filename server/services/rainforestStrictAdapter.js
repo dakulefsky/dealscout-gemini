@@ -19,21 +19,6 @@ function affiliateUrl(asin) {
   return `https://www.amazon.com/dp/${asin}?tag=${encodeURIComponent(tag)}`;
 }
 
-function normalizeReviews(product) {
-  if (!Array.isArray(product?.top_reviews)) return [];
-  return product.top_reviews.slice(0, 8).map((review) => ({
-    id: review.id || review.review_id || null,
-    author: review.profile?.name || review.author?.name || review.author || 'Amazon Customer',
-    title: review.title || '',
-    text: review.body || review.text || '',
-    rating: Number(review.rating) || null,
-    date: review.date?.raw || review.date || '',
-    verifiedPurchase: review.verified_purchase === true || review.is_verified === true || review.verified === true,
-    helpfulVotes: Number(review.helpful_votes || review.helpful_count || 0),
-    link: review.link || null,
-  })).filter((review) => review.text);
-}
-
 async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com', language = 'en_US' } = {}) {
   const apiKey = process.env.RAINFOREST_API_KEY;
   if (!apiKey) throw new Error('RAINFOREST_API_KEY is not configured');
@@ -82,7 +67,7 @@ async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com',
     rawProductUrl: product.link || `https://www.amazon.com/dp/${product.asin}`,
     rating: Number(product.rating) || null,
     ratingsTotal: Number(product.ratings_total) || 0,
-    reviews: normalizeReviews(product),
+    reviews: [],
     isPrime: buybox.is_prime === true,
     availability: buybox.availability?.raw || null,
     condition: buybox.condition?.is_new === true ? 'New' : null,
