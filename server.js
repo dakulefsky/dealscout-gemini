@@ -43,8 +43,11 @@ async function startServer() {
   if (isProduction) await dealRepository.hardenProduction();
 
   app.disable('x-powered-by');
+  const { securityHeaders, apiRateLimit } = require('./server/middleware/securityBaseline.js');
+  app.use(securityHeaders);
   app.use(cors({ origin: isProduction ? (configuredOrigin || false) : true, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
+  app.use(apiRateLimit());
 
   const amazonContentPolicy = require('./server/middleware/amazonContentPolicy.js');
   app.use(amazonContentPolicy.blockThirdPartyAmazonReviews);
