@@ -130,6 +130,7 @@ export const functions = {
   providerStatus:    ()                     => api.get('/api/functions/provider-status'),
   providerSwitch:    (provider)             => api.post('/api/functions/provider-switch', { provider }),
   verifyPrices:      (limit = 15)           => api.post('/api/functions/verify-prices', { limit }),
+  imageHealth:       ()                     => api.get('/api/functions/image-health'),
   repairImages:      (limit = 20)           => api.post('/api/functions/repair-images', { limit }),
   purgeExpired:      ()                     => api.post('/api/functions/purge-expired'),
   siteStripeImport:  (input, autoApprove = false) => api.post('/api/functions/sitestripe-import', typeof input === 'object' ? input : { input, inputUrl: input, autoApprove }),
