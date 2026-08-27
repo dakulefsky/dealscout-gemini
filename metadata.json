@@ -1,6 +1,6 @@
 {
   "name": "DealScout",
-  "description": "Curated daily Amazon deals with AI-assisted insights, reviews, and editorial approvals.",
+  "description": "Amazon deal discovery with recent price checks, clear savings, and standout DealScout Picks.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
