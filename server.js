@@ -31,6 +31,7 @@ async function startServer() {
   const categoryRepository = require('./server/repositories/categoryRepository.js');
   const bookmarkRepository = require('./server/repositories/bookmarkRepository.js');
   const editorialRepository = require('./server/repositories/editorialRepository.js');
+  const activityRepository = require('./server/repositories/activityRepository.js');
   if (isProduction) hardenJsonUsers(db);
 
   await Promise.all([
@@ -38,6 +39,7 @@ async function startServer() {
     userRepository.ensureSchema(),
     categoryRepository.ensureSchema(),
     editorialRepository.ensureSchema(),
+    activityRepository.ensureSchema(),
   ]);
   await bookmarkRepository.ensureSchema();
   if (isProduction) await dealRepository.hardenProduction();
@@ -52,6 +54,7 @@ async function startServer() {
   const amazonContentPolicy = require('./server/middleware/amazonContentPolicy.js');
   app.use(amazonContentPolicy.blockThirdPartyAmazonReviews);
   app.use(amazonContentPolicy.strictRainforestSearch);
+  app.use(require('./server/middleware/adminActivityAudit.js').adminActivityAudit);
 
   app.use('/api/auth', require('./server/routes/auth.js'));
   app.use('/api/deals', require('./server/routes/priceHistory.js'));
@@ -62,6 +65,7 @@ async function startServer() {
   app.use('/api/functions', require('./server/middleware/imageRepairEndpoint.js').imageRepairEndpoint);
   app.use('/api/functions', require('./server/middleware/integrityHealthEndpoint.js').integrityHealthEndpoint);
   app.use('/api/functions', require('./server/middleware/legacyEnrichmentCleanupEndpoint.js').legacyEnrichmentCleanupEndpoint);
+  app.use('/api/functions', require('./server/middleware/adminActivityEndpoint.js').adminActivityEndpoint);
   app.use('/api/functions', require('./server/routes/functions.js'));
   app.use('/api/ai', require('./server/routes/ai.js'));
   app.use('/api/bookmarks', require('./server/routes/bookmarks.js'));
