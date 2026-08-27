@@ -2,11 +2,11 @@ const { getItems, searchItems, getPaapiConfig } = require('./amazonPaapiService'
 const {
   isConfigured: isRainforestConfigured,
   isQuotaExhausted,
-  fetchRainforestDeals,
   getCuratedSampleDeals,
   SAMPLE_DEAL_POOL,
 } = require('./rainforestService');
 const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
+const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
 const { resolveProductDetails } = require('./amazonScraperService');
 
 let activeProvider = process.env.DEAL_DATA_PROVIDER || 'auto';
@@ -152,10 +152,14 @@ async function fetchDealsList(options = {}) {
   }
   if (status.effectiveProvider === 'rainforest' || (activeProvider === 'auto' && status.rainforest.isConfigured && !status.rainforest.isQuotaExhausted)) {
     try {
-      const result = await fetchRainforestDeals(options);
+      const result = await fetchStrictRainforestDeals(options);
       const verified = (result || []).map((x) => normalizeVerifiedProduct(x, 'RAINFOREST')).filter(Boolean);
       if (verified.length) return verified;
-    } catch (err) { console.warn('[ProviderRouter Rainforest deals notice]:', err.message); }
+      if (activeProvider === 'rainforest') return [];
+    } catch (err) {
+      console.warn('[ProviderRouter Rainforest deals notice]:', err.message);
+      if (activeProvider === 'rainforest') return [];
+    }
   }
   if (activeProvider === 'curated') {
     return getCuratedSampleDeals(options.maxResults || 15, options.minDiscount || 10).map(normalizeDemoProduct);
