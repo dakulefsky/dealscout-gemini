@@ -16,6 +16,59 @@ function publicShape(row) {
   };
 }
 
+function publicDealShape(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    asin: row.asin,
+    category: row.category,
+    originalPrice: Number(row.original_price ?? 0),
+    salePrice: Number(row.sale_price ?? 0),
+    discountPercent: Number(row.discount_percent ?? 0),
+    imageUrl: row.image_url,
+    productUrl: row.product_url,
+    shortBio: row.short_bio || '',
+    sourceVerified: row.source_verified === 1,
+    sourceProvider: row.source_provider || null,
+    status: row.status,
+    isExpired: row.is_expired === 1 || row.status === 'EXPIRED',
+    created_date: row.created_at ? new Date(Number(row.created_at) * 1000).toISOString() : null,
+  };
+}
+
+router.get('/picks', async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 8, 1), 24);
+    const rows = await editorial.listHumanPicks(Math.min(limit * 3, 50));
+    const picks = [];
+    for (const row of rows) {
+      const deal = await deals.findByIdOrAsin(row.asin);
+      if (!deal || deal.status !== 'APPROVED' || deal.is_expired === 1 || deal.source_verified !== 1) continue;
+      picks.push({ ...publicShape(row), deal: publicDealShape(deal) });
+      if (picks.length >= limit) break;
+    }
+    res.json({ picks, affiliateDisclosure: AFFILIATE_DISCLOSURE });
+  } catch (err) {
+    console.error('[editorial] picks failed:', err.message);
+    res.status(503).json({ error: 'DealScout Picks are temporarily unavailable' });
+  }
+});
+
+router.post('/batch', requireAdmin, async (req, res) => {
+  try {
+    const asins = Array.isArray(req.body?.asins) ? req.body.asins.slice(0, 100) : [];
+    const rows = await editorial.listForAsins(asins);
+    const byAsin = Object.fromEntries(rows.map((row) => [row.asin, {
+      ...publicShape(row),
+      reviewedBy: row.reviewed_by || null,
+      updatedAt: row.updated_at || null,
+    }]));
+    res.json({ byAsin });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 router.get('/:asin', optionalAuth, async (req, res) => {
   const asin = String(req.params.asin || '').trim().toUpperCase();
   const deal = await deals.findByIdOrAsin(asin);
