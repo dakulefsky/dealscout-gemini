@@ -132,6 +132,8 @@ export const functions = {
   verifyPrices:      (limit = 15)           => api.post('/api/functions/verify-prices', { limit }),
   imageHealth:       ()                     => api.get('/api/functions/image-health'),
   integrityHealth:   ()                     => api.get('/api/functions/integrity-health'),
+  legacyEnrichmentPreview: ()               => api.get('/api/functions/legacy-enrichment-cleanup'),
+  cleanupLegacyEnrichment: ()               => api.post('/api/functions/legacy-enrichment-cleanup'),
   repairImages:      (limit = 20)           => api.post('/api/functions/repair-images', { limit }),
   purgeExpired:      ()                     => api.post('/api/functions/purge-expired'),
   siteStripeImport:  (input, autoApprove = false) => api.post('/api/functions/sitestripe-import', typeof input === 'object' ? input : { input, inputUrl: input, autoApprove }),
