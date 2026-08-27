@@ -27,7 +27,7 @@ export default function EditorialReview() {
       const batch = await editorialApi.batch(verified.map((deal) => deal.asin));
       setEditorialByAsin(batch?.byAsin || {});
     } catch (error) {
-      toast({ title: 'Could not load editorial queue', description: error.message, variant: 'destructive' });
+      toast({ title: 'Could not load review queue', description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -59,11 +59,11 @@ export default function EditorialReview() {
       setEditorialByAsin((prev) => ({ ...prev, [deal.asin]: saved }));
       setDeals((prev) => prev.map((d) => d.asin === deal.asin ? { ...d, status: publish ? 'APPROVED' : d.status } : d));
       toast({
-        title: publish ? 'Reviewed and published' : saved.isHumanPick ? 'DealScout Pick saved' : 'Editorial review saved',
-        description: publish ? 'Human editorial review is recorded and the verified deal is now live.' : saved.isHumanPick ? 'This deal now has explicit human editorial approval.' : 'Human review recorded without changing publication status.',
+        title: publish ? 'Reviewed and published' : saved.isHumanPick ? 'DealScout Pick saved' : 'Review saved',
+        description: publish ? 'The deal is now live.' : saved.isHumanPick ? 'This deal is now featured as a DealScout Pick.' : 'Review saved without changing publication status.',
       });
     } catch (error) {
-      toast({ title: 'Editorial save failed', description: error.message, variant: 'destructive' });
+      toast({ title: 'Review save failed', description: error.message, variant: 'destructive' });
     } finally {
       setBusyAsin(null);
     }
@@ -74,13 +74,13 @@ export default function EditorialReview() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <Link to="/admin" className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 mb-2"><ArrowLeft className="w-3.5 h-3.5" /> Back to Admin</Link>
-          <h1 className="text-3xl font-black text-slate-900">Editorial Review</h1>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Most strong deals can publish automatically. A configurable holdback deliberately routes some verified candidates here so DealScout maintains recurring, genuine human editorial participation.</p>
+          <h1 className="text-3xl font-black text-slate-900">Review Queue</h1>
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Review held or unreviewed deals, publish the ones you want, and optionally feature standout offers as DealScout Picks.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {[
             ['needs-review', 'Needs review'],
-            ['holdback', 'Held for human'],
+            ['holdback', 'Held for review'],
             ['picks', 'DealScout Picks'],
             ['all', 'All verified'],
           ].map(([key, label]) => (
@@ -91,7 +91,7 @@ export default function EditorialReview() {
 
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950 flex gap-3 items-start">
         <ShieldCheck className="w-5 h-5 shrink-0 text-emerald-700" />
-        <div><strong>Truth-first editorial rule:</strong> do not claim personal use unless you actually used the product. Good notes explain why the price/value stood out, a tradeoff you noticed, or why you chose to feature it.</div>
+        <div><strong>Keep notes factual:</strong> don’t claim personal use unless you actually used the product. A useful note can explain why the price stands out, an important tradeoff, or why the deal is worth featuring.</div>
       </div>
 
       {loading ? (
@@ -110,7 +110,7 @@ export default function EditorialReview() {
                   <div className="w-20 h-20 rounded-2xl bg-slate-50 border border-slate-100 p-1 shrink-0 overflow-hidden"><Image src={deal.imageUrl} alt={deal.title} fittingType="contain" className="w-full h-full" /></div>
                   <div className="min-w-0">
                     <div className="text-[10px] font-black uppercase tracking-wide text-emerald-600">Price verified • {deal.sourceProvider || 'Provider'}</div>
-                    {held && <div className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded mt-1"><Clock className="w-3 h-3" /> Held for human review</div>}
+                    {held && <div className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded mt-1"><Clock className="w-3 h-3" /> Held for review</div>}
                     <h3 className="text-xs font-bold text-slate-900 mt-1 line-clamp-3">{deal.title}</h3>
                     <div className="text-sm font-black text-emerald-700 mt-1">{formatPrice(deal.salePrice)} <span className="text-xs text-slate-400 line-through font-normal">{formatPrice(deal.originalPrice)}</span></div>
                     <div className="text-[11px] text-slate-500">{deal.discountPercent}% off • ASIN {deal.asin}</div>
@@ -120,14 +120,14 @@ export default function EditorialReview() {
                 <div>
                   <label className="text-xs font-bold text-slate-700">Why I chose this deal <span className="font-normal text-slate-400">(optional, max 600 characters)</span></label>
                   <Textarea value={e.editorialNote || ''} maxLength={600} onChange={(event) => updateDraft(deal.asin, { editorialNote: event.target.value })} placeholder="Example: $70 below the current list price, and the discount is unusually strong for this model." className="mt-2 min-h-[88px] rounded-xl text-sm" />
-                  <div className="flex justify-between mt-1 text-[10px] text-slate-400"><span>{e.reviewedAt ? `Reviewed ${new Date(Number(e.reviewedAt) * 1000).toLocaleString()}` : 'Not yet human-reviewed'}</span><span>{(e.editorialNote || '').length}/600</span></div>
+                  <div className="flex justify-between mt-1 text-[10px] text-slate-400"><span>{e.reviewedAt ? `Reviewed ${new Date(Number(e.reviewedAt) * 1000).toLocaleString()}` : 'Not reviewed yet'}</span><span>{(e.editorialNote || '').length}/600</span></div>
                 </div>
 
                 <div className="flex lg:flex-col gap-2 justify-center">
                   <Button disabled={busy} onClick={() => save(deal, { isHumanPick: true }, held)} className={`rounded-xl font-bold gap-1.5 ${e.isHumanPick ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
-                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}{held ? 'Review + Publish Pick' : e.isHumanPick ? 'Update Pick' : 'Make DealScout Pick'}
+                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}{held ? 'Publish as Pick' : e.isHumanPick ? 'Update Pick' : 'Make DealScout Pick'}
                   </Button>
-                  <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, false)} variant="outline" className="rounded-xl font-bold gap-1.5"><Save className="w-4 h-4" /> Save Review Only</Button>
+                  <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, false)} variant="outline" className="rounded-xl font-bold gap-1.5"><Save className="w-4 h-4" /> Save Review</Button>
                 </div>
               </div>
             );
