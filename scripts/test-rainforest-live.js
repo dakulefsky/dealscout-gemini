@@ -7,6 +7,7 @@ process.env.DEAL_DATA_PROVIDER = 'rainforest';
 const require = createRequire(import.meta.url);
 const { getProviderStatus, fetchProductByAsin, fetchDealsList } = require('../server/services/providerRouter');
 const { formatAffiliateUrl } = require('../server/services/rainforestService');
+const { scoreVerifiedDeal } = require('../server/services/dealQualityService');
 
 const TEST_ASIN = process.env.TEST_ASIN || 'B0GGGQDY9H';
 
@@ -23,33 +24,20 @@ function pick(obj, keys) {
 async function printSafeRainforestDiagnostics() {
   try {
     const response = await axios.get('https://api.rainforestapi.com/request', {
-      params: {
-        api_key: process.env.RAINFOREST_API_KEY,
-        type: 'product',
-        amazon_domain: 'amazon.com',
-        asin: TEST_ASIN,
-      },
+      params: { api_key: process.env.RAINFOREST_API_KEY, type: 'product', amazon_domain: 'amazon.com', asin: TEST_ASIN },
       timeout: 20000,
     });
     const data = response.data || {};
     const product = data.product || {};
     const buybox = product.buybox_winner || {};
-
     console.log('\nSafe Rainforest diagnostic');
     console.log(`request_info.success: ${data.request_info?.success}`);
     console.log(`product keys: ${Object.keys(product).sort().join(', ')}`);
-    console.log('product pricing fields:', JSON.stringify(pick(product, [
-      'price', 'list_price', 'rrp', 'was_price', 'deal_price', 'deal_badge', 'availability', 'rating', 'ratings_total',
-    ])));
+    console.log('product pricing fields:', JSON.stringify(pick(product, ['price','list_price','rrp','was_price','deal_price','deal_badge','availability','rating','ratings_total'])));
     console.log(`buybox keys: ${Object.keys(buybox).sort().join(', ')}`);
-    console.log('buybox pricing fields:', JSON.stringify(pick(buybox, [
-      'price', 'list_price', 'rrp', 'was_price', 'deal_price', 'availability', 'is_prime', 'condition',
-    ])));
+    console.log('buybox pricing fields:', JSON.stringify(pick(buybox, ['price','list_price','rrp','was_price','deal_price','availability','is_prime','condition'])));
   } catch (error) {
     console.error(`Rainforest diagnostic request failed: ${error.response?.status || ''} ${error.message}`.trim());
-    if (error.response?.data?.request_info?.message) {
-      console.error(`Rainforest message: ${error.response.data.request_info.message}`);
-    }
   }
 }
 
@@ -62,7 +50,6 @@ async function main() {
   console.log(`Provider effective: ${status.effectiveProvider}`);
   console.log(`Rainforest ready: ${status.rainforest.isConfigured && !status.rainforest.isQuotaExhausted}`);
   console.log(`Affiliate tag configured: ${process.env.AMAZON_ASSOCIATE_TAG === 'dankul-20' ? 'dankul-20' : 'YES (non-default)'}`);
-
   if (status.effectiveProvider !== 'rainforest') return fail(`Expected Rainforest, got ${status.effectiveProvider}`);
 
   const product = await fetchProductByAsin(TEST_ASIN);
@@ -80,24 +67,27 @@ async function main() {
   console.log(`Original price: ${product.originalPrice}`);
   console.log(`Discount: ${product.discountPercent}%`);
   console.log(`Affiliate URL: ${formatAffiliateUrl(`https://www.amazon.com/dp/${product.asin}`)}`);
+  if (product.sourceProvider !== 'RAINFOREST' || product.sourceVerified !== true) return fail('ASIN lookup was not Rainforest-verified');
 
-  if (product.sourceProvider !== 'RAINFOREST' || product.sourceVerified !== true) {
-    return fail('ASIN lookup was not Rainforest-verified');
-  }
-
-  console.log('\nAutomatic deal discovery');
+  console.log('\nAutomatic deal discovery + quality gate');
   const deals = await fetchDealsList({ maxResults: 5, minDiscount: 10 });
   console.log(`Verified deals discovered: ${deals.length}`);
+  let autoApprove = 0;
+  let pending = 0;
+  let rejected = 0;
   deals.slice(0, 5).forEach((deal, index) => {
-    console.log(`${index + 1}. ${deal.asin} | ${deal.discountPercent}% off | ${deal.title}`);
+    const quality = scoreVerifiedDeal(deal);
+    if (quality.decision === 'AUTO_APPROVE') autoApprove += 1;
+    else if (quality.decision === 'PENDING_REVIEW') pending += 1;
+    else rejected += 1;
+    console.log(`${index + 1}. ${quality.decision} | score ${quality.score} | ${deal.discountPercent}% off | ${deal.asin} | ${deal.title}`);
   });
+  console.log(`Quality summary: ${autoApprove} auto-approve, ${pending} pending, ${rejected} reject`);
 
   if (!deals.length) return fail('Rainforest returned no verifiable automatic deals');
-  if (deals.some((deal) => deal.sourceProvider !== 'RAINFOREST' || deal.sourceVerified !== true)) {
-    return fail('Automatic discovery returned a non-Rainforest/non-verified record');
-  }
+  if (deals.some((deal) => deal.sourceProvider !== 'RAINFOREST' || deal.sourceVerified !== true)) return fail('Automatic discovery returned a non-Rainforest/non-verified record');
 
-  console.log('\nPASS: Rainforest lookup and automatic deal discovery are live.');
+  console.log('\nPASS: Rainforest lookup, automatic discovery, and quality scoring are live.');
 }
 
 main().catch((error) => fail(error?.message || String(error)));
