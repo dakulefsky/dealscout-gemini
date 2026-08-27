@@ -16,4 +16,12 @@ describe('public deal enrichment boundary', () => {
     expect(source).not.toContain('top_reviews');
     expect(source).not.toContain('normalizeReviews');
   });
+
+  test('live provider routing cannot fall back to legacy scraper metadata', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'providerRouter.js'), 'utf8');
+    expect(source).not.toContain("require('./amazonScraperService')");
+    expect(source).not.toContain('resolveProductDetails');
+    expect(source).toContain("process.env.NODE_ENV !== 'production'");
+    expect(source).toContain('Fail closed');
+  });
 });
