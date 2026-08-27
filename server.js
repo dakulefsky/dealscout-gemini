@@ -61,6 +61,7 @@ async function startServer() {
   app.use('/api/categories', require('./server/routes/categories.js'));
   app.use('/api/functions', require('./server/middleware/imageRepairEndpoint.js').imageRepairEndpoint);
   app.use('/api/functions', require('./server/middleware/integrityHealthEndpoint.js').integrityHealthEndpoint);
+  app.use('/api/functions', require('./server/middleware/legacyEnrichmentCleanupEndpoint.js').legacyEnrichmentCleanupEndpoint);
   app.use('/api/functions', require('./server/routes/functions.js'));
   app.use('/api/ai', require('./server/routes/ai.js'));
   app.use('/api/bookmarks', require('./server/routes/bookmarks.js'));
