@@ -48,6 +48,7 @@ async function startServer() {
 
   app.use('/api/auth', require('./server/routes/auth.js'));
   app.use('/api/deals', require('./server/routes/priceHistory.js'));
+  app.use('/api/deals', require('./server/middleware/verifiedAiIngestGuard.js').verifiedAiIngestGuard);
   app.use('/api/deals', require('./server/routes/deals.js'));
   app.use('/api/editorial', require('./server/routes/editorial.js'));
   app.use('/api/categories', require('./server/routes/categories.js'));
