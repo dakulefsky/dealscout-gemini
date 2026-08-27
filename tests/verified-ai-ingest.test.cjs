@@ -7,7 +7,7 @@ test('detects legacy Gemini AI ingest payloads', () => {
   assert.equal(isAiIngest({ rawSourceData: 'RAINFOREST | ASIN: B0GGGQDY9H' }), false);
 });
 
-test('verified provider facts overwrite fabricated AI defaults', () => {
+test('verified provider facts overwrite fabricated AI defaults and strip unproven enrichment', () => {
   const body = {
     asin: 'B0GGGQDY9H',
     title: 'AI guessed title',
@@ -18,6 +18,9 @@ test('verified provider facts overwrite fabricated AI defaults', () => {
     ratingsTotal: 1240,
     reviews: [{ text: 'fake' }],
     shortBio: 'AI editorial summary',
+    fullSummary: 'AI-generated product overview',
+    pros: ['Fake pro'],
+    cons: ['Fake con'],
     rawSourceData: 'Gemini AI Ingest | ASIN: B0GGGQDY9H',
   };
   const live = {
@@ -40,7 +43,11 @@ test('verified provider facts overwrite fabricated AI defaults', () => {
   assert.equal(result.sourceVerified, true);
   assert.equal(result.sourceProvider, 'RAINFOREST');
   assert.deepEqual(result.reviews, []);
-  assert.equal(result.shortBio, 'AI editorial summary');
+  assert.equal(result.shortBio, '');
+  assert.equal(result.fullSummary, '');
+  assert.deepEqual(result.pros, []);
+  assert.deepEqual(result.cons, []);
+  assert.match(result.rawSourceData, /product verification only/i);
 });
 
 test('AI save fails closed without verified live data', () => {
