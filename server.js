@@ -66,6 +66,7 @@ async function startServer() {
 
   try {
     require('./server/services/cronService.js').start();
+    require('./server/services/imageRepairService.js').startImageRepairScheduler();
   } catch (cronErr) {
     console.warn('[DealScout] Scheduler initialization warning:', cronErr.message);
   }
