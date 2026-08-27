@@ -2,11 +2,11 @@ const { getItems, searchItems, getPaapiConfig } = require('./amazonPaapiService'
 const {
   isConfigured: isRainforestConfigured,
   isQuotaExhausted,
-  fetchProductByAsin: fetchRainforestProduct,
   fetchRainforestDeals,
   getCuratedSampleDeals,
   SAMPLE_DEAL_POOL,
 } = require('./rainforestService');
+const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { resolveProductDetails } = require('./amazonScraperService');
 
 let activeProvider = process.env.DEAL_DATA_PROVIDER || 'auto';
@@ -109,7 +109,7 @@ async function fetchProductByAsin(asin, options = {}) {
 
   if (status.effectiveProvider === 'rainforest' || (activeProvider === 'auto' && status.rainforest.isConfigured && !status.rainforest.isQuotaExhausted)) {
     try {
-      const product = await fetchRainforestProduct(cleanAsin, options);
+      const product = await fetchStrictRainforestProduct(cleanAsin, options);
       const verified = normalizeVerifiedProduct(product, 'RAINFOREST');
       if (verified) return verified;
       if (activeProvider === 'rainforest') {
