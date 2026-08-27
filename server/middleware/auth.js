@@ -8,14 +8,32 @@ function requireJwtSecret() {
   }
 }
 
-function requireAuth(req, res, next) {
-  try { requireJwtSecret(); } catch { return res.status(503).json({ error: 'Authentication is not configured' }); }
+function verifyBearer(req) {
+  requireJwtSecret();
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+  if (!header || !header.startsWith('Bearer ')) return null;
+  return jwt.verify(header.slice(7), JWT_SECRET);
+}
+
+function optionalAuth(req, _res, next) {
   try {
-    req.user = jwt.verify(header.slice(7), JWT_SECRET);
+    req.user = verifyBearer(req) || null;
+  } catch {
+    req.user = null;
+  }
+  next();
+}
+
+function requireAuth(req, res, next) {
+  try {
+    const user = verifyBearer(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+    req.user = user;
     next();
-  } catch { return res.status(401).json({ error: 'Invalid or expired token' }); }
+  } catch (err) {
+    if (/JWT_SECRET/.test(err.message)) return res.status(503).json({ error: 'Authentication is not configured' });
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
 }
 
 function requireAdmin(req, res, next) {
@@ -25,4 +43,4 @@ function requireAdmin(req, res, next) {
   });
 }
 
-module.exports = { requireAuth, requireAdmin };
+module.exports = { optionalAuth, requireAuth, requireAdmin };
