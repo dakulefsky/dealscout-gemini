@@ -13,7 +13,6 @@ export function setToken(token) {
   else localStorage.removeItem('ds_token');
 }
 
-// Guest ID generation for anonymous bookmarks/alerts sync
 function getGuestId() {
   let guestId = localStorage.getItem('ds_guest_id');
   if (!guestId) {
@@ -52,11 +51,11 @@ async function request(method, path, body) {
 export const api = {
   get:    (path)         => request('GET',    path),
   post:   (path, body)   => request('POST',   path, body),
+  put:    (path, body)   => request('PUT',    path, body),
   patch:  (path, body)   => request('PATCH',  path, body),
   delete: (path)         => request('DELETE', path),
 };
 
-// ── Auth ─────────────────────────────────────────────────────────────────
 export const auth = {
   me:                  ()       => api.get('/api/auth/me'),
   login:               (email, password) => api.post('/api/auth/login', { email, password }),
@@ -68,7 +67,6 @@ export const auth = {
   logout:              ()       => setToken(null),
 };
 
-// ── Deals ────────────────────────────────────────────────────────────────
 export const deals = {
   list:   (params = {}) => {
     const qs = new URLSearchParams(
@@ -90,7 +88,12 @@ export const deals = {
   getStats: ()          => api.get('/api/deals/stats'),
 };
 
-// ── Categories ───────────────────────────────────────────────────────────
+export const editorial = {
+  get:    (asin)       => api.get(`/api/editorial/${asin}`),
+  save:   (asin, data) => api.put(`/api/editorial/${asin}`, data),
+  remove: (asin)       => api.delete(`/api/editorial/${asin}`),
+};
+
 export const categories = {
   list:   (params = {}) => {
     const qs = new URLSearchParams(
@@ -104,20 +107,17 @@ export const categories = {
   delete: (id)          => api.delete(`/api/categories/${id}`),
 };
 
-// ── Gemini AI Services ───────────────────────────────────────────────────
 export const ai = {
   analyzeDeal: (data) => api.post('/api/ai/analyze-deal', data),
   askAssistant: (params) => api.post('/api/ai/ask-deal-assistant', params),
 };
 
-// ── Saved Deals & Price Alerts ───────────────────────────────────────────
 export const bookmarks = {
   list: () => api.get('/api/bookmarks'),
   toggle: (dealId, targetPrice) => api.post('/api/bookmarks/toggle', { dealId, targetPrice }),
   setPriceAlert: (dealId, targetPrice, email) => api.post('/api/bookmarks/price-alert', { dealId, targetPrice, email }),
 };
 
-// ── Functions & Ingestion ────────────────────────────────────────────────
 export const functions = {
   amazonRedirect:    (url)                  => api.post('/api/functions/amazon-redirect', { url }),
   fetchDeals:        (maxDeals = 10)        => api.post('/api/functions/fetch-deals', { maxDeals }),
