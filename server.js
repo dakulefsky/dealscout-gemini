@@ -30,12 +30,14 @@ async function startServer() {
   const userRepository = require('./server/repositories/userRepository.js');
   const categoryRepository = require('./server/repositories/categoryRepository.js');
   const bookmarkRepository = require('./server/repositories/bookmarkRepository.js');
+  const editorialRepository = require('./server/repositories/editorialRepository.js');
   if (isProduction) hardenJsonUsers(db);
 
   await Promise.all([
     dealRepository.ensureSchema(),
     userRepository.ensureSchema(),
     categoryRepository.ensureSchema(),
+    editorialRepository.ensureSchema(),
   ]);
   await bookmarkRepository.ensureSchema();
   if (isProduction) await dealRepository.hardenProduction();
@@ -47,6 +49,7 @@ async function startServer() {
   app.use('/api/auth', require('./server/routes/auth.js'));
   app.use('/api/deals', require('./server/routes/priceHistory.js'));
   app.use('/api/deals', require('./server/routes/deals.js'));
+  app.use('/api/editorial', require('./server/routes/editorial.js'));
   app.use('/api/categories', require('./server/routes/categories.js'));
   app.use('/api/functions', require('./server/routes/functions.js'));
   app.use('/api/ai', require('./server/routes/ai.js'));
