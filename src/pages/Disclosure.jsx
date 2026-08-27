@@ -1,64 +1,68 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, BadgeDollarSign, CheckCircle2, Clock3, ShieldCheck } from 'lucide-react';
 
 export default function Disclosure() {
   return (
-    <div className="max-w-3xl mx-auto px-4 py-12">
-      <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 mb-8 transition">
+    <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+      <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900 mb-6 transition">
         <ArrowLeft className="h-4 w-4" /> Back to deals
       </Link>
 
-      <h1 className="font-heading text-3xl font-bold text-slate-900 mb-2">Affiliate & Editorial Disclosure</h1>
-      <p className="text-slate-500 mb-8">DealScout separates provider-verified facts from human editorial judgment.</p>
-
-      <div className="prose prose-slate max-w-none space-y-6 text-slate-700 leading-relaxed">
-        <section className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
-          <p className="font-bold text-slate-900">As an Amazon Associate I earn from qualifying purchases.</p>
-          <p className="mt-2 text-sm">If you buy through an eligible Amazon link on DealScout, DealScout may earn a commission at no additional cost to you.</p>
-        </section>
-
-        <section>
-          <h2 className="font-heading text-xl font-bold text-slate-900 mb-3">How deals are found</h2>
-          <p>
-            Deal discovery, price checks, discount calculations, availability checks, and stale-deal cleanup may be automated.
-            DealScout only publishes provider-sourced pricing when the current price and a higher comparison price can be verified.
-            Prices and stock can still change after a check, so the final Amazon product and checkout pages control.
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-9 shadow-xs">
+        <div className="max-w-2xl">
+          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full mb-3">
+            <ShieldCheck className="w-3.5 h-3.5" /> Transparency
+          </span>
+          <h1 className="font-heading text-3xl sm:text-4xl font-black tracking-tight text-slate-900">Affiliate disclosure</h1>
+          <p className="text-sm sm:text-base text-slate-600 mt-3 leading-relaxed">
+            The short version: DealScout may earn a commission when you buy through eligible Amazon links. It does not increase the price you pay.
           </p>
+        </div>
+
+        <section className="mt-7 p-5 rounded-2xl bg-amber-50 border border-amber-200">
+          <div className="flex items-start gap-3">
+            <BadgeDollarSign className="w-5 h-5 text-amber-700 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-black text-slate-900">As an Amazon Associate I earn from qualifying purchases.</p>
+              <p className="mt-1.5 text-sm text-slate-700 leading-relaxed">Eligible purchases made after following an Amazon link from DealScout may generate a commission for DealScout at no additional cost to you.</p>
+            </div>
+          </div>
         </section>
 
-        <section>
-          <h2 className="font-heading text-xl font-bold text-slate-900 mb-3">Human editorial review</h2>
-          <p>
-            A deal labeled <strong>DealScout Pick</strong> has received an explicit human editorial decision. A human note may explain
-            why a discount stood out, a tradeoff worth noticing, or why the deal was chosen to feature. A DealScout Pick does not mean
-            the reviewer personally used the product unless the note expressly and truthfully says so.
-          </p>
-        </section>
+        <div className="grid sm:grid-cols-3 gap-3 mt-7">
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            <h2 className="font-bold text-slate-900 mt-3">Prices are checked</h2>
+            <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">We aim to show deals only when the current price and comparison price can be verified.</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+            <Clock3 className="w-5 h-5 text-emerald-600" />
+            <h2 className="font-bold text-slate-900 mt-3">Deals can change</h2>
+            <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">Prices, sellers, shipping, promotions, and availability may change after our latest check.</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+            <ShieldCheck className="w-5 h-5 text-emerald-600" />
+            <h2 className="font-bold text-slate-900 mt-3">Amazon is final</h2>
+            <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">Always confirm the final seller, price, shipping, availability, and purchase terms on Amazon.</p>
+          </div>
+        </div>
 
-        <section>
-          <h2 className="font-heading text-xl font-bold text-slate-900 mb-3">Provider facts vs. our commentary</h2>
-          <p>
-            Product identifiers, current prices, comparison prices, availability, and other provider-sourced fields are kept separate
-            from DealScout's own editorial commentary. We do not intentionally invent prices, discounts, customer reviews, scarcity,
-            product experience, or source verification.
-          </p>
-        </section>
+        <div className="mt-8 pt-7 border-t border-slate-200 space-y-6 text-sm text-slate-600 leading-relaxed">
+          <section>
+            <h2 className="font-heading text-lg font-bold text-slate-900 mb-2">DealScout Picks</h2>
+            <p>A DealScout Pick is a deal we chose to highlight because it stands out. A pick is not a claim that we personally tested or used the product unless we explicitly say so.</p>
+          </section>
 
-        <section>
-          <h2 className="font-heading text-xl font-bold text-slate-900 mb-3">Pricing & availability</h2>
-          <p>
-            Amazon prices, promotions, sellers, and availability can change rapidly. Always verify the final seller, price, shipping,
-            and terms on Amazon before purchasing.
-          </p>
-        </section>
+          <section>
+            <h2 className="font-heading text-lg font-bold text-slate-900 mb-2">Accuracy</h2>
+            <p>We work to keep prices, discounts, product details, and deal status accurate. We do not intentionally invent prices, discounts, customer reviews, scarcity, or personal product experience.</p>
+          </section>
 
-        <section>
-          <h2 className="font-heading text-xl font-bold text-slate-900 mb-3">Independence</h2>
-          <p>
-            Affiliate compensation does not guarantee placement or a DealScout Pick. Automated quality scoring can prioritize candidates,
-            while human editorial labels are recorded separately from the underlying provider data.
-          </p>
-        </section>
+          <section>
+            <h2 className="font-heading text-lg font-bold text-slate-900 mb-2">Affiliate relationships</h2>
+            <p>Affiliate compensation does not guarantee that a product will be featured or labeled a DealScout Pick. The goal is to surface useful deals while being clear about how the site may earn money.</p>
+          </section>
+        </div>
       </div>
     </div>
   );
