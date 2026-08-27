@@ -1,11 +1,10 @@
 const fs = require('fs');
 const path = require('path');
-const { Pool } = require('pg');
+const postgres = require('../storage/postgres');
 
 const HISTORY_FILE = path.join(__dirname, '..', 'data', 'price-history.json');
 const MAX_POINTS_PER_ASIN = 365;
 let history = {};
-let pool = null;
 let schemaReady = false;
 
 function loadJsonFallback() {
@@ -35,25 +34,9 @@ function normalizeAsin(value) {
   return /^[A-Z0-9]{10}$/.test(asin) ? asin : null;
 }
 
-function postgresEnabled() {
-  return Boolean(process.env.DATABASE_URL);
-}
-
-function getPool() {
-  if (!postgresEnabled()) return null;
-  if (!pool) {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
-      max: Number(process.env.PG_POOL_MAX || 5),
-    });
-  }
-  return pool;
-}
-
 async function ensureSchema() {
-  if (!postgresEnabled() || schemaReady) return;
-  await getPool().query(`
+  if (!postgres.isConfigured() || schemaReady) return;
+  await postgres.query(`
     CREATE TABLE IF NOT EXISTS price_history (
       id BIGSERIAL PRIMARY KEY,
       asin VARCHAR(10) NOT NULL,
@@ -74,10 +57,9 @@ async function recordObservation({ asin, salePrice, originalPrice, sourceProvide
   const original = Number(originalPrice);
   if (!cleanAsin || !Number.isFinite(sale) || sale <= 0 || !Number.isFinite(original) || original <= 0 || sale > original) return false;
 
-  if (postgresEnabled()) {
+  if (postgres.isConfigured()) {
     await ensureSchema();
-    const client = getPool();
-    const recent = await client.query(
+    const recent = await postgres.query(
       `SELECT sale_price, original_price, observed_at
          FROM price_history
         WHERE asin = $1
@@ -90,7 +72,7 @@ async function recordObservation({ asin, salePrice, originalPrice, sourceProvide
     if (last && Number(last.sale_price) === sale && Number(last.original_price) === original && observedDate.getTime() - new Date(last.observed_at).getTime() < 3600000) {
       return false;
     }
-    await client.query(
+    await postgres.query(
       `INSERT INTO price_history (asin, sale_price, original_price, source_provider, observed_at)
        VALUES ($1, $2, $3, $4, $5)`,
       [cleanAsin, sale, original, sourceProvider || null, observedDate]
@@ -112,9 +94,9 @@ async function getHistory(asin) {
   const cleanAsin = normalizeAsin(asin);
   if (!cleanAsin) return [];
 
-  if (postgresEnabled()) {
+  if (postgres.isConfigured()) {
     await ensureSchema();
-    const result = await getPool().query(
+    const result = await postgres.query(
       `SELECT sale_price, original_price, source_provider, observed_at
          FROM price_history
         WHERE asin = $1
@@ -141,11 +123,11 @@ async function getHistory(asin) {
 }
 
 async function health() {
-  if (!postgresEnabled()) return { backend: 'json', configured: false };
+  if (!postgres.isConfigured()) return { backend: 'json', configured: false };
   try {
     await ensureSchema();
-    await getPool().query('SELECT 1');
-    return { backend: 'postgres', configured: true, healthy: true };
+    const status = await postgres.health();
+    return { backend: 'postgres', ...status };
   } catch (err) {
     return { backend: 'postgres', configured: true, healthy: false, error: err.message };
   }
