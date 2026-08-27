@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
 const jwt = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid');
 const users = require('../repositories/userRepository');
 const deals = require('../repositories/dealRepository');
+const bookmarks = require('../repositories/bookmarkRepository');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const GUEST_ID_RE = /^guest_[a-z0-9]{9,64}$/i;
@@ -65,8 +64,7 @@ router.use(async (req, res, next) => {
 
 router.get('/', async (req, res) => {
   try {
-    const userId = req.clientIdentity.id;
-    const userBookmarks = db.tables.bookmarks.filter((b) => b.userId === userId);
+    const userBookmarks = await bookmarks.listBookmarks(req.clientIdentity.id);
     const savedDeals = [];
     for (const bookmark of userBookmarks) {
       const deal = await deals.findByIdOrAsin(bookmark.dealId);
@@ -87,20 +85,10 @@ router.post('/toggle', async (req, res) => {
   try {
     const deal = await deals.findByIdOrAsin(dealId);
     if (!publicDeal(deal)) return res.status(404).json({ error: 'Deal not found' });
-
-    const existingIndex = db.tables.bookmarks.findIndex((b) => b.userId === userId && b.dealId === deal.id);
-    let isSaved;
-    if (existingIndex !== -1) {
-      db.tables.bookmarks.splice(existingIndex, 1);
-      isSaved = false;
-    } else {
-      const targetPrice = req.body?.targetPrice == null ? null : Number(req.body.targetPrice);
-      if (targetPrice !== null && (!Number.isFinite(targetPrice) || targetPrice <= 0)) return res.status(400).json({ error: 'Invalid target price' });
-      db.tables.bookmarks.push({ id: uuidv4(), userId, dealId: deal.id, targetPrice, createdAt: Math.floor(Date.now() / 1000) });
-      isSaved = true;
-    }
-    db.saveDb();
-    res.json({ success: true, isSaved, dealId: deal.id, totalSaved: db.tables.bookmarks.filter((b) => b.userId === userId).length });
+    const targetPrice = req.body?.targetPrice == null ? null : Number(req.body.targetPrice);
+    if (targetPrice !== null && (!Number.isFinite(targetPrice) || targetPrice <= 0)) return res.status(400).json({ error: 'Invalid target price' });
+    const result = await bookmarks.toggleBookmark(userId, deal.id, targetPrice);
+    res.json({ success: true, isSaved: result.isSaved, dealId: deal.id, totalSaved: await bookmarks.countBookmarks(userId) });
   } catch (err) {
     console.error('[bookmarks] toggle failed:', err.message);
     res.status(503).json({ error: 'Bookmark service is temporarily unavailable' });
@@ -120,26 +108,8 @@ router.post('/price-alert', async (req, res) => {
     const email = identity.authenticated ? identity.email : suppliedEmail;
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A valid email is required for price alerts' });
 
-    const alertIndex = db.tables.price_alerts.findIndex((a) => a.userId === identity.id && a.dealId === deal.id);
-    const alert = {
-      id: alertIndex !== -1 ? db.tables.price_alerts[alertIndex].id : uuidv4(),
-      userId: identity.id,
-      dealId: deal.id,
-      dealTitle: deal.title,
-      currentPrice: Number(deal.sale_price),
-      targetPrice,
-      email,
-      status: 'ACTIVE',
-      createdAt: alertIndex !== -1 ? db.tables.price_alerts[alertIndex].createdAt : Math.floor(Date.now() / 1000),
-    };
-    if (alertIndex !== -1) db.tables.price_alerts[alertIndex] = alert;
-    else db.tables.price_alerts.push(alert);
-
-    const bookmark = db.tables.bookmarks.find((b) => b.userId === identity.id && b.dealId === deal.id);
-    if (bookmark) bookmark.targetPrice = targetPrice;
-    else db.tables.bookmarks.push({ id: uuidv4(), userId: identity.id, dealId: deal.id, targetPrice, createdAt: Math.floor(Date.now() / 1000) });
-
-    db.saveDb();
+    const alert = await bookmarks.upsertAlert({ userId: identity.id, deal, targetPrice, email });
+    await bookmarks.setBookmarkTarget(identity.id, deal.id, targetPrice);
     res.json({ success: true, message: `Price alert set for $${targetPrice}.`, alert });
   } catch (err) {
     console.error('[bookmarks] price alert failed:', err.message);
