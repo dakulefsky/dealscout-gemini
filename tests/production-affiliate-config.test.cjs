@@ -11,9 +11,9 @@ test('production startup requires an explicit Amazon Associate tag', () => {
   assert.match(server, /AMAZON_ASSOCIATE_TAG must be configured in production/);
 });
 
-test('legacy placeholder tag cannot be silently used in production because startup fails first', () => {
-  assert.match(functionsRoute, /process\.env\.AMAZON_ASSOCIATE_TAG \|\| 'dealscout-20'/);
-  assert.match(server, /const db = require\('\.\/server\/db\.js'\)/);
+test('active affiliate routes do not use the legacy placeholder tag', () => {
+  assert.match(functionsRoute, /String\(process\.env\.AMAZON_ASSOCIATE_TAG \|\| ''\)\.trim\(\)/);
+  assert.doesNotMatch(functionsRoute, /dealscout-20/);
   const guardIndex = server.indexOf('AMAZON_ASSOCIATE_TAG must be configured in production');
   const routeLoadIndex = server.indexOf("app.use('/api/functions'");
   assert.ok(guardIndex > -1 && routeLoadIndex > guardIndex);
