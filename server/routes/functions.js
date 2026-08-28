@@ -7,8 +7,6 @@ const {
   isQuotaExhausted,
   extractAsin,
   formatAffiliateUrl,
-  fetchProductReviews,
-  searchProducts,
   getAccountStatus,
 } = require('../services/rainforestService');
 const {
@@ -60,13 +58,13 @@ function providerDealRecord(item, status = 'PENDING_REVIEW', productUrl) {
     discount_percent: item.discountPercent,
     image_url: item.imageUrl || item.image_url || '',
     product_url: formatAffiliateUrl(productUrl || item.productUrl || item.product_url || `https://www.amazon.com/dp/${item.asin}`, AMAZON_ASSOCIATE_TAG),
-    rating: Number(item.rating) || 0,
-    ratings_total: Number(item.ratingsTotal || item.ratings_total) || 0,
-    short_bio: item.shortBio || item.short_bio || '',
-    full_summary: item.fullSummary || item.full_summary || '',
-    pros: item.pros || '',
-    cons: item.cons || '',
-    reviews: item.reviews || [],
+    rating: 0,
+    ratings_total: 0,
+    short_bio: '',
+    full_summary: '',
+    pros: '',
+    cons: '',
+    reviews: [],
     source_sufficient: 1,
     source_verified: 1,
     source_provider: item.sourceProvider || 'VERIFIED_PROVIDER',
@@ -217,31 +215,6 @@ router.post('/rainforest-lookup', requireAdmin, async (req, res) => {
     res.json({ configured: true, asin, data });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Lookup failed' });
-  }
-});
-
-router.post('/rainforest-search', requireAdmin, async (req, res) => {
-  try {
-    const query = String(req.body?.query || '').trim();
-    if (!query) return res.status(400).json({ error: 'Search query is required.' });
-    if (!isConfigured() || isQuotaExhausted()) return res.status(503).json({ error: 'Rainforest search is unavailable.' });
-    res.json(await searchProducts(query, { amazonDomain: req.body?.amazonDomain || 'amazon.com', maxResults: Number(req.body?.maxResults) || 10 }));
-  } catch (err) {
-    res.status(500).json({ error: err.message || 'Search failed' });
-  }
-});
-
-router.post('/rainforest-reviews', requireAdmin, async (req, res) => {
-  try {
-    const cleanAsin = extractAsin(req.body?.asin);
-    if (!cleanAsin) return res.status(400).json({ error: 'Valid ASIN required.' });
-    if (!isConfigured() || isQuotaExhausted()) return res.status(503).json({ error: 'Verified reviews are unavailable.' });
-    const reviews = await fetchProductReviews(cleanAsin, { amazonDomain: req.body?.amazonDomain || 'amazon.com', sortBy: req.body?.sortBy || 'most_helpful' });
-    const deal = await deals.findByIdOrAsin(cleanAsin);
-    if (deal && Array.isArray(reviews)) await deals.update(deal.id, { reviews });
-    res.json({ configured: true, asin: cleanAsin, reviews: reviews || [], count: reviews?.length || 0 });
-  } catch (err) {
-    res.status(500).json({ error: err.message || 'Failed to fetch reviews' });
   }
 });
 
