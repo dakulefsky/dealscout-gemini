@@ -1,24 +1,21 @@
 const { getItems, searchItems, getPaapiConfig } = require('./amazonPaapiService');
-const {
-  isConfigured: isRainforestConfigured,
-  isQuotaExhausted,
-  getCuratedSampleDeals,
-  SAMPLE_DEAL_POOL,
-} = require('./rainforestService');
 const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
 
-let activeProvider = process.env.DEAL_DATA_PROVIDER || 'auto';
+const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
+let activeProvider = VALID_PROVIDERS.includes(process.env.DEAL_DATA_PROVIDER)
+  ? process.env.DEAL_DATA_PROVIDER
+  : 'auto';
 
 function getActiveProvider() { return activeProvider; }
 
-function curatedAllowed() {
-  return process.env.NODE_ENV !== 'production';
+function isRainforestConfigured() {
+  const key = String(process.env.RAINFOREST_API_KEY || '').trim();
+  return Boolean(key && key !== 'your_rainforest_api_key_here');
 }
 
 function setActiveProvider(provider) {
-  const valid = curatedAllowed() ? ['auto', 'amazon_paapi', 'rainforest', 'curated'] : ['auto', 'amazon_paapi', 'rainforest'];
-  if (!valid.includes(provider)) throw new Error(`Invalid provider '${provider}'. Allowed: ${valid.join(', ')}`);
+  if (!VALID_PROVIDERS.includes(provider)) throw new Error(`Invalid provider '${provider}'. Allowed: ${VALID_PROVIDERS.join(', ')}`);
   activeProvider = provider;
   return activeProvider;
 }
@@ -26,15 +23,13 @@ function setActiveProvider(provider) {
 async function getProviderStatus() {
   const paapiConfig = getPaapiConfig();
   const rainforestConfigured = isRainforestConfigured();
-  const rainforestQuotaExhausted = isQuotaExhausted();
   let effectiveProvider = 'none';
 
   if (activeProvider === 'amazon_paapi' && paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
-  else if (activeProvider === 'rainforest' && rainforestConfigured && !rainforestQuotaExhausted) effectiveProvider = 'rainforest';
-  else if (activeProvider === 'curated' && curatedAllowed()) effectiveProvider = 'curated';
+  else if (activeProvider === 'rainforest' && rainforestConfigured) effectiveProvider = 'rainforest';
   else if (activeProvider === 'auto') {
     if (paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
-    else if (rainforestConfigured && !rainforestQuotaExhausted) effectiveProvider = 'rainforest';
+    else if (rainforestConfigured) effectiveProvider = 'rainforest';
   }
 
   return {
@@ -50,13 +45,7 @@ async function getProviderStatus() {
     },
     rainforest: {
       isConfigured: rainforestConfigured,
-      isQuotaExhausted: rainforestQuotaExhausted,
-      status: rainforestQuotaExhausted ? 'Quota exhausted' : rainforestConfigured ? 'Ready' : 'Not configured',
-    },
-    curated: {
-      isReady: curatedAllowed(),
-      poolSize: curatedAllowed() ? SAMPLE_DEAL_POOL.length : 0,
-      status: curatedAllowed() ? 'Development/demo data only; never source-verified' : 'Disabled in production',
+      status: rainforestConfigured ? 'Ready' : 'Not configured',
     },
   };
 }
@@ -79,22 +68,6 @@ function normalizeVerifiedProduct(product, provider) {
   };
 }
 
-function normalizeDemoProduct(product) {
-  if (!product) return null;
-  const originalPrice = Number(product.originalPrice ?? product.original_price);
-  const salePrice = Number(product.salePrice ?? product.sale_price);
-  return {
-    ...product,
-    originalPrice,
-    salePrice,
-    discountPercent: originalPrice > 0 && salePrice > 0 && salePrice <= originalPrice
-      ? Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1))
-      : 0,
-    sourceProvider: 'CURATED_DEMO',
-    sourceVerified: false,
-  };
-}
-
 async function fetchProductByAsin(asin, options = {}) {
   const cleanAsin = (asin || '').trim().toUpperCase();
   if (!/^[A-Z0-9]{10}$/.test(cleanAsin)) throw new Error('Invalid Amazon ASIN');
@@ -107,10 +80,11 @@ async function fetchProductByAsin(asin, options = {}) {
       if (verified) return verified;
     } catch (err) {
       console.warn(`[ProviderRouter PA-API notice for ${cleanAsin}]:`, err.message);
+      if (activeProvider === 'amazon_paapi') return null;
     }
   }
 
-  if (status.effectiveProvider === 'rainforest' || (activeProvider === 'auto' && status.rainforest.isConfigured && !status.rainforest.isQuotaExhausted)) {
+  if (status.effectiveProvider === 'rainforest' || (activeProvider === 'auto' && status.rainforest.isConfigured)) {
     try {
       const product = await fetchStrictRainforestProduct(cleanAsin, options);
       const verified = normalizeVerifiedProduct(product, 'RAINFOREST');
@@ -125,12 +99,7 @@ async function fetchProductByAsin(asin, options = {}) {
     }
   }
 
-  if (activeProvider === 'curated' && curatedAllowed()) {
-    const sample = SAMPLE_DEAL_POOL.find((d) => d.asin === cleanAsin);
-    return normalizeDemoProduct(sample);
-  }
-
-  // Fail closed. Do not fall back to the legacy direct scraper/curated metadata path.
+  // Fail closed. Never fall back to legacy scraper, curated, or synthetic metadata.
   return null;
 }
 
@@ -141,9 +110,13 @@ async function fetchDealsList(options = {}) {
       const result = await searchItems('deals of the day', { itemCount: options.maxResults || 15 });
       const verified = (result?.results || []).map((x) => normalizeVerifiedProduct(x, 'AMAZON_PAAPI')).filter(Boolean);
       if (verified.length) return verified;
-    } catch (err) { console.warn('[ProviderRouter PA-API search notice]:', err.message); }
+      if (activeProvider === 'amazon_paapi') return [];
+    } catch (err) {
+      console.warn('[ProviderRouter PA-API search notice]:', err.message);
+      if (activeProvider === 'amazon_paapi') return [];
+    }
   }
-  if (status.effectiveProvider === 'rainforest' || (activeProvider === 'auto' && status.rainforest.isConfigured && !status.rainforest.isQuotaExhausted)) {
+  if (status.effectiveProvider === 'rainforest' || (activeProvider === 'auto' && status.rainforest.isConfigured)) {
     try {
       const result = await fetchStrictRainforestDeals(options);
       const verified = (result || []).map((x) => normalizeVerifiedProduct(x, 'RAINFOREST')).filter(Boolean);
@@ -153,9 +126,6 @@ async function fetchDealsList(options = {}) {
       console.warn('[ProviderRouter Rainforest deals notice]:', err.message);
       if (activeProvider === 'rainforest') return [];
     }
-  }
-  if (activeProvider === 'curated' && curatedAllowed()) {
-    return getCuratedSampleDeals(options.maxResults || 15, options.minDiscount || 10).map(normalizeDemoProduct);
   }
   return [];
 }
