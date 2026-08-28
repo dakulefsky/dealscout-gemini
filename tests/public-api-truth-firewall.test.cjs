@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const dealsRoute = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'deals.js'), 'utf8');
+const functionsRoute = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'functions.js'), 'utf8');
 
 test('public deal serializer excludes legacy enrichment and raw source data', () => {
   const publicBlock = dealsRoute.match(/const publicDeal = \{([\s\S]*?)\n  \};/);
@@ -29,8 +30,24 @@ test('public search and sorting do not use legacy ratings or enrichment', () => 
   assert.match(dealsRoute, /else if \(isAdmin && sort === 'rating_desc'\)/);
 });
 
-test('dead review sync route and Rainforest review imports are removed from deals API', () => {
+test('dead review sync routes and review imports are removed', () => {
   assert.doesNotMatch(dealsRoute, /sync-reviews/);
   assert.doesNotMatch(dealsRoute, /fetchProductReviews/);
-  assert.doesNotMatch(dealsRoute, /isQuotaExhausted/);
+  assert.doesNotMatch(functionsRoute, /rainforest-reviews/);
+  assert.doesNotMatch(functionsRoute, /fetchProductReviews/);
+  assert.doesNotMatch(functionsRoute, /searchProducts/);
+});
+
+test('verified provider ingest cannot persist provider-generated enrichment', () => {
+  const recordBlock = functionsRoute.match(/function providerDealRecord[\s\S]*?\n\}/);
+  assert.ok(recordBlock, 'providerDealRecord should exist');
+  const text = recordBlock[0];
+  assert.match(text, /rating: 0/);
+  assert.match(text, /ratings_total: 0/);
+  assert.match(text, /short_bio: ''/);
+  assert.match(text, /full_summary: ''/);
+  assert.match(text, /pros: ''/);
+  assert.match(text, /cons: ''/);
+  assert.match(text, /reviews: \[\]/);
+  assert.doesNotMatch(text, /item\.shortBio|item\.fullSummary|item\.pros|item\.cons|item\.reviews/);
 });
