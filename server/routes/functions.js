@@ -3,11 +3,8 @@ const router = express.Router();
 const deals = require('../repositories/dealRepository');
 const { requireAdmin } = require('../middleware/auth');
 const {
-  isConfigured,
-  isQuotaExhausted,
   extractAsin,
   formatAffiliateUrl,
-  getAccountStatus,
 } = require('../services/rainforestService');
 const {
   isPaapiConfigured,
@@ -183,12 +180,6 @@ router.post('/purge-expired', requireAdmin, async (req, res) => {
   } catch (err) {
     res.status(503).json({ error: err.message });
   }
-});
-
-router.get('/rainforest-status', async (_req, res) => {
-  const configured = isConfigured();
-  const accountInfo = configured ? await getAccountStatus().catch(() => null) : null;
-  res.json({ configured, quotaExhausted: Boolean(isQuotaExhausted() || accountInfo?.quotaExhausted), provider: 'Rainforest API', account: accountInfo?.account || null });
 });
 
 router.post('/amazon-redirect', (req, res) => {
