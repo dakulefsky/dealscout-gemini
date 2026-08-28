@@ -11,10 +11,24 @@ import AdSensePlaceholder from '@/components/AdSensePlaceholder';
 import { ArrowLeft, TrendingDown, ShoppingBag, Loader2, Heart, Share2, CheckCircle2, ExternalLink, ShieldCheck, Clock, AlertTriangle, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+function categorySlug(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function observedPrices(history) {
+  return (history || []).map((point) => Number(point?.price)).filter((price) => Number.isFinite(price) && price > 0);
+}
+
 export default function DealDetail() {
   const { id } = useParams();
   const [deal, setDeal] = useState(null);
   const [editorial, setEditorial] = useState(null);
+  const [priceHistory, setPriceHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -27,14 +41,16 @@ export default function DealDetail() {
       .then(async (data) => {
         if (!mounted) return;
         setDeal(data);
-        if (data?.asin) {
-          try {
-            const e = await editorialApi.get(data.asin);
-            if (mounted) setEditorial(e);
-          } catch {
-            if (mounted) setEditorial(null);
-          }
-        }
+        const asin = data?.asin;
+        const dealId = data?.id || asin;
+        const [editorialResult, historyResult] = await Promise.allSettled([
+          asin ? editorialApi.get(asin) : Promise.resolve(null),
+          dealId ? dealsApi.getPriceHistory(dealId) : Promise.resolve(null),
+        ]);
+        if (!mounted) return;
+        setEditorial(editorialResult.status === 'fulfilled' ? editorialResult.value : null);
+        const history = historyResult.status === 'fulfilled' ? historyResult.value?.history : [];
+        setPriceHistory(Array.isArray(history) ? history : []);
       })
       .catch(() => mounted && setDeal(null))
       .finally(() => mounted && setLoading(false));
@@ -80,9 +96,22 @@ export default function DealDetail() {
 
   const freshness = verificationFreshness(deal.priceCheckAt);
   const savings = Math.max(0, Number(deal.originalPrice || 0) - Number(deal.salePrice || 0));
+  const prices = observedPrices(priceHistory);
+  const hasObservedRange = prices.length >= 2;
+  const historyLow = hasObservedRange ? Math.min(...prices) : null;
+  const historyHigh = hasObservedRange ? Math.max(...prices) : null;
+  const firstObservedAt = priceHistory[0]?.date ? new Date(priceHistory[0].date) : null;
+  const recentHistory = priceHistory.slice(-5).reverse();
+  const categoryPath = deal.category ? `/category/${categorySlug(deal.category)}` : '/';
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-5 sm:py-8 pb-28 lg:pb-8 space-y-6 sm:space-y-8">
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-slate-500">
+        <Link to="/" className="font-medium hover:text-slate-900">Deals</Link>
+        <span aria-hidden="true">/</span>
+        <Link to={categoryPath} className="font-medium hover:text-slate-900">{deal.category || 'All deals'}</Link>
+      </nav>
+
       <div className="flex items-center justify-between gap-4">
         <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Back</Link>
         <div className="flex items-center gap-2">
@@ -113,7 +142,7 @@ export default function DealDetail() {
             <div className="flex flex-col justify-between gap-5 min-w-0">
               <div>
                 <div className="flex items-center gap-2 flex-wrap mb-3">
-                  <span className="text-[11px] uppercase tracking-wider text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg">{deal.category || 'Deal'}</span>
+                  <Link to={categoryPath} className="text-[11px] uppercase tracking-wider text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg hover:bg-emerald-100">{deal.category || 'Deal'}</Link>
                   {deal.sourceVerified && <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg ${freshness.stale ? 'text-amber-800 bg-amber-50' : 'text-slate-600 bg-slate-50'}`}><ShieldCheck className={`w-3.5 h-3.5 ${freshness.stale ? 'text-amber-600' : 'text-emerald-600'}`} /> {freshness.label}</span>}
                 </div>
 
@@ -135,6 +164,36 @@ export default function DealDetail() {
               </div>
             </div>
           </section>
+
+          {hasObservedRange && (
+            <section className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="text-lg font-black text-slate-950">Observed price history</h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {prices.length} recorded price checks{firstObservedAt && !Number.isNaN(firstObservedAt.getTime()) ? ` since ${firstObservedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs uppercase tracking-wide font-bold text-slate-400">Observed range</div>
+                  <div className="text-base font-black text-slate-900">{formatPrice(historyLow)} – {formatPrice(historyHigh)}</div>
+                </div>
+              </div>
+
+              <div className="mt-5 divide-y divide-slate-100 border-y border-slate-100">
+                {recentHistory.map((point) => {
+                  const date = point?.date ? new Date(point.date) : null;
+                  return (
+                    <div key={`${point.date}-${point.price}`} className="flex items-center justify-between gap-4 py-2.5 text-sm">
+                      <span className="text-slate-500">{date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recorded check'}</span>
+                      <span className="font-bold text-slate-900">{formatPrice(point.price)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-400 mt-3">History shows prices DealScout actually observed. It is not a guarantee of the current Amazon price.</p>
+            </section>
+          )}
 
           {editorial?.isHumanPick && (
             <section className="bg-emerald-50 border border-emerald-200 rounded-2xl sm:rounded-3xl p-5 sm:p-6">
