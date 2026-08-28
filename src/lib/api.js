@@ -122,7 +122,6 @@ export const bookmarks = {
 export const functions = {
   amazonRedirect:    (url)                  => api.post('/api/functions/amazon-redirect', { url }),
   fetchDeals:        (maxDeals = 10)        => api.post('/api/functions/fetch-deals', { maxDeals }),
-  rainforestStatus:  ()                     => api.get('/api/functions/rainforest-status'),
   rainforestLookup:  (input, amazonDomain)  => api.post('/api/functions/rainforest-lookup', { input, amazonDomain }),
   rainforestSearch:  (query, options = {})  => api.post('/api/functions/rainforest-search', { query, ...options }),
   providerStatus:    ()                     => api.get('/api/functions/provider-status'),
