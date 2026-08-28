@@ -71,7 +71,7 @@ function providerDealRecord(item, status = 'PENDING_REVIEW', productUrl) {
   };
 }
 
-router.get('/provider-status', async (_req, res) => {
+router.get('/provider-status', requireAdmin, async (_req, res) => {
   try {
     res.json({
       ...(await getProviderStatus()),
