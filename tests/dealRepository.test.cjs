@@ -2,18 +2,24 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const deals = require('../server/repositories/dealRepository');
 
-function withNodeEnv(value, fn) {
-  const previous = process.env.NODE_ENV;
-  process.env.NODE_ENV = value;
+function withEnv(values, fn) {
+  const previous = {};
+  for (const [key, value] of Object.entries(values)) {
+    previous[key] = process.env[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
   try { return fn(); }
   finally {
-    if (previous === undefined) delete process.env.NODE_ENV;
-    else process.env.NODE_ENV = previous;
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   }
 }
 
 test('production normalization cannot keep an unverified deal approved', () => {
-  withNodeEnv('production', () => {
+  withEnv({ NODE_ENV: 'production' }, () => {
     const result = deals.normalizeRecord({
       id: 'B000000001', asin: 'B000000001', title: 'Demo',
       original_price: 100, sale_price: 80,
@@ -26,7 +32,7 @@ test('production normalization cannot keep an unverified deal approved', () => {
 });
 
 test('verified production deals preserve approval', () => {
-  withNodeEnv('production', () => {
+  withEnv({ NODE_ENV: 'production' }, () => {
     const result = deals.normalizeRecord({
       id: 'B000000002', asin: 'B000000002', title: 'Verified',
       original_price: 100, sale_price: 80,
@@ -38,15 +44,18 @@ test('verified production deals preserve approval', () => {
   });
 });
 
-test('production bootstrap imports only source-verified legacy deals', () => {
-  withNodeEnv('production', () => {
+test('production bootstrap never imports legacy seed, even if demo flag is set', () => {
+  withEnv({ NODE_ENV: 'production', ALLOW_DEMO_SEED: 'true' }, () => {
     assert.equal(deals.shouldBootstrapDeal({ source_verified: 0 }), false);
-    assert.equal(deals.shouldBootstrapDeal({ source_verified: 1 }), true);
+    assert.equal(deals.shouldBootstrapDeal({ source_verified: 1 }), false);
   });
 });
 
-test('development bootstrap remains compatible with local demo data', () => {
-  withNodeEnv('development', () => {
+test('development bootstrap requires explicit demo flag', () => {
+  withEnv({ NODE_ENV: 'development', ALLOW_DEMO_SEED: undefined }, () => {
+    assert.equal(deals.shouldBootstrapDeal({ source_verified: 0 }), false);
+  });
+  withEnv({ NODE_ENV: 'development', ALLOW_DEMO_SEED: 'true' }, () => {
     assert.equal(deals.shouldBootstrapDeal({ source_verified: 0 }), true);
   });
 });

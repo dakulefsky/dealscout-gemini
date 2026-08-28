@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const postgres = require('../storage/postgres');
+const { demoSeedAllowed, isLegacyDemoAdmin } = require('../services/demoSeedPolicy');
 
 let schemaReady = false;
 
@@ -65,34 +66,33 @@ async function ensureSchema() {
     CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users (reset_token);
   `);
 
-  if (process.env.NODE_ENV === 'production') {
-    await postgres.query(
-      `DELETE FROM users WHERE id = $1 OR email = $2`,
-      ['usr-admin-1', 'admin@dealscout.local']
-    );
-  }
+  await postgres.query(
+    `DELETE FROM users WHERE id = $1 OR email = $2`,
+    ['usr-admin-1', 'admin@dealscout.local']
+  );
 
   const count = await postgres.query('SELECT COUNT(*)::int AS count FROM users');
-  if (count.rows[0].count === 0 && Array.isArray(db.tables.users) && db.tables.users.length) {
+  if (demoSeedAllowed() && count.rows[0].count === 0 && Array.isArray(db.tables.users) && db.tables.users.length) {
     for (const user of db.tables.users) {
-      if (process.env.NODE_ENV === 'production' && (user.id === 'usr-admin-1' || user.email === 'admin@dealscout.local')) continue;
-      await postgres.query(
-        `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, created_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-         ON CONFLICT (id) DO NOTHING`,
-        [
-          user.id,
-          normalizeEmail(user.email),
-          user.password,
-          user.role || 'user',
-          user.verified ? 1 : 0,
-          user.otp_code || null,
-          user.otp_expires || null,
-          user.reset_token || null,
-          user.reset_expires || null,
-          user.created_at || Math.floor(Date.now() / 1000),
-        ]
-      );
+      if (isLegacyDemoAdmin(user) || process.env.NODE_ENV !== 'production') {
+        await postgres.query(
+          `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           ON CONFLICT (id) DO NOTHING`,
+          [
+            user.id,
+            normalizeEmail(user.email),
+            user.password,
+            user.role || 'user',
+            user.verified ? 1 : 0,
+            user.otp_code || null,
+            user.otp_expires || null,
+            user.reset_token || null,
+            user.reset_expires || null,
+            user.created_at || Math.floor(Date.now() / 1000),
+          ]
+        );
+      }
     }
   }
 
@@ -104,8 +104,13 @@ function clone(user) {
   return user ? { ...user } : null;
 }
 
+function fallbackUsers() {
+  if (demoSeedAllowed()) return db.tables.users || [];
+  return (db.tables.users || []).filter((user) => !isLegacyDemoAdmin(user));
+}
+
 async function findById(id) {
-  if (!postgres.isConfigured()) return clone((db.tables.users || []).find((u) => u.id === id));
+  if (!postgres.isConfigured()) return clone(fallbackUsers().find((u) => u.id === id));
   await ensureSchema();
   const result = await postgres.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [id]);
   return result.rows[0] || null;
@@ -113,14 +118,14 @@ async function findById(id) {
 
 async function findByEmail(email) {
   const normalized = normalizeEmail(email);
-  if (!postgres.isConfigured()) return clone((db.tables.users || []).find((u) => normalizeEmail(u.email) === normalized));
+  if (!postgres.isConfigured()) return clone(fallbackUsers().find((u) => normalizeEmail(u.email) === normalized));
   await ensureSchema();
   const result = await postgres.query('SELECT * FROM users WHERE email = $1 LIMIT 1', [normalized]);
   return result.rows[0] || null;
 }
 
 async function findByResetToken(resetToken) {
-  if (!postgres.isConfigured()) return clone((db.tables.users || []).find((u) => u.reset_token === resetToken));
+  if (!postgres.isConfigured()) return clone(fallbackUsers().find((u) => u.reset_token === resetToken));
   await ensureSchema();
   const result = await postgres.query('SELECT * FROM users WHERE reset_token = $1 LIMIT 1', [resetToken]);
   return result.rows[0] || null;
