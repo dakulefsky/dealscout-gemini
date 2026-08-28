@@ -2,10 +2,7 @@ const express = require('express');
 const router = express.Router();
 const deals = require('../repositories/dealRepository');
 const { requireAdmin } = require('../middleware/auth');
-const {
-  extractAsin,
-  formatAffiliateUrl,
-} = require('../services/rainforestService');
+const { extractAsin, formatAffiliateUrl } = require('../services/amazonUrlService');
 const {
   isPaapiConfigured,
   getPaapiConfig,
