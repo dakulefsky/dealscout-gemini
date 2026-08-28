@@ -3,16 +3,14 @@ const router = express.Router();
 const deals = require('../repositories/dealRepository');
 const categories = require('../repositories/categoryRepository');
 const { optionalAuth, requireAdmin } = require('../middleware/auth');
-const { isConfigured, isQuotaExhausted, fetchProductReviews } = require('../services/rainforestService');
 
-function rowToDeal(r) {
+function rowToDeal(r, { includeInternal = false } = {}) {
   if (!r) return null;
-  const reviews = Array.isArray(r.reviews) ? r.reviews : [];
   const now = Math.floor(Date.now() / 1000);
   const isExpired = r.is_expired === 1 || r.status === 'EXPIRED';
   const expiredAt = r.expired_at || null;
   const purgeInSeconds = isExpired && expiredAt ? Math.max(0, 86400 - (now - Number(expiredAt))) : null;
-  return {
+  const publicDeal = {
     id: r.id,
     title: r.title,
     asin: r.asin,
@@ -22,24 +20,30 @@ function rowToDeal(r) {
     discountPercent: Number(r.discount_percent ?? 0),
     imageUrl: r.image_url,
     productUrl: r.product_url,
-    rating: Number(r.rating ?? 0),
-    ratingsTotal: Number(r.ratings_total ?? 0),
-    shortBio: r.short_bio,
-    fullSummary: r.full_summary,
-    pros: r.pros,
-    cons: r.cons,
-    reviews,
-    sourceSufficient: r.source_sufficient === 1,
+    qualityScore: Number(r.quality_score ?? 0),
     sourceVerified: r.source_verified === 1,
-    sourceProvider: r.source_provider || null,
     status: r.status,
     isExpired,
     expiredAt,
     purgeInSeconds,
     purgeInHours: purgeInSeconds === null ? null : Number((purgeInSeconds / 3600).toFixed(1)),
     priceCheckAt: r.price_check_at || null,
-    rawSourceData: r.raw_source_data || null,
     created_date: r.created_at ? new Date(Number(r.created_at) * 1000).toISOString() : null,
+  };
+  if (!includeInternal) return publicDeal;
+  return {
+    ...publicDeal,
+    rating: Number(r.rating ?? 0),
+    ratingsTotal: Number(r.ratings_total ?? 0),
+    shortBio: r.short_bio,
+    fullSummary: r.full_summary,
+    pros: r.pros,
+    cons: r.cons,
+    reviews: Array.isArray(r.reviews) ? r.reviews : [],
+    sourceSufficient: r.source_sufficient === 1,
+    sourceProvider: r.source_provider || null,
+    rawSourceData: r.raw_source_data || null,
+    lastVerifyAttemptAt: r.last_verify_attempt_at || null,
   };
 }
 
@@ -105,20 +109,23 @@ router.get('/', optionalAuth, async (req, res) => {
     if (category && category !== 'All' && category !== 'All Deals') list = list.filter((d) => String(d.category || '').toLowerCase() === String(category).toLowerCase());
     if (q && typeof q === 'string' && q.trim()) {
       const term = q.trim().toLowerCase();
-      list = list.filter((d) => [d.title, d.short_bio, d.full_summary, d.asin, d.category].some((v) => String(v || '').toLowerCase().includes(term)));
+      const searchableFields = isAdmin
+        ? (d) => [d.title, d.short_bio, d.full_summary, d.asin, d.category]
+        : (d) => [d.title, d.asin, d.category];
+      list = list.filter((d) => searchableFields(d).some((v) => String(v || '').toLowerCase().includes(term)));
     }
     const n = (v) => Number(v);
     if (minDiscount !== undefined && Number.isFinite(n(minDiscount))) list = list.filter((d) => n(d.discount_percent) >= n(minDiscount));
     if (minPrice !== undefined && Number.isFinite(n(minPrice))) list = list.filter((d) => n(d.sale_price) >= n(minPrice));
     if (maxPrice !== undefined && Number.isFinite(n(maxPrice))) list = list.filter((d) => n(d.sale_price) <= n(maxPrice));
-    if (minRating !== undefined && Number.isFinite(n(minRating))) list = list.filter((d) => n(d.rating) >= n(minRating));
+    if (isAdmin && minRating !== undefined && Number.isFinite(n(minRating))) list = list.filter((d) => n(d.rating) >= n(minRating));
     if (sort === 'discount_desc' || sort === '-discount_percent') list.sort((a, b) => n(b.discount_percent) - n(a.discount_percent));
     else if (sort === 'price_asc') list.sort((a, b) => n(a.sale_price) - n(b.sale_price));
     else if (sort === 'price_desc') list.sort((a, b) => n(b.sale_price) - n(a.sale_price));
-    else if (sort === 'rating_desc') list.sort((a, b) => n(b.rating) - n(a.rating));
+    else if (isAdmin && sort === 'rating_desc') list.sort((a, b) => n(b.rating) - n(a.rating));
     else list.sort((a, b) => n(b.created_at) - n(a.created_at));
     const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 100, 1), 100);
-    res.json(list.slice(0, safeLimit).map(rowToDeal));
+    res.json(list.slice(0, safeLimit).map((deal) => rowToDeal(deal, { includeInternal: isAdmin })));
   } catch (err) {
     console.error('[deals] list failed:', err.message);
     res.status(503).json({ error: 'Deals are temporarily unavailable' });
@@ -129,26 +136,10 @@ router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const row = await deals.findByIdOrAsin(req.params.id);
     if (!row || !canSeeDeal(req, row)) return res.status(404).json({ error: 'Deal not found' });
-    res.json(rowToDeal(row));
+    res.json(rowToDeal(row, { includeInternal: req.user?.role === 'admin' }));
   } catch (err) {
     console.error('[deals] lookup failed:', err.message);
     res.status(503).json({ error: 'Deals are temporarily unavailable' });
-  }
-});
-
-router.post('/:id/sync-reviews', requireAdmin, async (req, res) => {
-  try {
-    const row = await deals.findByIdOrAsin(req.params.id);
-    if (!row) return res.status(404).json({ error: 'Deal not found' });
-    if (row.source_verified !== 1) return res.status(409).json({ error: 'Deal is not source-verified' });
-    if (!isConfigured() || isQuotaExhausted()) return res.status(503).json({ error: 'Verified review source is unavailable' });
-    const reviews = await fetchProductReviews(row.asin, { sortBy: 'most_helpful' });
-    if (!Array.isArray(reviews)) return res.status(502).json({ error: 'Verified review source returned invalid data' });
-    const updated = await deals.update(row.id, { reviews });
-    res.json({ success: true, dealId: row.id, asin: row.asin, reviews, count: reviews.length, deal: rowToDeal(updated) });
-  } catch (err) {
-    console.warn('[deals] review synchronization failed:', err.message);
-    res.status(502).json({ error: 'Unable to synchronize verified reviews' });
   }
 });
 
@@ -178,7 +169,7 @@ router.post('/', requireAdmin, async (req, res) => {
       status, is_expired: 0, expired_at: null, price_check_at: Math.floor(Date.now() / 1000),
       raw_source_data: b.rawSourceData || '', created_at: existing?.created_at || Math.floor(Date.now() / 1000),
     });
-    res.status(existing ? 200 : 201).json(rowToDeal(deal));
+    res.status(existing ? 200 : 201).json(rowToDeal(deal, { includeInternal: true }));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -223,7 +214,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
       if (b.status === 'APPROVED' && effectiveVerified !== 1) throw new Error('Only source-verified deals can be approved');
       changes.status = b.status;
     }
-    res.json(rowToDeal(await deals.update(deal.id, changes)));
+    res.json(rowToDeal(await deals.update(deal.id, changes), { includeInternal: true }));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -245,7 +236,7 @@ router.post('/:id/expire', requireAdmin, async (req, res) => {
   try {
     const updated = await deals.expire(req.params.id, req.body?.reason || 'Manually marked as expired by Admin');
     if (!updated) return res.status(404).json({ error: 'Deal not found' });
-    res.json({ success: true, deal: rowToDeal(updated) });
+    res.json({ success: true, deal: rowToDeal(updated, { includeInternal: true }) });
   } catch (err) { res.status(503).json({ error: err.message }); }
 });
 
@@ -255,7 +246,7 @@ router.post('/:id/restore', requireAdmin, async (req, res) => {
     if (!current) return res.status(404).json({ error: 'Deal not found' });
     if (current.source_verified !== 1) return res.status(409).json({ error: 'Unverified deals cannot be restored to approved status' });
     const updated = await deals.restore(current.id);
-    res.json({ success: true, deal: rowToDeal(updated) });
+    res.json({ success: true, deal: rowToDeal(updated, { includeInternal: true }) });
   } catch (err) { res.status(503).json({ error: err.message }); }
 });
 
