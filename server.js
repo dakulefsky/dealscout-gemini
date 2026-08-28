@@ -25,6 +25,9 @@ async function startServer() {
   if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) {
     throw new Error('JWT_SECRET must be configured with at least 32 characters in production');
   }
+  if (isProduction && !String(process.env.AMAZON_ASSOCIATE_TAG || '').trim()) {
+    throw new Error('AMAZON_ASSOCIATE_TAG must be configured in production');
+  }
 
   const db = require('./server/db.js');
   const dealRepository = require('./server/repositories/dealRepository.js');

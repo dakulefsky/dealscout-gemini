@@ -27,7 +27,7 @@ const {
 } = require('../services/providerRouter');
 const dealCron = require('../services/cronService');
 
-const AMAZON_ASSOCIATE_TAG = process.env.AMAZON_ASSOCIATE_TAG || 'dealscout-20';
+const AMAZON_ASSOCIATE_TAG = String(process.env.AMAZON_ASSOCIATE_TAG || '').trim();
 
 function calculatedDiscount(originalPrice, salePrice) {
   const original = Number(originalPrice);
