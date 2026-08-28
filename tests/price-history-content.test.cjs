@@ -14,10 +14,11 @@ test('deal detail fetches and displays only observed price history', () => {
   assert.doesNotMatch(dealDetail, /simulated price history|estimated price history/i);
 });
 
-test('deal pages provide crawlable category links and breadcrumbs', () => {
+test('deal pages provide crawlable category links without inventing category slugs', () => {
   assert.match(dealDetail, /<nav aria-label="Breadcrumb"/);
   assert.match(dealDetail, /to=\{categoryPath\}/);
-  assert.match(dealDetail, /function categorySlug/);
+  assert.match(dealDetail, /return encodeURIComponent\(String\(value \|\| ''\)\.trim\(\)\)/);
+  assert.doesNotMatch(dealDetail, /replace\(\/&\/g, 'and'\)/);
 });
 
 test('dead review sync client calls stay removed', () => {
