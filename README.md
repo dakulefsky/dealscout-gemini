@@ -1,155 +1,154 @@
-# DealScout — Local Development Setup
+# DealScout
 
-A hand-reviewed Amazon affiliate deals site, migrated from Base44 to a fully open-source stack.
+DealScout is an Amazon affiliate deals application focused on verified price drops, recent price checks, observed price history, and selective editorial picks.
 
-## Tech Stack
+## Current architecture
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | React 18, Vite, Tailwind CSS, shadcn/ui, React Router |
-| **Backend** | Express.js (Node.js) |
-| **Database** | SQLite via `better-sqlite3` (file-based, zero setup) |
-| **Auth** | JWT (`jsonwebtoken`) + bcrypt — no external service needed |
+- **Frontend:** React 18, Vite, React Router, Tailwind CSS
+- **Backend:** Express 5 running from `server.js`
+- **Primary database:** PostgreSQL when `DATABASE_URL` is configured
+- **Local fallback:** JSON-backed repositories for development
+- **Auth:** JWT + bcrypt; the shopper site does not expose a general login surface
+- **Deal sources:** Rainforest API and optional Amazon PA-API through a fail-closed provider router
+- **Price history:** real recorded observations, stored in PostgreSQL or the JSON fallback
+- **Email:** SMTP via Nodemailer for verification/reset delivery
 
----
+The production server serves the built frontend and API from the same Node process.
 
-## Prerequisites
+## Requirements
 
-- **Node.js** 18 or later — [nodejs.org](https://nodejs.org)
-- **npm** (comes with Node)
-- Visual Studio Code — [code.visualstudio.com](https://code.visualstudio.com)
-
----
-
-## Getting Started
-
-### 1. Open the project in VS Code
+Use Node.js 24 to match the repository Quality workflow. Install dependencies from the repository root:
 
 ```bash
-code /path/to/dealscout
-```
-
-### 2. Install dependencies
-
-```bash
-# Install frontend deps
 npm install
-
-# Install backend deps
-cd server && npm install && cd ..
 ```
 
-### 3. Configure the backend
+## Local development
+
+Copy the root environment template and fill in the values you need:
 
 ```bash
-cp server/.env.example server/.env
+cp .env.example .env
+npm run dev
 ```
 
-Edit `server/.env` and set a strong `JWT_SECRET`.
+The default port is `3000`. In development, `server.js` runs Express and mounts Vite in middleware mode, so a second frontend server is not required.
 
-### 4. Start the backend (Terminal 1)
+Useful checks before opening a PR or deploying:
 
 ```bash
-cd server
-node --watch index.js
+npm run lint
+npm test
+npm run build
 ```
 
-You should see:
-```
-[db] Seeded admin user: admin@dealscout.local / admin123
-[server] DealScout API running on http://localhost:3001
-```
+GitHub's **Quality** workflow runs install, lint, tests, and build on pull requests.
 
-### 5. Start the frontend (Terminal 2)
+## Production deployment
+
+Build first, then start the Node server:
 
 ```bash
-npm run dev:frontend
+npm install --no-audit --no-fund
+npm run build
+NODE_ENV=production npm start
 ```
 
-Open **http://localhost:5173** in your browser.
+Production requires a `JWT_SECRET` of at least 32 characters. Set `FRONTEND_URL` to the public site origin so CORS, canonical URLs, sitemap URLs, and password-reset links use the correct host.
 
----
+### Core environment variables
 
-## Default Admin Account
+| Variable | Purpose |
+| --- | --- |
+| `NODE_ENV` | Use `production` in production. |
+| `PORT` | HTTP port; defaults to `3000`. |
+| `FRONTEND_URL` | Public origin, e.g. `https://example.com`. |
+| `JWT_SECRET` | JWT signing secret; minimum 32 characters in production. |
+| `DATABASE_URL` | PostgreSQL connection string. Strongly recommended for production. |
+| `PGSSL` | Set to `disable` only when the database explicitly does not use SSL. |
+| `PG_POOL_MAX` | PostgreSQL pool size; defaults to `5`. |
+| `AMAZON_ASSOCIATE_TAG` | Amazon Associates tag used for outbound affiliate URLs. |
+| `DEAL_DATA_PROVIDER` | `auto`, `rainforest`, or `amazon_paapi` in production. `curated` is development-only. |
+| `RAINFOREST_API_KEY` | Rainforest API key for strict product lookup/discovery. |
+| `EDITORIAL_HOLDBACK_PERCENT` | Percentage of otherwise auto-approvable deals held for editorial review. |
+| `ALLOW_PUBLIC_REGISTRATION` | Leave unset/false for the current private-admin model. |
 
-| Field | Value |
-|---|---|
-| Email | `admin@dealscout.local` |
-| Password | `admin123` |
+### SMTP
 
-Change the password immediately after your first login in production.
+Set all of these for email delivery:
 
----
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_SECURE`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `MAIL_FROM`
 
-## What Was Removed (Base44-Specific)
+Password-reset emails also require `FRONTEND_URL`.
 
-| Removed | Replaced With |
-|---|---|
-| `globalThis.__B44_DB__` preamble | — (fully eliminated) |
-| `db.entities.Deal.*` / `db.entities.Category.*` | `fetch` calls to `/api/deals`, `/api/categories` |
-| `db.auth.me()`, `db.auth.login()`, etc. | JWT auth via `/api/auth/*` |
-| `db.functions.invoke("amazonRedirect")` | `POST /api/functions/amazon-redirect` |
-| `db.functions.invoke("fetchRainforestDeals")` | `POST /api/functions/fetch-deals` (stub — see below) |
-| `@base44/sdk`, `@base44/vite-plugin` | `@vitejs/plugin-react` |
-| `AuthContext.jsx` (Base44 auth) | Standard JWT/localStorage context |
-| `app-params.js` (Base44 bootstrap) | — (removed) |
-| Base44 `Image` component | Standard `<img>` with fallback (`src/components/ui/image.jsx`) |
+### Optional Amazon PA-API
 
----
+PA-API is supported but is not required when Rainforest is the active provider:
 
-## Rainforest API Integration (optional)
+- `AMAZON_PAAPI_ACCESS_KEY`
+- `AMAZON_PAAPI_SECRET_KEY`
+- `AMAZON_PAAPI_PARTNER_TAG`
+- `AMAZON_PAAPI_REGION`
+- `AMAZON_PAAPI_HOST`
 
-The "Fetch New Deals" button in the Admin panel calls `POST /api/functions/fetch-deals`.
-To wire it up:
+### Optional Gemini integration
 
-1. Get an API key from [rainforestapi.com](https://www.rainforestapi.com/)
-2. Add `RAINFOREST_API_KEY=your_key` to `server/.env`
-3. Implement the fetch logic in `server/routes/functions.js`
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL`
 
-Without it, the button returns a helpful `501 Not Implemented` message.
+AI output is not treated as verified Amazon source data. Verified ingest paths intentionally clear generated summaries, pros/cons, ratings, and reviews before persistence.
 
----
+## Admin access
 
-## OTP Codes & Password Resets (Local Dev)
+The private admin entrance is:
 
-No email service is configured. All OTP codes and password reset links are **printed to the backend console** instead. In production, wire up [nodemailer](https://nodemailer.com/) or [Resend](https://resend.com/) in `server/routes/auth.js`.
-
----
-
-## Seeding Sample Deals
-
-To add a deal via the API (with the admin token):
-
-```bash
-# 1. Log in to get a token
-curl -X POST http://localhost:3001/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"admin@dealscout.local","password":"admin123"}'
-
-# 2. Create a deal (replace TOKEN)
-curl -X POST http://localhost:3001/api/deals \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer TOKEN' \
-  -d '{
-    "title": "Sony WH-1000XM5 Headphones",
-    "asin": "B09XS7JWHH",
-    "category": "Electronics",
-    "originalPrice": 399.99,
-    "salePrice": 249.99,
-    "discountPercent": 37,
-    "productUrl": "https://www.amazon.com/dp/B09XS7JWHH",
-    "imageUrl": "https://m.media-amazon.com/images/I/61eaRIOHH1L._AC_SL1500_.jpg",
-    "rating": 4.4,
-    "ratingsTotal": 18291,
-    "shortBio": "Industry-leading noise cancellation with 30-hour battery.",
-    "status": "APPROVED"
-  }'
+```text
+/admin
 ```
 
----
+If you are signed out, `/admin` redirects to `/admin/access`. The public site does not advertise a shopper login or registration page, and public registration is disabled unless `ALLOW_PUBLIC_REGISTRATION=true` is explicitly set.
 
-## Upgrading to PostgreSQL (optional)
+There is **no production default admin password** to rely on. The old JSON development seed contains legacy demo credentials/content, but production hardening removes the default seeded admin and public deal visibility requires source verification. Do not use the legacy seed as a production account-provisioning mechanism.
 
-Swap `better-sqlite3` for `pg` (node-postgres) in `server/db.js`. The SQL schema in `db.js` is standard and compatible with PostgreSQL with minor type adjustments (`INTEGER` → `BIGINT`, `TEXT` → `TEXT`, etc.).
+## Deal-data integrity rules
 
-For a hosted option, [Supabase](https://supabase.com) provides a free PostgreSQL instance.
+DealScout intentionally fails closed:
+
+- Public deals must be approved, source-verified, and not expired.
+- Rainforest imports require a verifiable original/sale price pair.
+- Production does not fall back to the legacy scraper or curated demo provider.
+- Shopper-facing API responses omit legacy ratings, reviews, generated summaries, pros/cons, and raw source payloads.
+- Product structured data does not include customer ratings or reviews.
+- `InStock` structured data is only emitted for very recently checked deals.
+- Deals whose successful price check is more than seven days old are omitted from the sitemap until refreshed.
+
+## Price verification and history
+
+The scheduler rotates verification oldest-first so the newest deals cannot monopolize the verification batch. A failed provider attempt advances queue position without pretending that `price_check_at` was refreshed.
+
+Successful observations are stored in the price-history service. Deal pages only show an observed price-history section when at least two real observations exist; no simulated history is presented to shoppers.
+
+## SEO endpoints
+
+Production exposes:
+
+- `/robots.txt`
+- `/sitemap.xml`
+- route-specific initial HTML metadata for home, categories, and verified deal pages
+- Product JSON-LD without synthetic ratings/reviews
+- canonical URLs and deal Open Graph images when available
+
+Admin and API routes are excluded from crawling. Technical SEO can improve crawlability and eligibility, but it does not guarantee search ranking.
+
+## Amazon Associates disclosure
+
+The shopper-facing disclosure includes the required statement:
+
+> As an Amazon Associate I earn from qualifying purchases.
+
+Final price and availability are determined on Amazon.
