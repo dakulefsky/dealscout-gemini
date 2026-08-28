@@ -1,5 +1,6 @@
 const db = require('../db');
 const postgres = require('../storage/postgres');
+const { demoSeedAllowed } = require('../services/demoSeedPolicy');
 
 let schemaReady = false;
 
@@ -41,8 +42,13 @@ function normalizeRecord(input) {
 }
 
 function shouldBootstrapDeal(input) {
-  if (process.env.NODE_ENV !== 'production') return true;
-  return normalizeRecord(input).source_verified === 1;
+  if (!demoSeedAllowed()) return false;
+  return normalizeRecord(input).source_verified !== 1 || process.env.NODE_ENV !== 'production';
+}
+
+function fallbackDeals() {
+  if (demoSeedAllowed()) return db.tables.deals || [];
+  return (db.tables.deals || []).filter((deal) => isVerified(deal));
 }
 
 function toJsonFallback(record) {
@@ -114,7 +120,7 @@ function rowFromPg(row) {
 }
 
 async function listAll() {
-  if (!postgres.isConfigured()) return (db.tables.deals || []).map((d) => normalizeRecord(d));
+  if (!postgres.isConfigured()) return fallbackDeals().map((d) => normalizeRecord(d));
   await ensureSchema();
   const result = await postgres.query('SELECT * FROM deals ORDER BY created_at DESC');
   return result.rows.map(rowFromPg);
@@ -123,7 +129,7 @@ async function listAll() {
 async function findByIdOrAsin(value) {
   const key = String(value || '').trim();
   if (!postgres.isConfigured()) {
-    const row = (db.tables.deals || []).find((d) => d.id === key || d.asin === key);
+    const row = fallbackDeals().find((d) => d.id === key || d.asin === key);
     return row ? normalizeRecord(row) : null;
   }
   await ensureSchema();
