@@ -10,7 +10,11 @@ test('active functions route no longer exposes legacy Rainforest status endpoint
   assert.doesNotMatch(functionsRoute, /\/rainforest-status/);
   assert.doesNotMatch(functionsRoute, /getAccountStatus/);
   assert.doesNotMatch(functionsRoute, /isQuotaExhausted/);
-  assert.doesNotMatch(functionsRoute, /isConfigured/);
+  const rainforestImport = functionsRoute.match(/const \{([\s\S]*?)\} = require\('\.\.\/services\/rainforestService'\);/);
+  assert.ok(rainforestImport, 'Rainforest helper import should exist');
+  assert.doesNotMatch(rainforestImport[1], /\bisConfigured\b/);
+  assert.match(rainforestImport[1], /extractAsin/);
+  assert.match(rainforestImport[1], /formatAffiliateUrl/);
   assert.match(functionsRoute, /\/provider-status/);
 });
 
