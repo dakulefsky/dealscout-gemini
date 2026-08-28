@@ -108,7 +108,7 @@ router.post('/test-paapi', requireAdmin, async (req, res) => {
   }
 });
 
-router.post('/parse-sitestripe', async (req, res) => {
+router.post('/parse-sitestripe', requireAdmin, async (req, res) => {
   const rawInput = String(req.body?.input || req.body?.inputUrl || req.body?.url || '').trim();
   if (!rawInput) return res.status(400).json({ error: 'Please provide a SiteStripe link, shortlink, or ASIN.' });
   try {
