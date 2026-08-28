@@ -84,7 +84,6 @@ export const deals = {
   approveAll: ()        => api.post('/api/deals/approve-all'),
   bulkStatus: (ids, status) => api.post('/api/deals/bulk-status', { ids, status }),
   getPriceHistory: (id) => api.get(`/api/deals/${id}/price-history`),
-  syncReviews: (id)     => api.post(`/api/deals/${id}/sync-reviews`),
   getStats: ()          => api.get('/api/deals/stats'),
 };
 
@@ -126,7 +125,6 @@ export const functions = {
   rainforestStatus:  ()                     => api.get('/api/functions/rainforest-status'),
   rainforestLookup:  (input, amazonDomain)  => api.post('/api/functions/rainforest-lookup', { input, amazonDomain }),
   rainforestSearch:  (query, options = {})  => api.post('/api/functions/rainforest-search', { query, ...options }),
-  rainforestReviews: (asin)                 => api.post('/api/functions/rainforest-reviews', { asin }),
   providerStatus:    ()                     => api.get('/api/functions/provider-status'),
   providerSwitch:    (provider)             => api.post('/api/functions/provider-switch', { provider }),
   verifyPrices:      (limit = 15)           => api.post('/api/functions/verify-prices', { limit }),
