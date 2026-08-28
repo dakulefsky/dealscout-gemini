@@ -67,6 +67,8 @@ Production requires a `JWT_SECRET` of at least 32 characters. Set `FRONTEND_URL`
 | `DATABASE_URL` | PostgreSQL connection string. Strongly recommended for production. |
 | `PGSSL` | Set to `disable` only when the database explicitly does not use SSL. |
 | `PG_POOL_MAX` | PostgreSQL pool size; defaults to `5`. |
+| `ADMIN_EMAIL` | Optional first-admin bootstrap email for a fresh production database. |
+| `ADMIN_PASSWORD` | Optional first-admin bootstrap password; 12-200 characters. Ignored once an admin exists. |
 | `AMAZON_ASSOCIATE_TAG` | Amazon Associates tag used for outbound affiliate URLs. |
 | `DEAL_DATA_PROVIDER` | `auto`, `rainforest`, or `amazon_paapi` in production. `curated` is development-only. |
 | `RAINFOREST_API_KEY` | Rainforest API key for strict product lookup/discovery. |
@@ -113,7 +115,9 @@ The private admin entrance is:
 
 If you are signed out, `/admin` redirects to `/admin/access`. The public site does not advertise a shopper login or registration page, and public registration is disabled unless `ALLOW_PUBLIC_REGISTRATION=true` is explicitly set.
 
-There is **no production default admin password** to rely on. The old JSON development seed contains legacy demo credentials/content, but production hardening removes the default seeded admin and public deal visibility requires source verification. Do not use the legacy seed as a production account-provisioning mechanism.
+There is **no production default admin password** to rely on. For a fresh production PostgreSQL database with no admin account, set `ADMIN_EMAIL` and `ADMIN_PASSWORD` before the first start. DealScout will create or promote that email as the first verified admin only when no admin already exists. Existing admin credentials are never overwritten by the bootstrap path.
+
+After the first successful admin login, remove `ADMIN_PASSWORD` from the deployment environment. The old JSON development seed contains legacy demo credentials/content, but production hardening removes the default seeded admin; do not use that legacy seed as production account provisioning.
 
 ## Deal-data integrity rules
 
