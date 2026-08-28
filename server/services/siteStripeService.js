@@ -1,16 +1,21 @@
 const axios = require('axios');
 const { extractAsin, formatAffiliateUrl } = require('./amazonUrlService');
 
-/**
- * SiteStripe Integration & Link Management Service
- * Supports Amazon Associates SiteStripe links (Text, Image, Text+Image)
- * and resolves shortened amzn.to affiliate links.
- */
+const AMAZON_HOSTS = new Set(['amzn.to', 'a.co']);
+const AMAZON_DOMAIN_RE = /(^|\.)amazon\.(com|ca|com\.au|com\.br|com\.mx|co\.uk|co\.jp|de|fr|it|es|in|nl|se|pl|sg|ae|sa|tr|be)$/i;
 
-/**
- * Comprehensive ASIN extractor covering all SiteStripe widget codes,
- * query params, iframe URLs, and raw text.
- */
+function isAllowedAmazonUrl(value) {
+  try {
+    const parsed = new URL(value);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+    if (parsed.username || parsed.password) return false;
+    const host = parsed.hostname.toLowerCase();
+    return AMAZON_HOSTS.has(host) || AMAZON_DOMAIN_RE.test(host);
+  } catch {
+    return false;
+  }
+}
+
 function robustExtractAsin(input) {
   if (!input || typeof input !== 'string') return null;
   const raw = input.trim();
@@ -86,6 +91,9 @@ async function resolveShortlink(url) {
   let targetUrl = (url || '').trim();
   if (!targetUrl) return { asin: null, finalUrl: url, success: false, error: 'Empty URL' };
   if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) targetUrl = 'https://' + targetUrl;
+  if (!isAllowedAmazonUrl(targetUrl)) {
+    return { asin: null, finalUrl: targetUrl, success: false, error: 'Only Amazon and Amazon shortlink URLs can be resolved' };
+  }
 
   const directAsin = robustExtractAsin(targetUrl);
   if (directAsin) return { asin: directAsin, finalUrl: targetUrl, success: true };
@@ -96,6 +104,9 @@ async function resolveShortlink(url) {
 
   while (hops < maxHops) {
     hops++;
+    if (!isAllowedAmazonUrl(currentUrl)) {
+      return { asin: null, finalUrl: currentUrl, success: false, error: 'Redirect left the allowed Amazon host set' };
+    }
     try {
       const response = await axios.get(currentUrl, {
         maxRedirects: 0,
@@ -110,9 +121,9 @@ async function resolveShortlink(url) {
       const location = response.headers?.location;
       if (location) {
         let resolvedLocation = location;
-        if (resolvedLocation.startsWith('/')) {
-          const base = new URL(currentUrl);
-          resolvedLocation = `${base.protocol}//${base.host}${resolvedLocation}`;
+        if (resolvedLocation.startsWith('/')) resolvedLocation = new URL(resolvedLocation, currentUrl).toString();
+        if (!isAllowedAmazonUrl(resolvedLocation)) {
+          return { asin: null, finalUrl: resolvedLocation, success: false, error: 'Redirect left the allowed Amazon host set' };
         }
         const asinFromLoc = robustExtractAsin(resolvedLocation);
         if (asinFromLoc) return { asin: asinFromLoc, finalUrl: resolvedLocation, success: true };
@@ -121,6 +132,9 @@ async function resolveShortlink(url) {
       }
 
       const finalUrl = response.request?.res?.responseUrl || currentUrl;
+      if (!isAllowedAmazonUrl(finalUrl)) {
+        return { asin: null, finalUrl, success: false, error: 'Response resolved outside the allowed Amazon host set' };
+      }
       const asinFromFinal = robustExtractAsin(finalUrl);
       if (asinFromFinal) return { asin: asinFromFinal, finalUrl, success: true };
 
@@ -132,14 +146,11 @@ async function resolveShortlink(url) {
     } catch (err) {
       const redirectLoc = err.response?.headers?.location;
       if (redirectLoc) {
-        let nextUrl = redirectLoc;
-        if (nextUrl.startsWith('/')) {
-          try {
-            const base = new URL(currentUrl);
-            nextUrl = `${base.protocol}//${base.host}${nextUrl}`;
-          } catch {
-            nextUrl = `https://www.amazon.com${nextUrl}`;
-          }
+        let nextUrl;
+        try { nextUrl = new URL(redirectLoc, currentUrl).toString(); }
+        catch { return { asin: null, finalUrl: currentUrl, success: false, error: 'Invalid redirect URL' }; }
+        if (!isAllowedAmazonUrl(nextUrl)) {
+          return { asin: null, finalUrl: nextUrl, success: false, error: 'Redirect left the allowed Amazon host set' };
         }
         const asinFromRedirect = robustExtractAsin(nextUrl);
         if (asinFromRedirect) return { asin: asinFromRedirect, finalUrl: nextUrl, success: true };
@@ -148,8 +159,10 @@ async function resolveShortlink(url) {
       }
 
       const errUrl = err.request?.res?.responseUrl || err.config?.url || currentUrl;
-      const asinFromErr = robustExtractAsin(errUrl);
-      if (asinFromErr) return { asin: asinFromErr, finalUrl: errUrl, success: true };
+      if (isAllowedAmazonUrl(errUrl)) {
+        const asinFromErr = robustExtractAsin(errUrl);
+        if (asinFromErr) return { asin: asinFromErr, finalUrl: errUrl, success: true };
+      }
 
       if (err.response?.data && typeof err.response.data === 'string') {
         const bodyAsin = robustExtractAsin(err.response.data);
@@ -183,4 +196,4 @@ async function parseBulkSiteStripe(text) {
   return results;
 }
 
-module.exports = { robustExtractAsin, parseSiteStripeInput, resolveShortlink, parseBulkSiteStripe };
+module.exports = { isAllowedAmazonUrl, robustExtractAsin, parseSiteStripeInput, resolveShortlink, parseBulkSiteStripe };
