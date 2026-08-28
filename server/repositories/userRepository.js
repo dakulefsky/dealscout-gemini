@@ -1,7 +1,51 @@
+const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const postgres = require('../storage/postgres');
 
 let schemaReady = false;
+
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function validEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+async function bootstrapProductionAdmin() {
+  if (process.env.NODE_ENV !== 'production' || !postgres.isConfigured()) return { created: false };
+
+  const existingAdmin = await postgres.query(`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
+  if (existingAdmin.rowCount > 0) return { created: false };
+
+  const email = normalizeEmail(process.env.ADMIN_EMAIL);
+  const password = process.env.ADMIN_PASSWORD;
+  if (!email && !password) return { created: false };
+  if (!validEmail(email)) throw new Error('ADMIN_EMAIL must be a valid email address when bootstrapping the first admin');
+  if (typeof password !== 'string' || password.length < 12 || password.length > 200) {
+    throw new Error('ADMIN_PASSWORD must be 12-200 characters when bootstrapping the first admin');
+  }
+
+  const passwordHash = bcrypt.hashSync(password, 12);
+  const existingUser = await postgres.query('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
+  if (existingUser.rowCount > 0) {
+    await postgres.query(
+      `UPDATE users SET password = $1, role = 'admin', verified = 1,
+        otp_code = NULL, otp_expires = NULL, reset_token = NULL, reset_expires = NULL
+       WHERE id = $2`,
+      [passwordHash, existingUser.rows[0].id]
+    );
+    return { created: true, promoted: true, email };
+  }
+
+  await postgres.query(
+    `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, created_at)
+     VALUES ($1,$2,$3,'admin',1,NULL,NULL,NULL,NULL,$4)`,
+    [uuidv4(), email, passwordHash, Math.floor(Date.now() / 1000)]
+  );
+  return { created: true, promoted: false, email };
+}
 
 async function ensureSchema() {
   if (!postgres.isConfigured() || schemaReady) return;
@@ -38,7 +82,7 @@ async function ensureSchema() {
          ON CONFLICT (id) DO NOTHING`,
         [
           user.id,
-          String(user.email || '').toLowerCase(),
+          normalizeEmail(user.email),
           user.password,
           user.role || 'user',
           user.verified ? 1 : 0,
@@ -51,6 +95,8 @@ async function ensureSchema() {
       );
     }
   }
+
+  await bootstrapProductionAdmin();
   schemaReady = true;
 }
 
@@ -66,8 +112,8 @@ async function findById(id) {
 }
 
 async function findByEmail(email) {
-  const normalized = String(email || '').trim().toLowerCase();
-  if (!postgres.isConfigured()) return clone((db.tables.users || []).find((u) => String(u.email || '').toLowerCase() === normalized));
+  const normalized = normalizeEmail(email);
+  if (!postgres.isConfigured()) return clone((db.tables.users || []).find((u) => normalizeEmail(u.email) === normalized));
   await ensureSchema();
   const result = await postgres.query('SELECT * FROM users WHERE email = $1 LIMIT 1', [normalized]);
   return result.rows[0] || null;
@@ -83,7 +129,7 @@ async function findByResetToken(resetToken) {
 async function create(user) {
   const record = {
     ...user,
-    email: String(user.email || '').trim().toLowerCase(),
+    email: normalizeEmail(user.email),
     role: user.role || 'user',
     verified: user.verified ? 1 : 0,
     created_at: user.created_at || Math.floor(Date.now() / 1000),
@@ -127,4 +173,4 @@ async function updateFields(id, fields) {
   return result.rows[0] || null;
 }
 
-module.exports = { ensureSchema, findById, findByEmail, findByResetToken, create, updateFields };
+module.exports = { ensureSchema, bootstrapProductionAdmin, findById, findByEmail, findByResetToken, create, updateFields };
