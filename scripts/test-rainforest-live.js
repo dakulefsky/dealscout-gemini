@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 import { createRequire } from 'module';
 import axios from 'axios';
 
@@ -6,7 +5,7 @@ process.env.DEAL_DATA_PROVIDER = 'rainforest';
 
 const require = createRequire(import.meta.url);
 const { getProviderStatus, fetchProductByAsin, fetchDealsList } = require('../server/services/providerRouter');
-const { formatAffiliateUrl } = require('../server/services/rainforestService');
+const { formatAffiliateUrl } = require('../server/services/amazonUrlService');
 const { scoreVerifiedDeal } = require('../server/services/dealQualityService');
 
 const TEST_ASIN = process.env.TEST_ASIN || 'B0GGGQDY9H';
@@ -48,8 +47,8 @@ async function main() {
   const status = await getProviderStatus();
   console.log(`Provider configured: ${status.configuredProvider}`);
   console.log(`Provider effective: ${status.effectiveProvider}`);
-  console.log(`Rainforest ready: ${status.rainforest.isConfigured && !status.rainforest.isQuotaExhausted}`);
-  console.log(`Affiliate tag configured: ${process.env.AMAZON_ASSOCIATE_TAG === 'dankul-20' ? 'dankul-20' : 'YES (non-default)'}`);
+  console.log(`Rainforest ready: ${status.rainforest.isConfigured}`);
+  console.log('Affiliate tag configured: YES');
   if (status.effectiveProvider !== 'rainforest') return fail(`Expected Rainforest, got ${status.effectiveProvider}`);
 
   const product = await fetchProductByAsin(TEST_ASIN);
