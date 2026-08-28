@@ -5,6 +5,7 @@ const path = require('path');
 
 const dealsRoute = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'deals.js'), 'utf8');
 const functionsRoute = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'functions.js'), 'utf8');
+const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
 
 test('public deal serializer excludes legacy enrichment and raw source data', () => {
   const publicBlock = dealsRoute.match(/const publicDeal = \{([\s\S]*?)\n  \};/);
@@ -28,6 +29,10 @@ test('public search and sorting do not use legacy ratings or enrichment', () => 
   assert.match(dealsRoute, /\? \(d\) => \[d\.title, d\.short_bio, d\.full_summary, d\.asin, d\.category\][\s\S]*?: \(d\) => \[d\.title, d\.asin, d\.category\]/);
   assert.match(dealsRoute, /if \(isAdmin && minRating/);
   assert.match(dealsRoute, /else if \(isAdmin && sort === 'rating_desc'\)/);
+  assert.doesNotMatch(home, /d\.shortBio|d\.short_bio|d\.fullSummary|d\.full_summary/);
+  assert.match(home, /d\.title\?\.toLowerCase\(\)\.includes\(term\)/);
+  assert.match(home, /d\.category\?\.toLowerCase\(\)\.includes\(term\)/);
+  assert.match(home, /d\.asin\?\.toLowerCase\(\)\.includes\(term\)/);
 });
 
 test('dead review sync routes and review imports are removed', () => {

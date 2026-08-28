@@ -73,7 +73,7 @@ export default function Home() {
     if (activeCat !== 'all') list = list.filter((d) => d.category?.toLowerCase() === activeCat.toLowerCase());
     if (searchQuery.trim()) {
       const term = searchQuery.trim().toLowerCase();
-      list = list.filter((d) => d.title?.toLowerCase().includes(term) || d.shortBio?.toLowerCase().includes(term) || d.category?.toLowerCase().includes(term) || d.asin?.toLowerCase().includes(term));
+      list = list.filter((d) => d.title?.toLowerCase().includes(term) || d.category?.toLowerCase().includes(term) || d.asin?.toLowerCase().includes(term));
     }
     if (minDiscount > 0) list = list.filter((d) => (d.discountPercent || 0) >= minDiscount);
     const selectedPriceTier = PRICE_TIERS.find((p) => p.value === priceTier);
