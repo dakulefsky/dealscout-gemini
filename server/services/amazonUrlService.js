@@ -1,3 +1,6 @@
+const AMAZON_SHORT_HOSTS = new Set(['amzn.to', 'a.co']);
+const AMAZON_DOMAIN_RE = /(^|\.)amazon\.(com|ca|com\.au|com\.br|com\.mx|co\.uk|co\.jp|de|fr|it|es|in|nl|se|pl|sg|ae|sa|tr|be)$/i;
+
 function extractAsin(input) {
   if (!input || typeof input !== 'string') return null;
   const trimmed = input.trim();
@@ -22,18 +25,26 @@ function extractAsin(input) {
   return null;
 }
 
-function formatAffiliateUrl(url, associateTag = process.env.AMAZON_ASSOCIATE_TAG) {
-  if (!url || typeof url !== 'string') return url;
-  const tag = String(associateTag || '').trim();
-  if (!tag) return url;
+function isAmazonUrl(url) {
   try {
     const parsed = new URL(url);
-    parsed.searchParams.set('tag', tag);
-    return parsed.toString();
+    if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+    if (parsed.username || parsed.password) return false;
+    const host = parsed.hostname.toLowerCase();
+    return AMAZON_SHORT_HOSTS.has(host) || AMAZON_DOMAIN_RE.test(host);
   } catch {
-    const separator = url.includes('?') ? '&' : '?';
-    return `${url}${separator}tag=${encodeURIComponent(tag)}`;
+    return false;
   }
 }
 
-module.exports = { extractAsin, formatAffiliateUrl };
+function formatAffiliateUrl(url, associateTag = process.env.AMAZON_ASSOCIATE_TAG) {
+  if (!url || typeof url !== 'string') return url;
+  if (!isAmazonUrl(url)) throw new Error('Affiliate URLs must use an Amazon-owned host');
+  const parsed = new URL(url);
+  const tag = String(associateTag || '').trim();
+  if (!tag) return parsed.toString();
+  parsed.searchParams.set('tag', tag);
+  return parsed.toString();
+}
+
+module.exports = { extractAsin, isAmazonUrl, formatAffiliateUrl };
