@@ -12,12 +12,7 @@ import { ArrowLeft, TrendingDown, ShoppingBag, Loader2, Heart, Share2, CheckCirc
 import { Button } from '@/components/ui/button';
 
 function categorySlug(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  return encodeURIComponent(String(value || '').trim());
 }
 
 function observedPrices(history) {
