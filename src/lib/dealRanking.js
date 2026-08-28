@@ -12,11 +12,21 @@ export function dealRankScore(deal, nowMs = Date.now()) {
   const savings = Math.max(0, original - sale);
   const providerQuality = Math.max(0, Math.min(100, numeric(deal.qualityScore ?? deal.quality_score)));
 
-  let freshness = 0;
   const checkedAt = numeric(deal.priceCheckAt ?? deal.price_check_at);
+  let freshness = -14;
   if (checkedAt > 0) {
     const ageHours = Math.max(0, (nowMs - checkedAt * 1000) / 3600000);
-    freshness = ageHours <= 2 ? 12 : ageHours <= 12 ? 9 : ageHours <= 24 ? 6 : ageHours <= 72 ? 2 : -4;
+    freshness = ageHours <= 2
+      ? 12
+      : ageHours <= 12
+        ? 9
+        : ageHours <= 24
+          ? 6
+          : ageHours <= 72
+            ? 2
+            : ageHours <= 168
+              ? -10
+              : -22;
   }
 
   const image = /^https?:\/\//i.test(String(deal.imageUrl || deal.image_url || '')) ? 5 : -6;
