@@ -26,26 +26,20 @@ function publicDeal(deal) {
   return deal && deal.status === 'APPROVED' && deal.is_expired !== 1 && deal.source_verified === 1;
 }
 
-function rowToDeal(r) {
+function rowToPublicDeal(r) {
   return {
     id: r.id,
     title: r.title,
     asin: r.asin,
     category: r.category,
-    originalPrice: Number(r.original_price || 0),
-    salePrice: Number(r.sale_price || 0),
-    discountPercent: Number(r.discount_percent || 0),
+    originalPrice: Number(r.original_price ?? 0),
+    salePrice: Number(r.sale_price ?? 0),
+    discountPercent: Number(r.discount_percent ?? 0),
     imageUrl: r.image_url,
     productUrl: r.product_url,
-    rating: Number(r.rating || 0),
-    ratingsTotal: Number(r.ratings_total || 0),
-    shortBio: r.short_bio,
-    fullSummary: r.full_summary,
-    pros: r.pros,
-    cons: r.cons,
-    reviews: Array.isArray(r.reviews) ? r.reviews : [],
+    qualityScore: Number(r.quality_score ?? 0),
     sourceVerified: r.source_verified === 1,
-    status: r.status,
+    priceCheckAt: r.price_check_at || null,
     created_date: r.created_at ? new Date(Number(r.created_at) * 1000).toISOString() : null,
   };
 }
@@ -69,7 +63,7 @@ router.get('/', async (req, res) => {
     for (const bookmark of userBookmarks) {
       const deal = await deals.findByIdOrAsin(bookmark.dealId);
       if (!publicDeal(deal)) continue;
-      savedDeals.push({ ...rowToDeal(deal), savedAt: bookmark.createdAt || null, targetPrice: bookmark.targetPrice || null });
+      savedDeals.push({ ...rowToPublicDeal(deal), savedAt: bookmark.createdAt || null, targetPrice: bookmark.targetPrice || null });
     }
     res.json({ deals: savedDeals, bookmarkIds: savedDeals.map((d) => d.id) });
   } catch (err) {
@@ -110,7 +104,11 @@ router.post('/price-alert', async (req, res) => {
 
     const alert = await bookmarks.upsertAlert({ userId: identity.id, deal, targetPrice, email });
     await bookmarks.setBookmarkTarget(identity.id, deal.id, targetPrice);
-    res.json({ success: true, message: `Price alert set for $${targetPrice}.`, alert });
+    res.json({
+      success: true,
+      message: `Price alert set for $${targetPrice}.`,
+      alert: { id: alert.id, dealId: alert.dealId, targetPrice: alert.targetPrice, status: alert.status },
+    });
   } catch (err) {
     console.error('[bookmarks] price alert failed:', err.message);
     res.status(503).json({ error: 'Bookmark service is temporarily unavailable' });
