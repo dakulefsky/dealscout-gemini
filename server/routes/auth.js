@@ -10,7 +10,9 @@ const mailer = require('../services/mailService');
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = '7d';
 const OTP_TTL = 15 * 60 * 1000;
+const MAX_RATE_BUCKETS = 5000;
 const rateBuckets = new Map();
+let limiterOps = 0;
 
 function assertJwtSecret() {
   if (!JWT_SECRET || JWT_SECRET.length < 32) throw new Error('JWT_SECRET must be configured with at least 32 characters');
@@ -26,13 +28,29 @@ function randomOtp() { return crypto.randomInt(100000, 1000000).toString(); }
 function hashToken(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 function isDevelopment() { return process.env.NODE_ENV !== 'production'; }
 
+function pruneRateBuckets(now) {
+  limiterOps += 1;
+  if (limiterOps % 100 !== 0 && rateBuckets.size < MAX_RATE_BUCKETS) return;
+
+  for (const [key, bucket] of rateBuckets) {
+    if (!bucket?.expiresAt || bucket.expiresAt <= now) rateBuckets.delete(key);
+  }
+
+  while (rateBuckets.size >= MAX_RATE_BUCKETS) {
+    const oldestKey = rateBuckets.keys().next().value;
+    if (oldestKey === undefined) break;
+    rateBuckets.delete(oldestKey);
+  }
+}
+
 function limiter(name, max, windowMs) {
   return (req, res, next) => {
     const key = `${name}:${req.ip || req.socket?.remoteAddress || 'unknown'}`;
     const now = Date.now();
+    pruneRateBuckets(now);
     let bucket = rateBuckets.get(key);
-    if (!bucket || now - bucket.startedAt >= windowMs) {
-      bucket = { startedAt: now, count: 0 };
+    if (!bucket || bucket.expiresAt <= now) {
+      bucket = { startedAt: now, expiresAt: now + windowMs, count: 0 };
       rateBuckets.set(key, bucket);
     }
     bucket.count += 1;
