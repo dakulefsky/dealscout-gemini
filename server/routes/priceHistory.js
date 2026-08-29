@@ -13,7 +13,12 @@ router.get('/:id/price-history', optionalAuth, async (req, res) => {
     const deal = await deals.findByIdOrAsin(req.params.id);
     if (!deal || !canSeeDeal(req, deal)) return res.status(404).json({ error: 'Deal not found' });
     const history = await getHistory(deal.asin);
-    res.json({ history, asin: deal.asin, hasObservedHistory: history.length > 0 });
+    const publicHistory = history.map((point) => ({
+      date: point.date,
+      price: Number(point.price),
+      listPrice: Number(point.listPrice),
+    }));
+    res.json({ history: publicHistory, asin: deal.asin, hasObservedHistory: publicHistory.length > 0 });
   } catch (err) {
     console.error('[PriceHistory] Lookup failed:', err.message);
     res.status(503).json({ error: 'Price history is temporarily unavailable' });
