@@ -93,16 +93,10 @@ async function startServer() {
     require('./server/services/imageRepairService.js').startImageRepairScheduler();
   } catch (cronErr) { console.warn('[DealScout] Scheduler initialization warning:', cronErr.message); }
 
-  app.get('/api/health', async (_req, res) => {
-    let cronStatus = null;
-    try { cronStatus = await require('./server/services/cronService.js').getStatus(); } catch {}
-    let priceHistoryStorage = { backend: 'unknown', healthy: false };
-    try { priceHistoryStorage = await require('./server/services/priceHistoryService.js').health(); }
-    catch (err) { priceHistoryStorage = { backend: process.env.DATABASE_URL ? 'postgres' : 'json', healthy: false, error: err.message }; }
-    let postgres = { configured: false, healthy: false };
-    try { postgres = await require('./server/storage/postgres.js').health(); }
-    catch (err) { postgres = { configured: Boolean(process.env.DATABASE_URL), healthy: false, error: err.message }; }
-    res.json({ status: 'ok', time: new Date().toISOString(), scheduler: cronStatus, storage: { postgres, priceHistory: priceHistoryStorage } });
+  // Keep the public health check intentionally minimal. Operational/provider/storage
+  // diagnostics belong behind authenticated admin endpoints, not in a public probe.
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok' });
   });
 
   if (!isProduction) {
