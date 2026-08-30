@@ -43,10 +43,11 @@ test('client API surface contains no nonexistent lifecycle endpoint', () => {
   assert.doesNotMatch(source, /\/api\/deals\/lifecycle-stats/);
 });
 
-test('unreachable public auth pages and nested runtime manifest stay removed', () => {
+test('unreachable public auth pages stay removed and backend manifest is only a module boundary', () => {
   assert.equal(fs.existsSync(path.join(root, 'src/pages/Register.jsx')), false);
   assert.equal(fs.existsSync(path.join(root, 'src/pages/ForgotPassword.jsx')), false);
-  assert.equal(fs.existsSync(path.join(root, 'server/package.json')), false);
+  const serverManifest = JSON.parse(read('server/package.json'));
+  assert.deepEqual(serverManifest, { private: true, type: 'commonjs' });
 });
 
 test('shared API client bounds requests and supports cancellation', () => {
