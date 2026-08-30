@@ -22,16 +22,19 @@ function strictAffiliateUrl(asin, detailPageUrl) {
   return `https://www.amazon.com/dp/${asin}?tag=${encodeURIComponent(tag)}`;
 }
 
-function normalizeStrictPaapiItem(item) {
+function normalizeStrictPaapiItem(item, { allowNonDeal = false } = {}) {
   const asin = cleanText(item?.ASIN).toUpperCase();
   const title = cleanText(item?.ItemInfo?.Title?.DisplayValue);
   if (!/^[A-Z0-9]{10}$/.test(asin) || !title) return null;
 
   const listing = item?.Offers?.Listings?.[0];
   const salePrice = Number(listing?.Price?.Amount);
-  const originalPrice = Number(listing?.SavingBasis?.Amount);
+  const savingBasis = Number(listing?.SavingBasis?.Amount);
   if (!Number.isFinite(salePrice) || salePrice <= 0) return null;
-  if (!Number.isFinite(originalPrice) || originalPrice <= salePrice) return null;
+
+  const hasVerifiedDiscount = Number.isFinite(savingBasis) && savingBasis > salePrice;
+  if (!hasVerifiedDiscount && !allowNonDeal) return null;
+  const originalPrice = hasVerifiedDiscount ? savingBasis : salePrice;
 
   const imageUrl = cleanText(item?.Images?.Primary?.Large?.URL) || null;
   const brand = cleanText(item?.ItemInfo?.ByLineInfo?.Brand?.DisplayValue) || null;
@@ -65,11 +68,12 @@ function normalizeStrictPaapiItem(item) {
     availability,
     sourceProvider: 'AMAZON_PAAPI',
     sourceVerified: true,
+    isDeal: hasVerifiedDiscount,
     rawSourceData: `Amazon PA-API verified price facts | ASIN: ${asin}`,
   };
 }
 
-async function strictGetItems(itemIds, { resources = STRICT_RESOURCES, condition = 'New' } = {}) {
+async function strictGetItems(itemIds, { resources = STRICT_RESOURCES, condition = 'New', allowNonDeal = false } = {}) {
   const asins = (Array.isArray(itemIds) ? itemIds : [itemIds])
     .map((asin) => cleanText(asin).toUpperCase())
     .filter((asin) => /^[A-Z0-9]{10}$/.test(asin));
@@ -81,7 +85,7 @@ async function strictGetItems(itemIds, { resources = STRICT_RESOURCES, condition
     Resources: resources,
     Condition: condition,
   });
-  return (response.ItemsResult?.Items || []).map(normalizeStrictPaapiItem).filter(Boolean);
+  return (response.ItemsResult?.Items || []).map((item) => normalizeStrictPaapiItem(item, { allowNonDeal })).filter(Boolean);
 }
 
 async function strictSearchItems(keywords, { searchIndex = 'All', itemPage = 1, itemCount = 10, resources = STRICT_RESOURCES } = {}) {
@@ -95,7 +99,7 @@ async function strictSearchItems(keywords, { searchIndex = 'All', itemPage = 1, 
   const items = response.SearchResult?.Items || [];
   return {
     totalResults: response.SearchResult?.TotalResultCount || items.length,
-    results: items.map(normalizeStrictPaapiItem).filter(Boolean),
+    results: items.map((item) => normalizeStrictPaapiItem(item)).filter(Boolean),
   };
 }
 
