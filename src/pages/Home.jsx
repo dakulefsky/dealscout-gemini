@@ -6,6 +6,7 @@ import { deals as dealsApi, categories as categoriesApi, editorial as editorialA
 import { rankDeals } from '@/lib/dealRanking';
 import { loadInterests, personalizedRank, STORAGE_KEY } from '@/lib/feedPersonalization';
 import { INITIAL_FEED_SIZE, nextVisibleCount, dealDrop } from '@/lib/progressiveFeed';
+import { buildFeedChapters, chapterDealIds } from '@/lib/feedChapters';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -19,6 +20,7 @@ const SORTS = [
 const DISCOUNT_TIERS = [{ value: 0, label: 'Any discount' }, { value: 15, label: '15%+ off' }, { value: 25, label: '25%+ off' }, { value: 30, label: '30%+ off' }, { value: 50, label: '50%+ off' }];
 const PRICE_TIERS = [{ value: 'all', label: 'Any price' }, { value: 'under-50', label: 'Under $50', max: 50 }, { value: '50-150', label: '$50–$150', min: 50, max: 150 }, { value: '150-300', label: '$150–$300', min: 150, max: 300 }, { value: 'over-300', label: '$300+', min: 300 }];
 const LAST_VISIT_KEY = 'dealscout-feed-last-visit-v1';
+const CHAPTER_INTERVAL = 8;
 
 function dealTimestamp(deal) {
   const raw = deal?.createdAt || deal?.created_at;
@@ -73,7 +75,12 @@ export default function Home() {
   const hasActiveFilters = activeCat !== 'all' || searchQuery.trim() !== '' || minDiscount > 0 || priceTier !== 'all' || sort !== 'best';
   const dropDeals = useMemo(() => hasActiveFilters ? [] : dealDrop(visibleDeals, 8), [visibleDeals, hasActiveFilters]);
   const dropIds = useMemo(() => new Set(dropDeals.map((deal) => deal.id || deal.asin)), [dropDeals]);
-  const exploreDeals = useMemo(() => hasActiveFilters ? visibleDeals : visibleDeals.filter((deal) => !dropIds.has(deal.id || deal.asin)), [visibleDeals, hasActiveFilters, dropIds]);
+  const chapters = useMemo(() => hasActiveFilters ? [] : buildFeedChapters(visibleDeals, interests, dropIds), [visibleDeals, interests, dropIds, hasActiveFilters]);
+  const chapterIds = useMemo(() => chapterDealIds(chapters), [chapters]);
+  const exploreDeals = useMemo(() => hasActiveFilters ? visibleDeals : visibleDeals.filter((deal) => {
+    const id = deal.id || deal.asin;
+    return !dropIds.has(id) && !chapterIds.has(id);
+  }), [visibleDeals, hasActiveFilters, dropIds, chapterIds]);
   const progressiveDeals = exploreDeals.slice(0, visibleCount);
   const hasMore = visibleCount < exploreDeals.length;
   const newSinceLastVisit = lastVisit > 0 ? deals.filter((deal) => dealTimestamp(deal) > lastVisit).length : 0;
@@ -97,6 +104,19 @@ export default function Home() {
     ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5 auto-rows-fr items-stretch">{items.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" />)}</div>
     : <div className="space-y-3.5">{items.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" />)}</div>;
 
+  const chapterBlock = (chapter) => <div key={chapter.key} className="my-7 rounded-2xl border border-violet-200 bg-violet-50/50 p-4 sm:p-5"><div className="mb-4"><div className="text-[11px] font-black uppercase tracking-wider text-violet-700">{chapter.eyebrow}</div><h3 className="font-heading text-lg sm:text-xl font-black text-slate-900 mt-1">{chapter.title}</h3></div>{feedGrid(chapter.items)}</div>;
+
+  const exploreWithChapters = () => {
+    const sections = [];
+    for (let start = 0; start < progressiveDeals.length; start += CHAPTER_INTERVAL) {
+      const chunk = progressiveDeals.slice(start, start + CHAPTER_INTERVAL);
+      sections.push(<React.Fragment key={`chunk-${start}`}>{feedGrid(chunk)}</React.Fragment>);
+      const chapter = chapters[Math.floor(start / CHAPTER_INTERVAL)];
+      if (chapter) sections.push(chapterBlock(chapter));
+    }
+    return sections;
+  };
+
   return <div className="space-y-5 sm:space-y-6">
     <section className="bg-gradient-to-b from-white to-slate-50 border-b border-slate-200/80"><div className="max-w-7xl mx-auto px-4 py-7 sm:py-10"><div className="max-w-3xl"><div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 mb-3"><ShieldCheck className="w-3.5 h-3.5" /> Prices checked regularly</div><h1 className="font-heading text-3xl sm:text-5xl font-black text-slate-950 tracking-tight leading-[1.05]">Great Amazon deals, without the clutter.</h1><p className="text-sm sm:text-base text-slate-600 mt-3 max-w-2xl">The feed quietly learns which categories you spend time with, open, and save, while still keeping deal quality first.</p>{newSinceLastVisit > 0 && <div className="inline-flex items-center gap-1.5 mt-4 text-sm font-bold text-violet-800 bg-violet-50 border border-violet-200 rounded-full px-3 py-1.5"><Sparkles className="w-4 h-4" /> {newSinceLastVisit} new {newSinceLastVisit === 1 ? 'deal' : 'deals'} since your last visit</div>}</div></div></section>
     {dropDeals.length > 0 && <section className="max-w-7xl mx-auto px-4"><div className="rounded-2xl sm:rounded-3xl border border-orange-200 bg-orange-50/60 p-4 sm:p-5"><div className="mb-4"><div className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-orange-700"><Flame className="w-3.5 h-3.5" /> Deal Drop</div><h2 className="font-heading text-xl sm:text-2xl font-black text-slate-900 mt-1">8 deals worth seeing right now</h2><p className="text-xs sm:text-sm text-slate-600 mt-1">A quick hit of the strongest verified deals in your feed.</p></div>{feedGrid(dropDeals)}</div></section>}
@@ -106,7 +126,7 @@ export default function Home() {
       <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs mb-5"><div className="flex items-center gap-2"><div className="relative flex-1 min-w-0"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input type="text" placeholder="Search deals" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-10 text-sm bg-slate-50 border-slate-200 rounded-xl" /></div><select value={sort} onChange={(e) => setSort(e.target.value)} className="h-10 text-xs sm:text-sm font-semibold border border-slate-200 rounded-xl px-2.5 bg-slate-50 text-slate-800 max-w-[132px] sm:max-w-none">{SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select><button type="button" onClick={() => setShowFilters((v) => !v)} className="h-10 w-10 rounded-xl border border-slate-200 flex items-center justify-center md:hidden"><SlidersHorizontal className="w-4 h-4" /></button><div className="hidden md:flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200"><button onClick={() => setViewMode('grid')} className={`p-1.5 rounded-md ${viewMode === 'grid' ? 'bg-white text-emerald-600' : 'text-slate-500'}`}><LayoutGrid className="w-3.5 h-3.5" /></button><button onClick={() => setViewMode('list')} className={`p-1.5 rounded-md ${viewMode === 'list' ? 'bg-white text-emerald-600' : 'text-slate-500'}`}><List className="w-3.5 h-3.5" /></button></div></div>
       <div className={`${showFilters ? 'flex' : 'hidden'} md:flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100`}><select value={minDiscount} onChange={(e) => setMinDiscount(Number(e.target.value))} className="h-9 text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5">{DISCOUNT_TIERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select><select value={priceTier} onChange={(e) => setPriceTier(e.target.value)} className="h-9 text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5">{PRICE_TIERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select><span className="text-xs text-slate-400 ml-auto hidden sm:inline">{visibleDeals.length} deals</span>{personalized && <button onClick={resetPersonalization} className="text-xs font-semibold text-slate-500 hover:text-slate-800">Reset recommendations</button>}{hasActiveFilters && <button onClick={resetAllFilters} className="text-xs font-semibold text-rose-600 flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Reset filters</button>}</div></div>
       {!loading && !error && exploreDeals.length > 0 && <div className="mb-4"><div className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-slate-500"><Sparkles className="w-3.5 h-3.5" /> Explore</div><h2 className="font-heading text-xl sm:text-2xl font-black text-slate-900 mt-1">More deals for you</h2></div>}
-      {loading ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="aspect-[4/3] bg-slate-100 rounded-2xl animate-pulse" />)}</div> : error ? <div className="text-center py-12 bg-white rounded-2xl border p-8"><p>Couldn't load deals: {error}</p><Button onClick={() => window.location.reload()} className="mt-4">Try Again</Button></div> : visibleDeals.length === 0 ? <div className="text-center py-16"><TrendingDown className="h-10 w-10 text-slate-300 mx-auto" /><h3 className="font-bold mt-3">No deals match your filters</h3><Button onClick={resetAllFilters} variant="outline" size="sm" className="mt-3">Reset Filters</Button></div> : <>{feedGrid(progressiveDeals)}<div ref={feedSentinel} className="h-10" aria-hidden="true" />{hasMore ? <div className="text-center py-5 text-xs font-semibold text-slate-400">Finding more good deals…</div> : <div className="text-center py-9"><div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700"><ShieldCheck className="w-4 h-4 text-emerald-600" /> You’ve seen today’s best deals</div><p className="text-xs text-slate-500 mt-2">Come back later and DealScout will surface newly verified finds.</p></div>}</>}
+      {loading ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="aspect-[4/3] bg-slate-100 rounded-2xl animate-pulse" />)}</div> : error ? <div className="text-center py-12 bg-white rounded-2xl border p-8"><p>Couldn't load deals: {error}</p><Button onClick={() => window.location.reload()} className="mt-4">Try Again</Button></div> : visibleDeals.length === 0 ? <div className="text-center py-16"><TrendingDown className="h-10 w-10 text-slate-300 mx-auto" /><h3 className="font-bold mt-3">No deals match your filters</h3><Button onClick={resetAllFilters} variant="outline" size="sm" className="mt-3">Reset Filters</Button></div> : <>{exploreWithChapters()}<div ref={feedSentinel} className="h-10" aria-hidden="true" />{hasMore ? <div className="text-center py-5 text-xs font-semibold text-slate-400">Finding more good deals…</div> : <div className="text-center py-9"><div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700"><ShieldCheck className="w-4 h-4 text-emerald-600" /> You’ve seen today’s best deals</div><p className="text-xs text-slate-500 mt-2">Come back later and DealScout will surface newly verified finds.</p></div>}</>}
     </section>
   </div>;
 }
