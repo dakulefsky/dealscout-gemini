@@ -13,6 +13,10 @@ function moneyValue(value) {
   return null;
 }
 
+function cleanText(value) {
+  return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
+}
+
 function affiliateUrl(asin) {
   const tag = process.env.AMAZON_ASSOCIATE_TAG;
   if (!tag) throw new Error('AMAZON_ASSOCIATE_TAG is required for Rainforest live deals');
@@ -21,7 +25,8 @@ function affiliateUrl(asin) {
 
 function normalizeDeal(item) {
   const asin = String(item?.asin || '').trim().toUpperCase();
-  if (!/^[A-Z0-9]{10}$/.test(asin) || !item?.title) return null;
+  const title = cleanText(item?.title);
+  if (!/^[A-Z0-9]{10}$/.test(asin) || !title) return null;
 
   const salePrice = moneyValue(item.deal_price) ?? moneyValue(item.current_price) ?? moneyValue(item.price);
   const originalPrice = moneyValue(item.list_price) ?? moneyValue(item.rrp);
@@ -30,11 +35,12 @@ function normalizeDeal(item) {
 
   const discountPercent = Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1));
   const gallery = imageCandidates(item.main_image, item.image, item.images, item.images_flat);
+  const categoryName = cleanText(item.category?.name) || cleanText(item.category) || cleanText(item.search_alias) || 'Amazon';
 
   return {
     asin,
-    title: item.title,
-    category: item.category?.name || item.category || item.search_alias || 'Amazon',
+    title,
+    category: categoryName,
     originalPrice,
     salePrice,
     discountPercent,
@@ -55,6 +61,17 @@ function normalizeDeal(item) {
   };
 }
 
+function dedupeDeals(items) {
+  const byAsin = new Map();
+  for (const deal of items) {
+    const existing = byAsin.get(deal.asin);
+    if (!existing || deal.discountPercent > existing.discountPercent || (deal.discountPercent === existing.discountPercent && deal.salePrice < existing.salePrice)) {
+      byAsin.set(deal.asin, deal);
+    }
+  }
+  return [...byAsin.values()];
+}
+
 async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealType = null, categoryId = null, maxResults = 15, minDiscount = 10 } = {}) {
   const apiKey = process.env.RAINFOREST_API_KEY;
   if (!apiKey) throw new Error('RAINFOREST_API_KEY is not configured');
@@ -73,7 +90,8 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
   if (data.request_info?.success === false) throw new Error(data.request_info.message || 'Rainforest deals request failed');
 
   const items = Array.isArray(data.deals_results) ? data.deals_results : (Array.isArray(data.deals) ? data.deals : []);
-  return items.map(normalizeDeal).filter(Boolean).filter((deal) => deal.discountPercent >= minDiscount).slice(0, maxResults);
+  const normalized = items.map(normalizeDeal).filter(Boolean).filter((deal) => deal.discountPercent >= minDiscount);
+  return dedupeDeals(normalized).sort((a, b) => b.discountPercent - a.discountPercent || b.savingsAmount - a.savingsAmount).slice(0, maxResults);
 }
 
-module.exports = { fetchStrictRainforestDeals, normalizeDeal };
+module.exports = { fetchStrictRainforestDeals, normalizeDeal, dedupeDeals };
