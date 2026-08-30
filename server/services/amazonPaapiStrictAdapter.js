@@ -73,6 +73,11 @@ function normalizeStrictPaapiItem(item, { allowNonDeal = false } = {}) {
   };
 }
 
+function onlyRequestedAsins(items, requestedAsins) {
+  const allowed = new Set((requestedAsins || []).map((asin) => cleanText(asin).toUpperCase()));
+  return (items || []).filter((item) => allowed.has(cleanText(item?.ASIN).toUpperCase()));
+}
+
 async function strictGetItems(itemIds, { resources = STRICT_RESOURCES, condition = 'New', allowNonDeal = false } = {}) {
   const asins = (Array.isArray(itemIds) ? itemIds : [itemIds])
     .map((asin) => cleanText(asin).toUpperCase())
@@ -85,7 +90,9 @@ async function strictGetItems(itemIds, { resources = STRICT_RESOURCES, condition
     Resources: resources,
     Condition: condition,
   });
-  return (response.ItemsResult?.Items || []).map((item) => normalizeStrictPaapiItem(item, { allowNonDeal })).filter(Boolean);
+  return onlyRequestedAsins(response.ItemsResult?.Items || [], asins)
+    .map((item) => normalizeStrictPaapiItem(item, { allowNonDeal }))
+    .filter(Boolean);
 }
 
 async function strictSearchItems(keywords, { searchIndex = 'All', itemPage = 1, itemCount = 10, resources = STRICT_RESOURCES } = {}) {
@@ -107,6 +114,7 @@ module.exports = {
   STRICT_RESOURCES,
   getPaapiConfig,
   normalizeStrictPaapiItem,
+  onlyRequestedAsins,
   strictGetItems,
   strictSearchItems,
 };

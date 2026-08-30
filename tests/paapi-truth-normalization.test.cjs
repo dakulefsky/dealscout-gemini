@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 process.env.AMAZON_ASSOCIATE_TAG = 'real-tag-20';
-const { normalizeStrictPaapiItem } = require('../server/services/amazonPaapiStrictAdapter');
+const { normalizeStrictPaapiItem, onlyRequestedAsins } = require('../server/services/amazonPaapiStrictAdapter');
 
 test('strict PA-API normalization keeps only provider-supplied deal facts', () => {
   const item = normalizeStrictPaapiItem({
@@ -47,6 +47,14 @@ test('strict PA-API normalization rejects missing or invented discount basis', (
   };
   assert.equal(normalizeStrictPaapiItem(base), null);
   assert.equal(normalizeStrictPaapiItem({ ...base, Offers: { Listings: [{ Price: { Amount: 79.99 }, SavingBasis: { Amount: 79.99 } }] } }), null);
+});
+
+test('PA-API product lookups discard products whose ASIN was not requested', () => {
+  const items = [
+    { ASIN: 'B0GGGQDY9H' },
+    { ASIN: 'B012345678' },
+  ];
+  assert.deepEqual(onlyRequestedAsins(items, ['B0GGGQDY9H']), [{ ASIN: 'B0GGGQDY9H' }]);
 });
 
 test('active PA-API routing cannot use synthetic legacy normalization', () => {
