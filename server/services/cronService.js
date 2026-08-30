@@ -4,6 +4,7 @@ const { recordObservation } = require('./priceHistoryService');
 const { scoreVerifiedDeal } = require('./dealQualityService');
 const { publishingDecision, getHoldbackPercent } = require('./editorialCadenceService');
 const { oldestCheckedFirst } = require('./verificationQueue');
+const { verificationBatchSize } = require('./verificationCapacity');
 const { rediscoveryLifecycleChanges } = require('./rediscoveryLifecycle');
 const { verifiedSourceChanges } = require('./verifiedDealRefresh');
 
@@ -34,7 +35,8 @@ class DealCronService {
     this.lastPriceCheck = new Date();
     const all = await deals.listAll();
     const activeDeals = all.filter((d) => !d.is_expired && d.status === 'APPROVED' && d.source_verified === 1);
-    const verificationBatch = oldestCheckedFirst(activeDeals, 10);
+    const batchSize = verificationBatchSize(activeDeals.length);
+    const verificationBatch = oldestCheckedFirst(activeDeals, batchSize || 1);
     let expiredCount = 0; let checkedCount = 0;
 
     for (const deal of verificationBatch) {
@@ -59,7 +61,7 @@ class DealCronService {
       } catch (err) { console.warn(`[DealCronService] Price verification for ${deal.asin}:`, err.message); }
     }
     this.stats.dealsExpired += expiredCount;
-    return { checkedCount, expiredCount, eligibleCount: activeDeals.length };
+    return { checkedCount, expiredCount, eligibleCount: activeDeals.length, batchSize };
   }
 
   async syncDailyDeals() {
