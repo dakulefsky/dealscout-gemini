@@ -52,6 +52,19 @@ export function addCategoryInterest(category, weight = 1) {
   return next;
 }
 
+export function reduceCategoryInterest(category, weight = 3) {
+  if (typeof window === 'undefined') return {};
+  const key = cleanCategory(category);
+  if (!key) return loadInterests();
+  const current = loadInterests();
+  const reduced = Math.max(0, (Number(current[key]) || 0) - Math.max(0, Number(weight) || 0));
+  const next = { ...current };
+  if (reduced >= MIN_RETAINED_SCORE) next[key] = Math.round(reduced * 100) / 100;
+  else delete next[key];
+  try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* personalization remains optional */ }
+  return next;
+}
+
 export function personalizedRank(deals, interests = {}) {
   return (deals || [])
     .map((deal, index) => ({ deal, index, boost: Number(interests[cleanCategory(deal?.category)]) || 0 }))

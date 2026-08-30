@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingDown, Heart, ArrowRight, Clock, AlertCircle, ShieldCheck } from 'lucide-react';
+import { TrendingDown, Heart, ArrowRight, Clock, AlertCircle, ShieldCheck, EyeOff } from 'lucide-react';
 import { Image } from '@/components/ui/image';
 import { useBookmarks } from '@/lib/BookmarksContext';
 import { verificationFreshness } from '@/lib/verificationFreshness';
-import { addCategoryInterest, dwellWeight } from '@/lib/feedPersonalization';
+import { addCategoryInterest, reduceCategoryInterest, dwellWeight } from '@/lib/feedPersonalization';
+import { dismissDeal, isDealDismissed } from '@/lib/feedDismissals';
 
 export function formatPrice(price) {
   if (price == null || isNaN(price)) return '';
@@ -15,6 +16,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
   const { isSaved, toggleBookmark } = useBookmarks();
   const dealId = deal.id || deal.asin;
   const saved = isSaved(dealId);
+  const [dismissed, setDismissed] = useState(() => isDealDismissed(dealId));
   const isExpired = Boolean(deal.isExpired || deal.status === 'EXPIRED');
   const hoursLeft = deal.expiresInHours ? Math.max(1, Math.ceil(deal.expiresInHours)) : null;
   const freshness = verificationFreshness(deal.priceCheckAt);
@@ -28,6 +30,14 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
     e.stopPropagation();
     if (!saved) addCategoryInterest(deal.category, 4);
     toggleBookmark(deal);
+  }
+
+  function handleDismissClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dismissDeal(dealId);
+    reduceCategoryInterest(deal.category, 3);
+    setDismissed(true);
   }
 
   function finishDwell() {
@@ -62,6 +72,8 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
 
   function handleDealClick() { addCategoryInterest(deal.category, 2); }
 
+  if (dismissed) return null;
+
   const sourceBadge = !isExpired && deal.sourceVerified ? (
     <span title={freshness.label} className={`inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md whitespace-nowrap ${freshness.stale ? 'text-amber-800 bg-amber-100' : 'text-slate-600 bg-slate-100'}`}>
       <ShieldCheck className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${freshness.stale ? 'text-amber-600' : 'text-emerald-600'}`} />
@@ -79,12 +91,15 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
           <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-105 transition-transform duration-200" />
           {isExpired ? <span className="absolute top-1.5 left-1.5 bg-slate-800 text-white text-[9px] font-bold px-1.5 py-0.5 rounded"><Clock className="w-2.5 h-2.5 inline mr-0.5" /> Ended</span> : deal.discountPercent > 0 ? <span className="absolute top-1.5 left-1.5 bg-emerald-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded">-{deal.discountPercent}%</span> : null}
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 pr-16 sm:pr-0">
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">{!isExpired && deal.category && <span className="text-[9px] uppercase font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded truncate max-w-[150px]">{deal.category}</span>}{isExpired && <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded"><AlertCircle className="w-2.5 h-2.5 inline" /> {hoursLeft ? `Deletes in ${hoursLeft}h` : 'Ended'}</span>}{sourceBadge}</div>
           <h3 className={`text-sm sm:text-base font-bold leading-snug line-clamp-2 ${isExpired ? 'text-slate-600 line-through' : 'text-slate-900 group-hover:text-emerald-700'}`}>{deal.title}</h3>
           <div className="flex items-baseline gap-2 mt-2"><span className={`text-lg sm:text-xl font-black ${isExpired ? 'text-slate-500 line-through' : 'text-emerald-700'}`}>{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}{!isExpired && savings > 0 && <span className="hidden sm:inline text-[10px] font-bold text-emerald-700">Save {formatPrice(savings)}</span>}</div>
         </div>
-        <button type="button" onClick={handleBookmarkClick} title={saved ? 'Remove from Saved' : 'Save Deal'} className={`absolute right-3 top-3 sm:static w-8 h-8 rounded-full flex items-center justify-center transition border shrink-0 ${saved ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-500 hover:text-rose-600 border-slate-200'}`}><Heart className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} /></button>
+        <div className="absolute right-3 top-3 sm:static flex items-center gap-1.5 shrink-0">
+          <button type="button" onClick={handleDismissClick} title="Not interested" aria-label="Not interested" className="w-8 h-8 rounded-full flex items-center justify-center transition border bg-white text-slate-400 hover:text-slate-700 border-slate-200"><EyeOff className="w-3.5 h-3.5" /></button>
+          <button type="button" onClick={handleBookmarkClick} title={saved ? 'Remove from Saved' : 'Save Deal'} className={`w-8 h-8 rounded-full flex items-center justify-center transition border ${saved ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-500 hover:text-rose-600 border-slate-200'}`}><Heart className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} /></button>
+        </div>
       </Link>
     );
   }
@@ -94,6 +109,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
       <div className={`relative aspect-[4/3] w-full overflow-hidden p-2.5 sm:p-4 border-b ${isExpired ? 'bg-slate-100 border-slate-200 grayscale-[0.85]' : 'bg-slate-50/70 border-slate-100'}`}>
         <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-105 transition-transform duration-300" />
         {isExpired ? <span className="absolute top-2 left-2 bg-slate-800 text-white text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md"><Clock className="w-2.5 h-2.5 inline mr-1 text-amber-400" /> Ended</span> : deal.discountPercent > 0 ? <span className="absolute top-2 left-2 inline-flex items-center gap-1 bg-emerald-600 text-white text-[10px] sm:text-[11px] font-black px-1.5 sm:px-2 py-0.5 rounded-md"><TrendingDown className="w-3 h-3 hidden sm:block" /> {deal.discountPercent}% OFF</span> : null}
+        <button type="button" onClick={handleDismissClick} title="Not interested" aria-label="Not interested" className="absolute top-2 right-10 w-7 h-7 rounded-full flex items-center justify-center transition shadow-xs border z-10 bg-white/95 text-slate-400 hover:text-slate-700 border-slate-200"><EyeOff className="w-3.5 h-3.5" /></button>
         <button type="button" onClick={handleBookmarkClick} title={saved ? 'Remove from Saved' : 'Save Deal'} className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition shadow-xs border z-10 ${saved ? 'bg-rose-600 text-white border-rose-600' : 'bg-white/95 text-slate-600 hover:text-rose-600 border-slate-200'}`}><Heart className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} /></button>
       </div>
       <div className="p-2.5 sm:p-4 flex-1 flex flex-col min-w-0">
