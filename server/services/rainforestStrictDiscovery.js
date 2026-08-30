@@ -23,6 +23,11 @@ function affiliateUrl(asin) {
   return `https://www.amazon.com/dp/${asin}?tag=${encodeURIComponent(tag)}`;
 }
 
+function isUnavailableDeal(deal) {
+  const availability = cleanText(deal?.availability).toLowerCase();
+  return /out of stock|unavailable|no featured offers/.test(availability);
+}
+
 function normalizeDeal(item) {
   const asin = String(item?.asin || '').trim().toUpperCase();
   const title = cleanText(item?.title);
@@ -36,6 +41,7 @@ function normalizeDeal(item) {
   const discountPercent = Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1));
   const gallery = imageCandidates(item.main_image, item.image, item.images, item.images_flat);
   const categoryName = cleanText(item.category?.name) || cleanText(item.category) || cleanText(item.search_alias) || 'Amazon';
+  const availability = cleanText(item.availability?.raw || item.buybox_winner?.availability?.raw) || null;
 
   return {
     asin,
@@ -53,7 +59,7 @@ function normalizeDeal(item) {
     ratingsTotal: Number(item.ratings_total) || 0,
     reviews: [],
     isPrime: item.is_prime === true || item.buybox_winner?.is_prime === true,
-    availability: item.availability?.raw || item.buybox_winner?.availability?.raw || null,
+    availability,
     dealBadge: item.deal_badge || item.badge || null,
     sourceProvider: 'RAINFOREST',
     sourceVerified: true,
@@ -90,8 +96,12 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
   if (data.request_info?.success === false) throw new Error(data.request_info.message || 'Rainforest deals request failed');
 
   const items = Array.isArray(data.deals_results) ? data.deals_results : (Array.isArray(data.deals) ? data.deals : []);
-  const normalized = items.map(normalizeDeal).filter(Boolean).filter((deal) => deal.discountPercent >= minDiscount);
+  const normalized = items
+    .map(normalizeDeal)
+    .filter(Boolean)
+    .filter((deal) => !isUnavailableDeal(deal))
+    .filter((deal) => deal.discountPercent >= minDiscount);
   return dedupeDeals(normalized).sort((a, b) => b.discountPercent - a.discountPercent || b.savingsAmount - a.savingsAmount).slice(0, maxResults);
 }
 
-module.exports = { fetchStrictRainforestDeals, normalizeDeal, dedupeDeals };
+module.exports = { fetchStrictRainforestDeals, normalizeDeal, dedupeDeals, isUnavailableDeal };
