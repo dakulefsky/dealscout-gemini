@@ -75,7 +75,7 @@ async function fetchProductByAsin(asin, options = {}) {
 
   if (status.effectiveProvider === 'amazon_paapi') {
     try {
-      const items = await strictGetItems([cleanAsin]);
+      const items = await strictGetItems([cleanAsin], { allowNonDeal: options.allowNonDeal === true });
       const verified = normalizeVerifiedProduct(items?.[0], 'AMAZON_PAAPI');
       if (verified) return verified;
     } catch (err) {
