@@ -1,15 +1,42 @@
 const STORAGE_KEY = 'dealscout-feed-interests-v1';
+const DECAY_KEY = 'dealscout-feed-interests-decay-v1';
 const MAX_SCORE = 24;
+const DECAY_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const DAILY_DECAY = 0.97;
+const MIN_RETAINED_SCORE = 0.25;
 
 function cleanCategory(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+export function decayInterests(interests = {}, elapsedMs = 0) {
+  const days = Math.floor(Math.max(0, Number(elapsedMs) || 0) / DECAY_INTERVAL_MS);
+  if (days < 1) return interests;
+  const factor = DAILY_DECAY ** days;
+  const next = {};
+  for (const [category, rawScore] of Object.entries(interests || {})) {
+    const score = Math.max(0, Number(rawScore) || 0) * factor;
+    if (score >= MIN_RETAINED_SCORE) next[category] = Math.round(score * 100) / 100;
+  }
+  return next;
 }
 
 export function loadInterests() {
   if (typeof window === 'undefined') return {};
   try {
     const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || '{}');
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    const interests = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    const now = Date.now();
+    const lastDecay = Number(window.localStorage.getItem(DECAY_KEY)) || 0;
+    if (!lastDecay) {
+      window.localStorage.setItem(DECAY_KEY, String(now));
+      return interests;
+    }
+    if (now - lastDecay < DECAY_INTERVAL_MS) return interests;
+    const decayed = decayInterests(interests, now - lastDecay);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(decayed));
+    window.localStorage.setItem(DECAY_KEY, String(now));
+    return decayed;
   } catch {
     return {};
   }
