@@ -13,6 +13,15 @@ function moneyValue(value) {
   return null;
 }
 
+function requireMatchingAsin(requestedAsin, returnedAsin) {
+  const requested = String(requestedAsin || '').trim().toUpperCase();
+  const returned = String(returnedAsin || '').trim().toUpperCase();
+  if (!/^[A-Z0-9]{10}$/.test(returned) || returned !== requested) {
+    throw new Error(`Rainforest ASIN mismatch for ${requested || 'requested product'}`);
+  }
+  return returned;
+}
+
 function affiliateUrl(asin) {
   const tag = process.env.AMAZON_ASSOCIATE_TAG;
   if (!tag) throw new Error('AMAZON_ASSOCIATE_TAG is required for Rainforest live products');
@@ -41,6 +50,7 @@ async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com',
 
   const product = data.product;
   if (!product?.asin || !product?.title) throw new Error(`Rainforest returned no product for ${asin}`);
+  const verifiedAsin = requireMatchingAsin(asin, product.asin);
 
   const buybox = product.buybox_winner || {};
   const salePrice = moneyValue(buybox.price) ?? moneyValue(product.price);
@@ -58,7 +68,7 @@ async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com',
   const gallery = imageCandidates(product.main_image, product.images, product.images_flat, product.image);
 
   return {
-    asin: String(product.asin).toUpperCase(),
+    asin: verifiedAsin,
     title: product.title,
     brand: product.brand || product.manufacturer || null,
     category,
@@ -68,8 +78,8 @@ async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com',
     savingsAmount: Number((originalPrice - salePrice).toFixed(2)),
     imageUrl: gallery[0] || null,
     imageGallery: gallery,
-    productUrl: affiliateUrl(product.asin),
-    rawProductUrl: product.link || `https://www.amazon.com/dp/${product.asin}`,
+    productUrl: affiliateUrl(verifiedAsin),
+    rawProductUrl: product.link || `https://www.amazon.com/dp/${verifiedAsin}`,
     rating: Number(product.rating) || null,
     ratingsTotal: Number(product.ratings_total) || 0,
     reviews: [],
@@ -81,8 +91,8 @@ async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com',
     sourceProvider: 'RAINFOREST',
     sourceVerified: true,
     isDeal: hasVerifiedDiscount,
-    rawSourceData: `Rainforest API product lookup | ASIN: ${product.asin}`,
+    rawSourceData: `Rainforest API product lookup | ASIN: ${verifiedAsin}`,
   };
 }
 
-module.exports = { fetchStrictRainforestProduct };
+module.exports = { fetchStrictRainforestProduct, requireMatchingAsin };
