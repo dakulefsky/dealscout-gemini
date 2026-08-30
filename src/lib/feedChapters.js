@@ -44,8 +44,17 @@ export function buildFeedChapters(deals = [], interests = {}, initiallyUsedIds =
     }
   }
 
+  const familiar = new Set(topInterests.map((item) => item.category));
+  const discovery = takeUnique(
+    deals.filter((deal) => !familiar.has(categoryKey(deal?.category))),
+    used,
+  );
+  if (discovery.length >= 2) chapters.push({ key: 'discovery', eyebrow: 'Explore', title: 'Something different', items: discovery });
+
   const biggestDrops = takeUnique(
-    [...deals].sort((a, b) => (Number(b?.discountPercent) || 0) - (Number(a?.discountPercent) || 0)),
+    deals
+      .filter((deal) => (Number(deal?.discountPercent) || 0) > 0)
+      .sort((a, b) => (Number(b?.discountPercent) || 0) - (Number(a?.discountPercent) || 0)),
     used,
   );
   if (biggestDrops.length >= 2) chapters.push({ key: 'biggest-drops', eyebrow: 'Price movement', title: 'Biggest price drops', items: biggestDrops });
@@ -55,13 +64,6 @@ export function buildFeedChapters(deals = [], interests = {}, initiallyUsedIds =
     used,
   );
   if (under25.length >= 2) chapters.push({ key: 'under-25', eyebrow: 'Quick wins', title: 'Good finds under $25', items: under25 });
-
-  const familiar = new Set(topInterests.map((item) => item.category));
-  const discovery = takeUnique(
-    deals.filter((deal) => !familiar.has(categoryKey(deal?.category))),
-    used,
-  );
-  if (discovery.length >= 2) chapters.push({ key: 'discovery', eyebrow: 'Explore', title: 'Something different', items: discovery });
 
   return chapters.slice(0, 4);
 }
