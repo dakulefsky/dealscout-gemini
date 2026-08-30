@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const deals = require('../repositories/dealRepository');
+const dealQueries = require('../repositories/dealQueryRepository');
 const categories = require('../repositories/categoryRepository');
 const { optionalAuth, requireAdmin } = require('../middleware/auth');
 
@@ -64,33 +65,11 @@ function validStatus(status) {
 
 router.get('/stats', optionalAuth, async (req, res) => {
   try {
-    const all = await deals.listAll();
-    if (req.user?.role !== 'admin') {
-      const approved = all.filter((d) => canSeeDeal(req, d));
-      return res.json({
-        total: approved.length,
-        approvedCount: approved.length,
-        avgDiscount: approved.length ? Math.round(approved.reduce((sum, d) => sum + Number(d.discount_percent || 0), 0) / approved.length) : 0,
-        categoriesCount: new Set(approved.map((d) => d.category).filter(Boolean)).size,
-      });
-    }
-    const approved = all.filter((d) => d.status === 'APPROVED' && !d.is_expired);
-    const pending = all.filter((d) => d.status === 'PENDING_REVIEW');
-    const expired = all.filter((d) => d.is_expired === 1 || d.status === 'EXPIRED');
-    const rejected = all.filter((d) => d.status === 'REJECTED');
-    const lifecycle = await deals.lifecycleStats();
+    const isAdmin = req.user?.role === 'admin';
+    const result = await dealQueries.stats({ isAdmin });
+    if (!isAdmin) return res.json(result);
     const categoryRows = await categories.list();
-    res.json({
-      total: all.length,
-      approvedCount: approved.length,
-      pendingCount: pending.length,
-      expiredCount: expired.length,
-      rejectedCount: rejected.length,
-      readyToPurgeCount: lifecycle.readyToPurgeCount,
-      avgDiscount: approved.length ? Math.round(approved.reduce((sum, d) => sum + Number(d.discount_percent || 0), 0) / approved.length) : 0,
-      categoriesCount: categoryRows.length,
-      lifecycle,
-    });
+    return res.json({ ...result, categoriesCount: categoryRows.length });
   } catch (err) {
     console.error('[deals] stats failed:', err.message);
     res.status(503).json({ error: 'Deal statistics are temporarily unavailable' });
@@ -99,33 +78,9 @@ router.get('/stats', optionalAuth, async (req, res) => {
 
 router.get('/', optionalAuth, async (req, res) => {
   try {
-    const { status, category, q, minDiscount, maxPrice, minPrice, minRating, sort = '-created_date', limit = 100 } = req.query;
     const isAdmin = req.user?.role === 'admin';
-    let list = await deals.listAll();
-    if (isAdmin) {
-      if (status) list = list.filter((d) => d.status === status);
-    } else list = list.filter((d) => canSeeDeal(req, d));
-
-    if (category && category !== 'All' && category !== 'All Deals') list = list.filter((d) => String(d.category || '').toLowerCase() === String(category).toLowerCase());
-    if (q && typeof q === 'string' && q.trim()) {
-      const term = q.trim().toLowerCase();
-      const searchableFields = isAdmin
-        ? (d) => [d.title, d.short_bio, d.full_summary, d.asin, d.category]
-        : (d) => [d.title, d.asin, d.category];
-      list = list.filter((d) => searchableFields(d).some((v) => String(v || '').toLowerCase().includes(term)));
-    }
-    const n = (v) => Number(v);
-    if (minDiscount !== undefined && Number.isFinite(n(minDiscount))) list = list.filter((d) => n(d.discount_percent) >= n(minDiscount));
-    if (minPrice !== undefined && Number.isFinite(n(minPrice))) list = list.filter((d) => n(d.sale_price) >= n(minPrice));
-    if (maxPrice !== undefined && Number.isFinite(n(maxPrice))) list = list.filter((d) => n(d.sale_price) <= n(maxPrice));
-    if (isAdmin && minRating !== undefined && Number.isFinite(n(minRating))) list = list.filter((d) => n(d.rating) >= n(minRating));
-    if (sort === 'discount_desc' || sort === '-discount_percent') list.sort((a, b) => n(b.discount_percent) - n(a.discount_percent));
-    else if (sort === 'price_asc') list.sort((a, b) => n(a.sale_price) - n(b.sale_price));
-    else if (sort === 'price_desc') list.sort((a, b) => n(b.sale_price) - n(a.sale_price));
-    else if (isAdmin && sort === 'rating_desc') list.sort((a, b) => n(b.rating) - n(a.rating));
-    else list.sort((a, b) => n(b.created_at) - n(a.created_at));
-    const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 100, 1), 100);
-    res.json(list.slice(0, safeLimit).map((deal) => rowToDeal(deal, { includeInternal: isAdmin })));
+    const list = await dealQueries.list(req.query, { isAdmin });
+    res.json(list.map((deal) => rowToDeal(deal, { includeInternal: isAdmin })));
   } catch (err) {
     console.error('[deals] list failed:', err.message);
     res.status(503).json({ error: 'Deals are temporarily unavailable' });
