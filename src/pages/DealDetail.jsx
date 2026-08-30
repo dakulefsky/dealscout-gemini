@@ -4,6 +4,7 @@ import { Image } from '@/components/ui/image';
 import { useToast } from '@/components/ui/use-toast';
 import { formatPrice } from '@/components/DealCard';
 import { verificationFreshness } from '@/lib/verificationFreshness';
+import { addCategoryInterest } from '@/lib/feedPersonalization';
 import { deals as dealsApi, functions, editorial as editorialApi } from '@/lib/api';
 import { useBookmarks } from '@/lib/BookmarksContext';
 import SidebarAds from '@/components/SidebarAds';
@@ -60,13 +61,21 @@ export default function DealDetail() {
     setRedirecting(true);
     try {
       const res = await functions.amazonRedirect(deal.productUrl);
-      if (res?.redirectUrl) window.location.href = res.redirectUrl;
-      else toast({ title: "Couldn't open Amazon", variant: 'destructive' });
+      if (res?.redirectUrl) {
+        addCategoryInterest(deal.category, 3);
+        window.location.href = res.redirectUrl;
+      } else toast({ title: "Couldn't open Amazon", variant: 'destructive' });
     } catch (e) {
       toast({ title: 'Could not open Amazon', description: e.message, variant: 'destructive' });
     } finally {
       setRedirecting(false);
     }
+  }
+
+  function handleSave() {
+    if (!deal) return;
+    if (!saved) addCategoryInterest(deal.category, 4);
+    toggleBookmark(deal);
   }
 
   function handleShare() {
@@ -111,7 +120,7 @@ export default function DealDetail() {
         <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Back</Link>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleShare} className="rounded-xl text-xs font-semibold gap-1.5">{copiedLink ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}{copiedLink ? 'Copied' : 'Share'}</Button>
-          <Button variant={saved ? 'default' : 'outline'} size="sm" onClick={() => toggleBookmark(deal)} className={`rounded-xl text-xs font-semibold gap-1.5 ${saved ? 'bg-rose-600 hover:bg-rose-700 text-white' : ''}`}><Heart className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} />{saved ? 'Saved' : 'Save'}</Button>
+          <Button variant={saved ? 'default' : 'outline'} size="sm" onClick={handleSave} className={`rounded-xl text-xs font-semibold gap-1.5 ${saved ? 'bg-rose-600 hover:bg-rose-700 text-white' : ''}`}><Heart className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} />{saved ? 'Saved' : 'Save'}</Button>
         </div>
       </div>
 
