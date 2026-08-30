@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const users = require('../repositories/userRepository');
 const mailer = require('../services/mailService');
+const { requireAuth } = require('../middleware/auth');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES = '7d';
@@ -59,17 +60,12 @@ function limiter(name, max, windowMs) {
   };
 }
 
-router.get('/me', async (req, res) => {
-  try { assertJwtSecret(); } catch { return res.status(503).json({ error: 'Authentication is not configured' }); }
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });
+router.get('/me', requireAuth, async (req, res) => {
   try {
-    const payload = jwt.verify(header.slice(7), JWT_SECRET);
-    const user = await users.findById(payload.id);
+    const user = await users.findById(req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ id: user.id, email: user.email, role: user.role });
   } catch (err) {
-    if (err?.name === 'JsonWebTokenError' || err?.name === 'TokenExpiredError') return res.status(401).json({ error: 'Invalid token' });
     console.error('[auth] me lookup failed:', err.message);
     res.status(503).json({ error: 'Authentication service is temporarily unavailable' });
   }
@@ -81,7 +77,8 @@ router.post('/login', limiter('login', 10, 10 * 60 * 1000), async (req, res) => 
   if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
   try {
     const user = await users.findByEmail(email);
-    if (!user || !user.password || !bcrypt.compareSync(password, user.password)) return res.status(401).json({ error: 'Invalid email or password' });
+    const passwordMatches = user?.password ? await bcrypt.compare(password, user.password) : false;
+    if (!user || !passwordMatches) return res.status(401).json({ error: 'Invalid email or password' });
     if (!user.verified) return res.status(403).json({ error: 'Email not verified' });
     return res.json({ access_token: makeToken(user), user: { id: user.id, email: user.email, role: user.role } });
   } catch (err) {
@@ -101,10 +98,11 @@ router.post('/register', limiter('register', 5, 15 * 60 * 1000), async (req, res
   try {
     if (await users.findByEmail(email)) return res.status(409).json({ error: 'Email already registered' });
     const otp = randomOtp();
+    const passwordHash = await bcrypt.hash(password, 12);
     await users.create({
       id: uuidv4(),
       email,
-      password: bcrypt.hashSync(password, 12),
+      password: passwordHash,
       role: 'user',
       verified: 0,
       otp_code: otp,
@@ -200,7 +198,7 @@ router.post('/reset-password', limiter('reset', 10, 15 * 60 * 1000), async (req,
     const user = await users.findByResetToken(tokenHash);
     if (!user || !user.reset_expires || Date.now() > Number(user.reset_expires)) return res.status(400).json({ error: 'Reset link is invalid or has expired' });
     await users.updateFields(user.id, {
-      password: bcrypt.hashSync(newPassword, 12),
+      password: await bcrypt.hash(newPassword, 12),
       reset_token: null,
       reset_expires: null,
     });
