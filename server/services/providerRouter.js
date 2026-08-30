@@ -1,6 +1,10 @@
 const { strictGetItems, strictSearchItems, getPaapiConfig } = require('./amazonPaapiStrictAdapter');
 const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
+const {
+  runProviderCall,
+  getProviderThrottleStatus,
+} = require('./providerThrottle');
 
 const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
 
@@ -37,10 +41,12 @@ async function getProviderStatus() {
       region: paapiConfig.region,
       host: paapiConfig.host,
       status: paapiConfig.isConfigured ? 'Ready' : 'Not configured',
+      throttle: getProviderThrottleStatus('amazon_paapi'),
     },
     rainforest: {
       isConfigured: rainforestConfigured,
       status: rainforestConfigured ? 'Ready' : 'Not configured',
+      throttle: getProviderThrottleStatus('rainforest'),
     },
   };
 }
@@ -63,6 +69,20 @@ function normalizeVerifiedProduct(product, provider) {
   };
 }
 
+async function paapiProduct(cleanAsin, options) {
+  return runProviderCall('amazon_paapi', async () => {
+    const items = await strictGetItems([cleanAsin], { allowNonDeal: options.allowNonDeal === true });
+    return normalizeVerifiedProduct(items?.[0], 'AMAZON_PAAPI');
+  });
+}
+
+async function rainforestProduct(cleanAsin, options) {
+  return runProviderCall('rainforest', async () => {
+    const product = await fetchStrictRainforestProduct(cleanAsin, options);
+    return normalizeVerifiedProduct(product, 'RAINFOREST');
+  });
+}
+
 async function fetchProductByAsin(asin, options = {}) {
   const cleanAsin = String(asin || '').trim().toUpperCase();
   if (!/^[A-Z0-9]{10}$/.test(cleanAsin)) throw new Error('Invalid Amazon ASIN');
@@ -72,8 +92,7 @@ async function fetchProductByAsin(asin, options = {}) {
 
   if (status.effectiveProvider === 'amazon_paapi') {
     try {
-      const items = await strictGetItems([cleanAsin], { allowNonDeal: options.allowNonDeal === true });
-      const verified = normalizeVerifiedProduct(items?.[0], 'AMAZON_PAAPI');
+      const verified = await paapiProduct(cleanAsin, options);
       if (verified) return verified;
     } catch (err) {
       console.warn(`[ProviderRouter PA-API notice for ${cleanAsin}]:`, err.message);
@@ -83,8 +102,7 @@ async function fetchProductByAsin(asin, options = {}) {
 
   if (status.effectiveProvider === 'rainforest' || (configuredProvider === 'auto' && status.rainforest.isConfigured)) {
     try {
-      const product = await fetchStrictRainforestProduct(cleanAsin, options);
-      const verified = normalizeVerifiedProduct(product, 'RAINFOREST');
+      const verified = await rainforestProduct(cleanAsin, options);
       if (verified) return verified;
       if (configuredProvider === 'rainforest') {
         console.warn(`[ProviderRouter Rainforest notice for ${cleanAsin}]: Rainforest returned product data but no verifiable original/sale price pair.`);
@@ -106,7 +124,7 @@ async function fetchDealsList(options = {}) {
 
   if (status.effectiveProvider === 'amazon_paapi') {
     try {
-      const result = await strictSearchItems('deals of the day', { itemCount: options.maxResults || 15 });
+      const result = await runProviderCall('amazon_paapi', () => strictSearchItems('deals of the day', { itemCount: options.maxResults || 15 }));
       const verified = (result?.results || []).map((item) => normalizeVerifiedProduct(item, 'AMAZON_PAAPI')).filter(Boolean);
       if (verified.length) return verified;
       if (configuredProvider === 'amazon_paapi') return [];
@@ -118,7 +136,7 @@ async function fetchDealsList(options = {}) {
 
   if (status.effectiveProvider === 'rainforest' || (configuredProvider === 'auto' && status.rainforest.isConfigured)) {
     try {
-      const result = await fetchStrictRainforestDeals(options);
+      const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals(options));
       const verified = (result || []).map((item) => normalizeVerifiedProduct(item, 'RAINFOREST')).filter(Boolean);
       if (verified.length) return verified;
       if (configuredProvider === 'rainforest') return [];

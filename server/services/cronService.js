@@ -1,6 +1,7 @@
 const deals = require('../repositories/dealRepository');
+const refreshStates = require('../repositories/refreshStateRepository');
 const postgres = require('../storage/postgres');
-const { fetchDealsList, fetchProductByAsin } = require('./providerRouter');
+const { fetchDealsList, fetchProductByAsin, getProviderStatus } = require('./providerRouter');
 const { recordObservation } = require('./priceHistoryService');
 const { scoreVerifiedDeal } = require('./dealQualityService');
 const { publishingDecision, getHoldbackPercent } = require('./editorialCadenceService');
@@ -8,6 +9,7 @@ const { oldestCheckedFirst } = require('./verificationQueue');
 const { verificationBatchSize } = require('./verificationCapacity');
 const { rediscoveryLifecycleChanges } = require('./rediscoveryLifecycle');
 const { verifiedSourceChanges } = require('./verifiedDealRefresh');
+const { canAttemptRefresh } = require('./refreshRetryPolicy');
 
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
@@ -21,6 +23,12 @@ const JOB_LOCKS = Object.freeze({
 async function safeRecordObservation(observation) {
   try { await recordObservation(observation); }
   catch (err) { console.warn('[DealCronService] Price history observation skipped:', err.message); }
+}
+
+function providerHasTransientTrouble(status) {
+  return [status?.paapi?.throttle, status?.rainforest?.throttle].some((throttle) =>
+    throttle?.coolingDown === true || Number(throttle?.consecutiveFailures || 0) > 0
+  );
 }
 
 class DealCronService {
@@ -101,17 +109,40 @@ class DealCronService {
       const all = await deals.listAll();
       const activeDeals = all.filter((deal) => !deal.is_expired && deal.status === 'APPROVED' && deal.source_verified === 1);
       const batchSize = verificationBatchSize(activeDeals.length);
-      const verificationBatch = oldestCheckedFirst(activeDeals, batchSize || 1);
+      const candidateLimit = Math.min(100, Math.max(batchSize, batchSize * 3));
+      const verificationCandidates = oldestCheckedFirst(activeDeals, candidateLimit || 1);
       let expiredCount = 0;
       let checkedCount = 0;
+      let deferredCount = 0;
+      let itemFailureCount = 0;
 
-      for (const deal of verificationBatch) {
-        checkedCount += 1;
+      for (const deal of verificationCandidates) {
+        if (checkedCount >= batchSize) break;
         const attemptAt = Math.floor(Date.now() / 1000);
+        const refreshState = await refreshStates.get(deal.asin);
+        if (!canAttemptRefresh(refreshState, attemptAt)) {
+          deferredCount += 1;
+          continue;
+        }
+
+        checkedCount += 1;
         try {
           await deals.update(deal.id, { last_verify_attempt_at: attemptAt });
           const liveInfo = await fetchProductByAsin(deal.asin, { allowNonDeal: true });
-          if (!liveInfo?.sourceVerified) continue;
+          if (!liveInfo?.sourceVerified) {
+            const providerStatus = await getProviderStatus();
+            if (!providerHasTransientTrouble(providerStatus)) {
+              const error = Object.assign(new Error('No verifiable product refresh result'), { code: 'UNVERIFIED_REFRESH' });
+              await refreshStates.recordFailure(deal.asin, error, { at: attemptAt });
+              itemFailureCount += 1;
+            }
+            continue;
+          }
+
+          await refreshStates.recordSuccess(deal.asin, {
+            at: attemptAt,
+            provider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER',
+          });
 
           const outOfStock = liveInfo.availability && /out of stock|unavailable/i.test(liveInfo.availability);
           const original = Number(liveInfo.originalPrice);
@@ -145,12 +176,24 @@ class DealCronService {
           if (Number.isFinite(discount) && discount >= 0) changes.discount_percent = discount;
           await deals.update(deal.id, changes);
         } catch (err) {
+          const providerStatus = await getProviderStatus().catch(() => null);
+          if (!providerHasTransientTrouble(providerStatus)) {
+            await refreshStates.recordFailure(deal.asin, err, { at: attemptAt });
+            itemFailureCount += 1;
+          }
           console.warn(`[DealCronService] Price verification for ${deal.asin}:`, err.message);
         }
       }
 
       this.stats.dealsExpired += expiredCount;
-      return { checkedCount, expiredCount, eligibleCount: activeDeals.length, batchSize };
+      return {
+        checkedCount,
+        expiredCount,
+        deferredCount,
+        itemFailureCount,
+        eligibleCount: activeDeals.length,
+        batchSize,
+      };
     });
   }
 
@@ -210,6 +253,7 @@ class DealCronService {
               ...verifiedSourceChanges(existing, item),
             };
             await deals.update(existing.id, changes);
+            await refreshStates.recordSuccess(item.asin, { provider: item.sourceProvider, at: verifiedAt });
             updatedCount += 1;
             continue;
           }
@@ -243,6 +287,7 @@ class DealCronService {
             raw_source_data: `${item.sourceProvider || 'Verified provider'} | ASIN: ${item.asin} | publication=${publication.reason}`,
             created_at: verifiedAt,
           });
+          await refreshStates.recordSuccess(item.asin, { provider: item.sourceProvider, at: verifiedAt });
           createdCount += 1;
           if (status === 'APPROVED') autoApprovedCount += 1;
           else pendingCount += 1;
