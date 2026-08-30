@@ -1,4 +1,4 @@
-const { getItems, searchItems, getPaapiConfig } = require('./amazonPaapiService');
+const { strictGetItems, strictSearchItems, getPaapiConfig } = require('./amazonPaapiStrictAdapter');
 const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
 
@@ -75,7 +75,7 @@ async function fetchProductByAsin(asin, options = {}) {
 
   if (status.effectiveProvider === 'amazon_paapi') {
     try {
-      const items = await getItems([cleanAsin]);
+      const items = await strictGetItems([cleanAsin]);
       const verified = normalizeVerifiedProduct(items?.[0], 'AMAZON_PAAPI');
       if (verified) return verified;
     } catch (err) {
@@ -107,7 +107,7 @@ async function fetchDealsList(options = {}) {
   const status = await getProviderStatus();
   if (status.effectiveProvider === 'amazon_paapi') {
     try {
-      const result = await searchItems('deals of the day', { itemCount: options.maxResults || 15 });
+      const result = await strictSearchItems('deals of the day', { itemCount: options.maxResults || 15 });
       const verified = (result?.results || []).map((x) => normalizeVerifiedProduct(x, 'AMAZON_PAAPI')).filter(Boolean);
       if (verified.length) return verified;
       if (activeProvider === 'amazon_paapi') return [];
