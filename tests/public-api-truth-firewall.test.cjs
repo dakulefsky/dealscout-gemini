@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const dealsRoute = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'deals.js'), 'utf8');
+const dealQueries = fs.readFileSync(path.join(__dirname, '..', 'server', 'repositories', 'dealQueryRepository.js'), 'utf8');
 const functionsRoute = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'functions.js'), 'utf8');
 const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
 
@@ -26,9 +27,11 @@ test('internal fields are opt-in and only exposed to admin responses', () => {
 });
 
 test('public search and sorting do not use legacy ratings or enrichment', () => {
-  assert.match(dealsRoute, /\? \(d\) => \[d\.title, d\.short_bio, d\.full_summary, d\.asin, d\.category\][\s\S]*?: \(d\) => \[d\.title, d\.asin, d\.category\]/);
-  assert.match(dealsRoute, /if \(isAdmin && minRating/);
-  assert.match(dealsRoute, /else if \(isAdmin && sort === 'rating_desc'\)/);
+  assert.match(dealsRoute, /dealQueries\.list\(req\.query, \{ isAdmin \}\)/);
+  assert.match(dealQueries, /\? \['title', 'short_bio', 'full_summary', 'asin', 'category'\][\s\S]*?: \['title', 'asin', 'category'\]/);
+  assert.match(dealQueries, /if \(isAdmin && opts\.minRating !== null\)/);
+  assert.match(dealQueries, /if \(isAdmin && sort === 'rating_desc'\)/);
+  assert.doesNotMatch(dealQueries, /const searchable =[^;]*rating|const searchable =[^;]*reviews/);
   assert.doesNotMatch(home, /d\.shortBio|d\.short_bio|d\.fullSummary|d\.full_summary/);
   assert.match(home, /d\.title\?\.toLowerCase\(\)\.includes\(term\)/);
   assert.match(home, /d\.category\?\.toLowerCase\(\)\.includes\(term\)/);
