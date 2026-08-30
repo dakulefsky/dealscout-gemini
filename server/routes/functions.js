@@ -14,7 +14,6 @@ const {
   robustExtractAsin,
 } = require('../services/siteStripeService');
 const {
-  setActiveProvider,
   getProviderStatus,
   fetchProductByAsin,
   fetchDealsList,
@@ -83,17 +82,6 @@ router.get('/provider-status', requireAdmin, async (_req, res) => {
     res.status(503).json({ error: 'Provider status is temporarily unavailable', details: err.message });
   }
 });
-
-async function switchProvider(req, res) {
-  try {
-    const updated = setActiveProvider(req.body?.provider);
-    res.json({ success: true, activeProvider: updated, status: await getProviderStatus() });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-}
-router.post('/set-provider', requireAdmin, switchProvider);
-router.post('/provider-switch', requireAdmin, switchProvider);
 
 router.post('/test-paapi', requireAdmin, async (req, res) => {
   const cleanAsin = extractAsin(req.body?.asin || 'B08PZHYWJS') || 'B08PZHYWJS';
