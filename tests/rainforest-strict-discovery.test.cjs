@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 process.env.AMAZON_ASSOCIATE_TAG = 'dankul-20';
-const { normalizeDeal, dedupeDeals } = require('../server/services/rainforestStrictDiscovery');
+const { normalizeDeal, dedupeDeals, isUnavailableDeal } = require('../server/services/rainforestStrictDiscovery');
 
 test('normalizes a real discounted Rainforest deal', () => {
   const deal = normalizeDeal({
@@ -31,6 +31,13 @@ test('rejects malformed ASINs, blank titles, and non-discounts', () => {
   assert.equal(normalizeDeal({ asin: 'BAD', title: 'Bad ASIN', price: { value: 10 }, rrp: { value: 20 } }), null);
   assert.equal(normalizeDeal({ asin: 'B0GGGQDY9H', title: '   ', price: { value: 10 }, rrp: { value: 20 } }), null);
   assert.equal(normalizeDeal({ asin: 'B0GGGQDY9H', title: 'Not discounted', price: { value: 249.99 }, rrp: { value: 249.99 } }), null);
+});
+
+test('known unavailable discovery rows are filtered before they can consume result slots', () => {
+  assert.equal(isUnavailableDeal({ availability: 'Currently unavailable' }), true);
+  assert.equal(isUnavailableDeal({ availability: 'Temporarily out of stock' }), true);
+  assert.equal(isUnavailableDeal({ availability: 'No featured offers available' }), true);
+  assert.equal(isUnavailableDeal({ availability: 'In Stock' }), false);
 });
 
 test('deduplicates repeated ASINs and keeps the strongest observed deal', () => {
