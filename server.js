@@ -30,6 +30,7 @@ async function startServer() {
   }
 
   const db = require('./server/db.js');
+  const postgres = require('./server/storage/postgres.js');
   const dealRepository = require('./server/repositories/dealRepository.js');
   const userRepository = require('./server/repositories/userRepository.js');
   const categoryRepository = require('./server/repositories/categoryRepository.js');
@@ -37,6 +38,8 @@ async function startServer() {
   const editorialRepository = require('./server/repositories/editorialRepository.js');
   const activityRepository = require('./server/repositories/activityRepository.js');
   const seo = require('./server/services/seoService.js');
+  const dealCron = require('./server/services/cronService.js');
+  const imageRepair = require('./server/services/imageRepairService.js');
   if (isProduction) hardenJsonUsers(db);
 
   await Promise.all([
@@ -89,8 +92,8 @@ async function startServer() {
   app.use('/api/bookmarks', require('./server/routes/bookmarks.js'));
 
   try {
-    require('./server/services/cronService.js').start();
-    require('./server/services/imageRepairService.js').startImageRepairScheduler();
+    dealCron.start();
+    imageRepair.startImageRepairScheduler();
   } catch (cronErr) { console.warn('[DealScout] Scheduler initialization warning:', cronErr.message); }
 
   // Keep the public health check intentionally minimal. Operational/provider/storage
@@ -99,17 +102,18 @@ async function startServer() {
     res.json({ status: 'ok' });
   });
 
+  let vite = null;
   if (!isProduction) {
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
+    vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(__dirname, 'dist');
     const indexPath = path.join(distPath, 'index.html');
+    const indexTemplate = fs.readFileSync(indexPath, 'utf8');
     app.use(express.static(distPath, { index: false }));
     app.use(async (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
       try {
-        let html = fs.readFileSync(indexPath, 'utf8');
         const baseUrl = seo.siteBase(req, configuredOrigin);
         let meta = seo.homeMeta(baseUrl);
         const dealMatch = req.path.match(/^\/deal\/([^/]+)$/);
@@ -127,10 +131,10 @@ async function startServer() {
         } else if (req.path === '/saved') {
           meta = { ...seo.homeMeta(baseUrl), title: 'Saved Deals — DealScout', description: 'Your saved DealScout deals.', canonical: null, robots: 'noindex,follow' };
         }
-        res.type('html').send(seo.replaceMeta(html, meta));
+        res.type('html').send(seo.replaceMeta(indexTemplate, meta));
       } catch (err) {
         console.warn('[DealScout] SEO render fallback:', err.message);
-        res.sendFile(indexPath);
+        res.type('html').send(indexTemplate);
       }
     });
   }
@@ -141,7 +145,42 @@ async function startServer() {
     if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
   });
 
-  app.listen(PORT, '0.0.0.0', () => console.log(`[DealScout] Server running on port ${PORT}`));
+  const httpServer = app.listen(PORT, '0.0.0.0', () => console.log(`[DealScout] Server running on port ${PORT}`));
+  let shuttingDown = false;
+
+  async function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[DealScout] ${signal} received; shutting down cleanly`);
+
+    const forceExit = setTimeout(() => {
+      console.error('[DealScout] Graceful shutdown timed out; forcing exit');
+      httpServer.closeAllConnections?.();
+      process.exit(1);
+    }, 10_000);
+    forceExit.unref?.();
+
+    dealCron.stop();
+    imageRepair.stopImageRepairScheduler();
+
+    try {
+      await new Promise((resolve, reject) => {
+        httpServer.close((error) => error ? reject(error) : resolve());
+      });
+      if (vite) await vite.close();
+      await postgres.closePool();
+      clearTimeout(forceExit);
+      console.log('[DealScout] Shutdown complete');
+      process.exit(0);
+    } catch (error) {
+      clearTimeout(forceExit);
+      console.error('[DealScout] Shutdown failed:', error);
+      process.exit(1);
+    }
+  }
+
+  process.once('SIGTERM', () => { shutdown('SIGTERM'); });
+  process.once('SIGINT', () => { shutdown('SIGINT'); });
 }
 
 startServer().catch((err) => { console.error('[DealScout] Failed to start server:', err); process.exit(1); });
