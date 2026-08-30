@@ -40,7 +40,9 @@ async function repairMissingImages(limit = 20) {
       try {
         const live = await fetchProductByAsin(deal.asin);
         if (live?.sourceVerified && /^https?:\/\//i.test(String(live.imageUrl || ''))) {
-          await deals.update(deal.id, { image_url: live.imageUrl, price_check_at: Math.floor(Date.now() / 1000) });
+          // Image repair is not a lifecycle/price verification pass. Updating
+          // price_check_at here would make a stored price appear fresher than it is.
+          await deals.update(deal.id, { image_url: live.imageUrl });
           repaired += 1;
           details.push({ asin: deal.asin, repaired: true });
         } else {
