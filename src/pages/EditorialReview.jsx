@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, ShieldCheck, Star, Save, ArrowLeft, CheckCircle2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ export default function EditorialReview() {
   const [filter, setFilter] = useState('needs-review');
   const { toast } = useToast();
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const allDeals = await dealsApi.list({ limit: 100 });
@@ -31,9 +31,9 @@ export default function EditorialReview() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [toast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const visibleDeals = useMemo(() => deals.filter((deal) => {
     const e = editorialByAsin[deal.asin] || emptyEditorial;
