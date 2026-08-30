@@ -30,6 +30,15 @@ function scoreVerifiedDeal(item = {}) {
   if (item.dealBadge || item.deal_badge) { score += 5; reasons.push('Amazon deal badge'); }
 
   score = Math.max(0, Math.min(100, Math.round(score)));
+
+  // Extremely large discounts are a common symptom of bad list-price/source data.
+  // Keep the deal available for editorial review, but never auto-publish it solely
+  // because the price math looks spectacular.
+  if (discount >= 80) {
+    reasons.push('extreme discount requires review');
+    return { score, decision: 'PENDING_REVIEW', reasons };
+  }
+
   return { score, decision: score >= 75 ? 'AUTO_APPROVE' : 'PENDING_REVIEW', reasons };
 }
 
