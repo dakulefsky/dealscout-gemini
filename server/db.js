@@ -9,6 +9,7 @@ const tables = {
   deals: [],
   bookmarks: [],
   price_alerts: [],
+  publication_jobs: [],
 };
 
 const nowUnix = () => Math.floor(Date.now() / 1000);
