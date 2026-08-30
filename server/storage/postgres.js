@@ -19,6 +19,14 @@ function isConfigured() {
   return hasCloudSqlConfig() || Boolean(process.env.DATABASE_URL);
 }
 
+function getSslConfig() {
+  const mode = String(process.env.PGSSL || 'verify-full').trim().toLowerCase();
+  if (mode === 'disable') return false;
+  if (mode === 'require') return { rejectUnauthorized: false };
+  if (mode === 'verify-full') return { rejectUnauthorized: true };
+  throw new Error("PGSSL must be one of: disable, require, verify-full");
+}
+
 function getPoolConfig() {
   if (hasCloudSqlConfig()) {
     return {
@@ -34,7 +42,7 @@ function getPoolConfig() {
   if (process.env.DATABASE_URL) {
     return {
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
+      ssl: getSslConfig(),
       max: Number(process.env.PG_POOL_MAX || 5),
     };
   }
@@ -96,4 +104,4 @@ async function health() {
   }
 }
 
-module.exports = { isConfigured, getPoolConfig, getPool, query, withAdvisoryLock, health };
+module.exports = { isConfigured, getSslConfig, getPoolConfig, getPool, query, withAdvisoryLock, health };
