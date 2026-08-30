@@ -5,6 +5,7 @@ const { scoreVerifiedDeal } = require('./dealQualityService');
 const { publishingDecision, getHoldbackPercent } = require('./editorialCadenceService');
 const { oldestCheckedFirst } = require('./verificationQueue');
 const { rediscoveryLifecycleChanges } = require('./rediscoveryLifecycle');
+const { verifiedSourceChanges } = require('./verifiedDealRefresh');
 
 async function safeRecordObservation(observation) {
   try { await recordObservation(observation); }
@@ -49,11 +50,10 @@ class DealCronService {
         if (Number.isFinite(original) && Number.isFinite(sale) && original > 0 && sale > 0 && sale <= original) await safeRecordObservation({ asin: deal.asin, salePrice: sale, originalPrice: original, sourceProvider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
         if (outOfStock || discountEnded) { await deals.expire(deal.id, outOfStock ? 'Product unavailable at verified source' : 'Verified deal ended'); expiredCount += 1; }
         else {
-          const changes = { price_check_at: attemptAt, last_verify_attempt_at: attemptAt };
+          const changes = { price_check_at: attemptAt, last_verify_attempt_at: attemptAt, ...verifiedSourceChanges(deal, liveInfo) };
           if (Number.isFinite(sale) && sale > 0) changes.sale_price = sale;
           if (Number.isFinite(original) && original >= sale) changes.original_price = original;
           if (Number.isFinite(discount) && discount >= 0) changes.discount_percent = discount;
-          if (liveInfo.imageUrl && liveInfo.imageUrl !== deal.image_url) changes.image_url = liveInfo.imageUrl;
           await deals.update(deal.id, changes);
         }
       } catch (err) { console.warn(`[DealCronService] Price verification for ${deal.asin}:`, err.message); }
@@ -87,8 +87,8 @@ class DealCronService {
             source_provider: item.sourceProvider || existing.source_provider,
             quality_score: quality.score,
             ...rediscoveryLifecycleChanges(existing, status),
+            ...verifiedSourceChanges(existing, item),
           };
-          if (item.imageUrl && item.imageUrl !== existing.image_url) changes.image_url = item.imageUrl;
           await deals.update(existing.id, changes); updatedCount += 1; continue;
         }
         await deals.upsert({ id: item.asin, title: item.title, asin: item.asin, category: item.category || 'Amazon', original_price: original, sale_price: sale, discount_percent: discount, image_url: item.imageUrl || item.image_url || '', product_url: item.productUrl || item.product_url || `https://www.amazon.com/dp/${item.asin}`, rating: Number(item.rating) || 0, ratings_total: Number(item.ratingsTotal || item.ratings_total) || 0, short_bio: '', full_summary: '', pros: '', cons: '', reviews: [], source_sufficient: 1, source_verified: 1, source_provider: item.sourceProvider || 'VERIFIED_PROVIDER', status, quality_score: quality.score, is_expired: 0, expired_at: null, price_check_at: verifiedAt, last_verify_attempt_at: verifiedAt, raw_source_data: `${item.sourceProvider || 'Verified provider'} | ASIN: ${item.asin} | publication=${publication.reason}`, created_at: verifiedAt });
