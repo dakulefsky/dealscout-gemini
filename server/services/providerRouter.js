@@ -2,11 +2,11 @@ const { strictGetItems, strictSearchItems, getPaapiConfig } = require('./amazonP
 const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
 
-const VALID_PROVIDERS = new Set(['auto', 'amazon_paapi', 'rainforest']);
+const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
 
 function getConfiguredProvider() {
   const configured = String(process.env.DEAL_DATA_PROVIDER || 'auto').trim().toLowerCase();
-  return VALID_PROVIDERS.has(configured) ? configured : 'auto';
+  return VALID_PROVIDERS.includes(configured) ? configured : 'auto';
 }
 
 function isRainforestConfigured() {
