@@ -28,7 +28,7 @@ async function bootstrapProductionAdmin() {
     throw new Error('ADMIN_PASSWORD must be 12-200 characters when bootstrapping the first admin');
   }
 
-  const passwordHash = bcrypt.hashSync(password, 12);
+  const passwordHash = await bcrypt.hash(password, 12);
   const existingUser = await postgres.query('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
   if (existingUser.rowCount > 0) {
     await postgres.query(

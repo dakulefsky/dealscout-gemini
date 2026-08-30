@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const users = require('../repositories/userRepository');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -37,9 +38,22 @@ function requireAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  requireAuth(req, res, () => {
-    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
-    next();
+  requireAuth(req, res, async () => {
+    try {
+      const currentUser = await users.findById(req.user.id);
+      if (!currentUser || currentUser.role !== 'admin' || !currentUser.verified) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      req.user = {
+        ...req.user,
+        email: currentUser.email,
+        role: currentUser.role,
+      };
+      next();
+    } catch (err) {
+      console.error('[auth] admin authorization lookup failed:', err.message);
+      return res.status(503).json({ error: 'Authorization service is temporarily unavailable' });
+    }
   });
 }
 

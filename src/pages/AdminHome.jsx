@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowRight, CheckCircle2, Eraser, History, Image, Loader2, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Eraser, History, Image, Loader2, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { deals as dealsApi, functions } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
@@ -28,42 +28,64 @@ function relativeTime(unix) {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
+const EMPTY_ACTIVITY = { activity: [] };
+
 export default function AdminHome() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
   const [stats, setStats] = useState({});
-  const [lifecycle, setLifecycle] = useState({});
   const [provider, setProvider] = useState({});
   const [integrity, setIntegrity] = useState({});
   const [legacyCleanup, setLegacyCleanup] = useState({});
   const [recentActivity, setRecentActivity] = useState([]);
+  const [loadFailures, setLoadFailures] = useState([]);
   const { toast } = useToast();
 
   async function load() {
     setLoading(true);
+    const requests = [
+      ['deal stats', dealsApi.getStats()],
+      ['provider status', functions.providerStatus()],
+      ['integrity health', functions.integrityHealth()],
+      ['legacy cleanup preview', functions.legacyEnrichmentPreview()],
+      ['admin activity', functions.adminActivity(8)],
+    ];
+
     try {
-      const [s, l, p, h, c, a] = await Promise.all([
-        dealsApi.getStats().catch(() => ({})), dealsApi.getLifecycleStats().catch(() => ({})),
-        functions.providerStatus().catch(() => ({})), functions.integrityHealth().catch(() => ({})),
-        functions.legacyEnrichmentPreview().catch(() => ({})), functions.adminActivity(8).catch(() => ({ activity: [] })),
-      ]);
-      setStats(s || {}); setLifecycle(l || {}); setProvider(p || {}); setIntegrity(h || {}); setLegacyCleanup(c || {}); setRecentActivity(a?.activity || []);
-    } finally { setLoading(false); }
+      const results = await Promise.allSettled(requests.map(([, promise]) => promise));
+      const value = (index, fallback = {}) => results[index].status === 'fulfilled' ? results[index].value : fallback;
+      setStats(value(0));
+      setProvider(value(1));
+      setIntegrity(value(2));
+      setLegacyCleanup(value(3));
+      setRecentActivity(value(4, EMPTY_ACTIVITY)?.activity || []);
+      setLoadFailures(results.flatMap((result, index) => result.status === 'rejected' ? [requests[index][0]] : []));
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { load(); }, []);
 
   async function run(name, fn, success, describe) {
     setBusy(name);
-    try { const result = await fn(); toast({ title: success, description: describe ? describe(result) : undefined }); await load(); }
-    catch (error) { toast({ title: 'Action failed', description: error.message, variant: 'destructive' }); }
-    finally { setBusy(null); }
+    try {
+      const result = await fn();
+      toast({ title: success, description: describe ? describe(result) : undefined });
+      await load();
+    } catch (error) {
+      toast({ title: 'Action failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setBusy(null);
+    }
   }
 
   if (loading) return <div className="max-w-6xl mx-auto px-4 py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-600" /></div>;
 
+  const lifecycle = stats.lifecycle || {};
   const integrityIssues = Number(integrity.unverifiedApproved || 0) + Number(integrity.missingImages || 0) + Number(integrity.stalePrices || 0);
   const cleanupCandidates = Number(legacyCleanup.candidates || 0);
+  const effectiveProvider = provider.effectiveProvider || provider.configuredProvider || 'none';
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-7">
@@ -72,28 +94,35 @@ export default function AdminHome() {
         <Button variant="outline" onClick={load} className="rounded-xl gap-2"><RefreshCw className="w-4 h-4" /> Refresh</Button>
       </div>
 
+      {loadFailures.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3 text-amber-900">
+          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+          <div><div className="text-sm font-bold">Some operational data could not be loaded</div><div className="text-xs mt-1">Unavailable: {loadFailures.join(', ')}. Missing values are shown as — instead of being treated as healthy zeroes.</div></div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <Stat label="Live deals" value={stats.approvedCount ?? lifecycle.activeDeals} />
-        <Stat label="Needs review" value={stats.pendingCount ?? 0} />
-        <Stat label="Ended" value={lifecycle.expiredDeals ?? 0} />
-        <Stat label="Integrity issues" value={integrityIssues || 0} hint={integrityIssues ? 'Needs attention' : 'Core checks clean'} />
-        <Stat label="Average discount" value={stats.avgDiscount != null ? `${Number(stats.avgDiscount).toFixed(0)}%` : '—'} />
+        <Stat label="Live deals" value={stats.approvedCount ?? lifecycle.activeCount} />
+        <Stat label="Needs review" value={stats.pendingCount} />
+        <Stat label="Ended" value={lifecycle.expiredCount} />
+        <Stat label="Integrity issues" value={loadFailures.includes('integrity health') ? null : integrityIssues} hint={loadFailures.includes('integrity health') ? 'Health check unavailable' : integrityIssues ? 'Needs attention' : 'Core checks clean'} />
+        <Stat label="Average discount" value={stats.avgDiscount != null ? `${Number(stats.avgDiscount).toFixed(0)}%` : null} />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Link to="/admin/editorial" className="lg:col-span-2 bg-slate-900 text-white rounded-3xl p-6 hover:bg-slate-800 transition group">
           <div className="flex items-start justify-between gap-4"><div><div className="inline-flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider"><CheckCircle2 className="w-4 h-4" /> Review queue</div><h2 className="text-2xl font-black mt-3">Review deals that need attention</h2><p className="text-sm text-slate-300 mt-2">Approve, feature, or add a short note.</p></div><ArrowRight className="w-5 h-5 mt-1 group-hover:translate-x-1 transition" /></div>
-          <div className="mt-6 text-sm font-bold">{stats.pendingCount || 0} waiting</div>
+          <div className="mt-6 text-sm font-bold">{stats.pendingCount ?? '—'} waiting</div>
         </Link>
 
         <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4">
           <div className="flex items-center gap-2"><Activity className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">System health</h2></div>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-500">Provider</span><span className="font-bold text-slate-800">{provider.activeProvider || 'auto'}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Rainforest</span><span className={provider.rainforest?.configured ? 'font-bold text-emerald-700' : 'font-bold text-amber-700'}>{provider.rainforest?.configured ? 'Ready' : 'Not configured'}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Missing images</span><span className={integrity.missingImages > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{integrity.missingImages || 0}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Stale prices</span><span className={integrity.stalePrices > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{integrity.stalePrices || 0}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Approved unverified</span><span className={integrity.unverifiedApproved > 0 ? 'font-bold text-rose-700' : 'font-bold text-emerald-700'}>{integrity.unverifiedApproved || 0}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Provider</span><span className="font-bold text-slate-800">{loadFailures.includes('provider status') ? 'Unavailable' : effectiveProvider}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Rainforest</span><span className={provider.rainforest?.isConfigured ? 'font-bold text-emerald-700' : 'font-bold text-amber-700'}>{loadFailures.includes('provider status') ? 'Unknown' : provider.rainforest?.isConfigured ? 'Ready' : 'Not configured'}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Missing images</span><span className={integrity.missingImages > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.missingImages || 0}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Stale prices</span><span className={integrity.stalePrices > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.stalePrices || 0}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Approved unverified</span><span className={integrity.unverifiedApproved > 0 ? 'font-bold text-rose-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.unverifiedApproved || 0}</span></div>
           </div>
         </div>
       </div>
@@ -102,9 +131,9 @@ export default function AdminHome() {
         <div className="flex items-center gap-2 mb-4"><ShieldCheck className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">Actions</h2></div>
         <div className="grid sm:grid-cols-3 gap-2">
           <Button disabled={busy === 'verify'} onClick={() => run('verify', () => functions.verifyPrices(25), 'Prices checked')} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'verify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check prices</Button>
-          <Button disabled={busy === 'sync'} onClick={() => run('sync', () => functions.fetchDeals(15), 'Deal discovery complete', (r) => `${r?.created || 0} new deals added.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Find deals</Button>
-          <Button disabled={busy === 'images'} onClick={() => run('images', () => functions.repairImages(30), 'Image repair complete', (r) => `${r?.repaired || 0} repaired.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'images' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />} Repair images</Button>
-          {cleanupCandidates > 0 && <Button disabled={busy === 'cleanup'} onClick={() => run('cleanup', () => functions.cleanupLegacyEnrichment(), 'Legacy copy cleaned', (r) => `${r?.cleaned || 0} rows cleaned.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-3 border-amber-200 text-amber-800 hover:bg-amber-50">{busy === 'cleanup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />} Clean {cleanupCandidates} known legacy {cleanupCandidates === 1 ? 'row' : 'rows'}</Button>}
+          <Button disabled={busy === 'sync'} onClick={() => run('sync', () => functions.fetchDeals(15), 'Deal discovery complete', (result) => `${result?.created || 0} new deals added.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Find deals</Button>
+          <Button disabled={busy === 'images'} onClick={() => run('images', () => functions.repairImages(30), 'Image repair complete', (result) => `${result?.repaired || 0} repaired.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'images' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />} Repair images</Button>
+          {cleanupCandidates > 0 && <Button disabled={busy === 'cleanup'} onClick={() => run('cleanup', () => functions.cleanupLegacyEnrichment(), 'Legacy copy cleaned', (result) => `${result?.cleaned || 0} rows cleaned.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-3 border-amber-200 text-amber-800 hover:bg-amber-50">{busy === 'cleanup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />} Clean {cleanupCandidates} known legacy {cleanupCandidates === 1 ? 'row' : 'rows'}</Button>}
         </div>
       </section>
 
