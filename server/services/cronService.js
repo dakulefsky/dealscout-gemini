@@ -40,11 +40,11 @@ class DealCronService {
       const attemptAt = Math.floor(Date.now() / 1000);
       try {
         await deals.update(deal.id, { last_verify_attempt_at: attemptAt });
-        const liveInfo = await fetchProductByAsin(deal.asin);
+        const liveInfo = await fetchProductByAsin(deal.asin, { allowNonDeal: true });
         if (!liveInfo?.sourceVerified) continue;
         const outOfStock = liveInfo.availability && /out of stock|unavailable/i.test(liveInfo.availability);
         const original = Number(liveInfo.originalPrice); const sale = Number(liveInfo.salePrice); const discount = Number(liveInfo.discountPercent);
-        const discountEnded = Number.isFinite(discount) && discount < 5 && Number.isFinite(original) && Number.isFinite(sale) && sale >= original;
+        const discountEnded = liveInfo.isDeal === false || (Number.isFinite(discount) && discount < 5 && Number.isFinite(original) && Number.isFinite(sale) && sale >= original);
         if (Number.isFinite(original) && Number.isFinite(sale) && original > 0 && sale > 0 && sale <= original) await safeRecordObservation({ asin: deal.asin, salePrice: sale, originalPrice: original, sourceProvider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
         if (outOfStock || discountEnded) { await deals.expire(deal.id, outOfStock ? 'Product unavailable at verified source' : 'Verified deal ended'); expiredCount += 1; }
         else {
