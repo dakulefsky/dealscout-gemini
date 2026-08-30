@@ -173,7 +173,6 @@ export const functions = {
   rainforestLookup:  (input, amazonDomain) => api.post('/api/functions/rainforest-lookup', { input, amazonDomain }),
   rainforestSearch:  (query, options = {}) => api.post('/api/functions/rainforest-search', { query, ...options }),
   providerStatus:    () => api.get('/api/functions/provider-status'),
-  providerSwitch:    (provider) => api.post('/api/functions/provider-switch', { provider }),
   verifyPrices:      (limit = 15) => api.post('/api/functions/verify-prices', { limit }),
   imageHealth:       () => api.get('/api/functions/image-health'),
   integrityHealth:   () => api.get('/api/functions/integrity-health'),
