@@ -9,7 +9,7 @@ test('deal cards measure dwell from viewport visibility', () => {
   assert.match(source, /new IntersectionObserver/);
   assert.match(source, /intersectionRatio >= 0\.65/);
   assert.match(source, /threshold: \[0, 0\.65, 1\]/);
-  assert.match(source, /ref: cardRef/);
+  assert.match(source, /<div ref=\{cardRef\}/);
 });
 
 test('passive dwell is recorded at most once per mounted card', () => {
