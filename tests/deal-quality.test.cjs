@@ -30,6 +30,13 @@ test('verified but modest deal stays pending review', () => {
   assert.equal(result.decision, 'PENDING_REVIEW');
 });
 
+test('extreme discounts are never auto-approved from price math alone', () => {
+  const result = scoreVerifiedDeal(base({ originalPrice: 1000, salePrice: 99 }));
+  assert.ok(result.score >= 75);
+  assert.equal(result.decision, 'PENDING_REVIEW');
+  assert.equal(result.reasons.includes('extreme discount requires review'), true);
+});
+
 test('ratings metadata cannot change publication quality', () => {
   const withoutRatings = scoreVerifiedDeal(base({ rating: null, ratingsTotal: 0 }));
   const withRatings = scoreVerifiedDeal(base({ rating: 4.9, ratingsTotal: 100000 }));
