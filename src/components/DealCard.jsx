@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { TrendingDown, Heart, ArrowRight, Clock, AlertCircle, ShieldCheck } from 'lucide-react';
 import { Image } from '@/components/ui/image';
@@ -19,7 +19,9 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
   const hoursLeft = deal.expiresInHours ? Math.max(1, Math.ceil(deal.expiresInHours)) : null;
   const freshness = verificationFreshness(deal.priceCheckAt);
   const savings = Math.max(0, Number(deal.originalPrice || 0) - Number(deal.salePrice || 0));
+  const cardRef = useRef(null);
   const viewedAt = useRef(null);
+  const dwellRecorded = useRef(false);
 
   function handleBookmarkClick(e) {
     e.preventDefault();
@@ -28,13 +30,36 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
     toggleBookmark(deal);
   }
 
-  function handleViewStart() { viewedAt.current = Date.now(); }
-  function handleViewEnd() {
-    if (!viewedAt.current) return;
+  function finishDwell() {
+    if (!viewedAt.current || dwellRecorded.current) {
+      viewedAt.current = null;
+      return;
+    }
     const weight = dwellWeight(Date.now() - viewedAt.current);
     viewedAt.current = null;
-    if (weight) addCategoryInterest(deal.category, weight);
+    if (weight) {
+      dwellRecorded.current = true;
+      addCategoryInterest(deal.category, weight);
+    }
   }
+
+  useEffect(() => {
+    const node = cardRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') return undefined;
+
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.65);
+      if (visible && !viewedAt.current && !dwellRecorded.current) viewedAt.current = Date.now();
+      if (!visible && viewedAt.current) finishDwell();
+    }, { threshold: [0, 0.65, 1] });
+
+    observer.observe(node);
+    return () => {
+      finishDwell();
+      observer.disconnect();
+    };
+  }, [deal.category, dealId]);
+
   function handleDealClick() { addCategoryInterest(deal.category, 2); }
 
   const sourceBadge = !isExpired && deal.sourceVerified ? (
@@ -45,7 +70,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
     </span>
   ) : null;
 
-  const linkSignals = { onMouseEnter: handleViewStart, onMouseLeave: handleViewEnd, onFocus: handleViewStart, onBlur: handleViewEnd, onClick: handleDealClick };
+  const linkSignals = { ref: cardRef, onClick: handleDealClick };
 
   if (viewMode === 'list') {
     return (
