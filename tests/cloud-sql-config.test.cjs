@@ -65,6 +65,35 @@ test('partial Cloud SQL settings do not override a valid DATABASE_URL', () => {
   });
 });
 
+test('DATABASE_URL verifies TLS certificates by default', () => {
+  withEnv({
+    CLOUD_SQL_CONNECTION_NAME: undefined,
+    DB_USER: undefined,
+    DB_PASSWORD: undefined,
+    DB_NAME: undefined,
+    DATABASE_URL: 'postgresql://user:pass@example.com/dealscout',
+    PGSSL: undefined,
+  }, () => {
+    const postgres = loadFreshPostgres();
+    assert.deepEqual(postgres.getSslConfig(), { rejectUnauthorized: true });
+    assert.deepEqual(postgres.getPoolConfig().ssl, { rejectUnauthorized: true });
+  });
+});
+
+test('PGSSL=require encrypts without certificate verification only when explicitly requested', () => {
+  withEnv({ DATABASE_URL: 'postgresql://user:pass@example.com/dealscout', PGSSL: 'require' }, () => {
+    const postgres = loadFreshPostgres();
+    assert.deepEqual(postgres.getSslConfig(), { rejectUnauthorized: false });
+  });
+});
+
+test('unknown PGSSL modes fail closed instead of silently weakening TLS', () => {
+  withEnv({ DATABASE_URL: 'postgresql://user:pass@example.com/dealscout', PGSSL: 'prefer' }, () => {
+    const postgres = loadFreshPostgres();
+    assert.throws(() => postgres.getPoolConfig(), /PGSSL must be one of/);
+  });
+});
+
 test('database is unconfigured without a complete Cloud SQL config or DATABASE_URL', () => {
   withEnv({
     CLOUD_SQL_CONNECTION_NAME: undefined,
