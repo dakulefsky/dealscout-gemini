@@ -2,38 +2,33 @@ const { strictGetItems, strictSearchItems, getPaapiConfig } = require('./amazonP
 const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
 
-const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
-let activeProvider = VALID_PROVIDERS.includes(process.env.DEAL_DATA_PROVIDER)
-  ? process.env.DEAL_DATA_PROVIDER
-  : 'auto';
+const VALID_PROVIDERS = new Set(['auto', 'amazon_paapi', 'rainforest']);
 
-function getActiveProvider() { return activeProvider; }
+function getConfiguredProvider() {
+  const configured = String(process.env.DEAL_DATA_PROVIDER || 'auto').trim().toLowerCase();
+  return VALID_PROVIDERS.has(configured) ? configured : 'auto';
+}
 
 function isRainforestConfigured() {
   const key = String(process.env.RAINFOREST_API_KEY || '').trim();
   return Boolean(key && key !== 'your_rainforest_api_key_here');
 }
 
-function setActiveProvider(provider) {
-  if (!VALID_PROVIDERS.includes(provider)) throw new Error(`Invalid provider '${provider}'. Allowed: ${VALID_PROVIDERS.join(', ')}`);
-  activeProvider = provider;
-  return activeProvider;
-}
-
 async function getProviderStatus() {
+  const configuredProvider = getConfiguredProvider();
   const paapiConfig = getPaapiConfig();
   const rainforestConfigured = isRainforestConfigured();
   let effectiveProvider = 'none';
 
-  if (activeProvider === 'amazon_paapi' && paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
-  else if (activeProvider === 'rainforest' && rainforestConfigured) effectiveProvider = 'rainforest';
-  else if (activeProvider === 'auto') {
+  if (configuredProvider === 'amazon_paapi' && paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
+  else if (configuredProvider === 'rainforest' && rainforestConfigured) effectiveProvider = 'rainforest';
+  else if (configuredProvider === 'auto') {
     if (paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
     else if (rainforestConfigured) effectiveProvider = 'rainforest';
   }
 
   return {
-    configuredProvider: activeProvider,
+    configuredProvider,
     effectiveProvider,
     paapi: {
       isConfigured: paapiConfig.isConfigured,
@@ -69,9 +64,11 @@ function normalizeVerifiedProduct(product, provider) {
 }
 
 async function fetchProductByAsin(asin, options = {}) {
-  const cleanAsin = (asin || '').trim().toUpperCase();
+  const cleanAsin = String(asin || '').trim().toUpperCase();
   if (!/^[A-Z0-9]{10}$/.test(cleanAsin)) throw new Error('Invalid Amazon ASIN');
+
   const status = await getProviderStatus();
+  const configuredProvider = status.configuredProvider;
 
   if (status.effectiveProvider === 'amazon_paapi') {
     try {
@@ -80,22 +77,22 @@ async function fetchProductByAsin(asin, options = {}) {
       if (verified) return verified;
     } catch (err) {
       console.warn(`[ProviderRouter PA-API notice for ${cleanAsin}]:`, err.message);
-      if (activeProvider === 'amazon_paapi') return null;
+      if (configuredProvider === 'amazon_paapi') return null;
     }
   }
 
-  if (status.effectiveProvider === 'rainforest' || (activeProvider === 'auto' && status.rainforest.isConfigured)) {
+  if (status.effectiveProvider === 'rainforest' || (configuredProvider === 'auto' && status.rainforest.isConfigured)) {
     try {
       const product = await fetchStrictRainforestProduct(cleanAsin, options);
       const verified = normalizeVerifiedProduct(product, 'RAINFOREST');
       if (verified) return verified;
-      if (activeProvider === 'rainforest') {
+      if (configuredProvider === 'rainforest') {
         console.warn(`[ProviderRouter Rainforest notice for ${cleanAsin}]: Rainforest returned product data but no verifiable original/sale price pair.`);
         return null;
       }
     } catch (err) {
       console.warn(`[ProviderRouter Rainforest notice for ${cleanAsin}]:`, err.message);
-      if (activeProvider === 'rainforest') return null;
+      if (configuredProvider === 'rainforest') return null;
     }
   }
 
@@ -105,29 +102,33 @@ async function fetchProductByAsin(asin, options = {}) {
 
 async function fetchDealsList(options = {}) {
   const status = await getProviderStatus();
+  const configuredProvider = status.configuredProvider;
+
   if (status.effectiveProvider === 'amazon_paapi') {
     try {
       const result = await strictSearchItems('deals of the day', { itemCount: options.maxResults || 15 });
-      const verified = (result?.results || []).map((x) => normalizeVerifiedProduct(x, 'AMAZON_PAAPI')).filter(Boolean);
+      const verified = (result?.results || []).map((item) => normalizeVerifiedProduct(item, 'AMAZON_PAAPI')).filter(Boolean);
       if (verified.length) return verified;
-      if (activeProvider === 'amazon_paapi') return [];
+      if (configuredProvider === 'amazon_paapi') return [];
     } catch (err) {
       console.warn('[ProviderRouter PA-API search notice]:', err.message);
-      if (activeProvider === 'amazon_paapi') return [];
+      if (configuredProvider === 'amazon_paapi') return [];
     }
   }
-  if (status.effectiveProvider === 'rainforest' || (activeProvider === 'auto' && status.rainforest.isConfigured)) {
+
+  if (status.effectiveProvider === 'rainforest' || (configuredProvider === 'auto' && status.rainforest.isConfigured)) {
     try {
       const result = await fetchStrictRainforestDeals(options);
-      const verified = (result || []).map((x) => normalizeVerifiedProduct(x, 'RAINFOREST')).filter(Boolean);
+      const verified = (result || []).map((item) => normalizeVerifiedProduct(item, 'RAINFOREST')).filter(Boolean);
       if (verified.length) return verified;
-      if (activeProvider === 'rainforest') return [];
+      if (configuredProvider === 'rainforest') return [];
     } catch (err) {
       console.warn('[ProviderRouter Rainforest deals notice]:', err.message);
-      if (activeProvider === 'rainforest') return [];
+      if (configuredProvider === 'rainforest') return [];
     }
   }
+
   return [];
 }
 
-module.exports = { getActiveProvider, setActiveProvider, getProviderStatus, fetchProductByAsin, fetchDealsList };
+module.exports = { getConfiguredProvider, getProviderStatus, fetchProductByAsin, fetchDealsList };
