@@ -2,18 +2,50 @@ const { Pool } = require('pg');
 
 let pool = null;
 
+function cloudSqlConnectionName() {
+  return String(process.env.CLOUD_SQL_CONNECTION_NAME || '').trim();
+}
+
+function hasCloudSqlConfig() {
+  return Boolean(
+    cloudSqlConnectionName()
+    && String(process.env.DB_USER || '').trim()
+    && process.env.DB_PASSWORD
+    && String(process.env.DB_NAME || '').trim()
+  );
+}
+
 function isConfigured() {
-  return Boolean(process.env.DATABASE_URL);
+  return hasCloudSqlConfig() || Boolean(process.env.DATABASE_URL);
+}
+
+function getPoolConfig() {
+  if (hasCloudSqlConfig()) {
+    return {
+      host: `/cloudsql/${cloudSqlConnectionName()}`,
+      user: String(process.env.DB_USER).trim(),
+      password: process.env.DB_PASSWORD,
+      database: String(process.env.DB_NAME).trim(),
+      max: Number(process.env.PG_POOL_MAX || 5),
+      ssl: false,
+    };
+  }
+
+  if (process.env.DATABASE_URL) {
+    return {
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
+      max: Number(process.env.PG_POOL_MAX || 5),
+    };
+  }
+
+  return null;
 }
 
 function getPool() {
   if (!isConfigured()) return null;
   if (!pool) {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
-      max: Number(process.env.PG_POOL_MAX || 5),
-    });
+    pool = new Pool(getPoolConfig());
     pool.on('error', (err) => console.error('[Postgres] Idle client error:', err.message));
   }
   return pool;
@@ -35,4 +67,4 @@ async function health() {
   }
 }
 
-module.exports = { isConfigured, getPool, query, health };
+module.exports = { isConfigured, getPoolConfig, getPool, query, health };
