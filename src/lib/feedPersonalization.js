@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'dealscout-feed-interests-v1';
 const DECAY_KEY = 'dealscout-feed-interests-decay-v1';
+const INTERESTS_CHANGED_EVENT = 'dealscout:interests-changed';
 const MAX_SCORE = 24;
 const DECAY_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DAILY_DECAY = 0.97;
@@ -10,6 +11,15 @@ const MAX_CATEGORY_STREAK = 2;
 
 function cleanCategory(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function notifyInterestsChanged(interests) {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+  try {
+    window.dispatchEvent(new CustomEvent(INTERESTS_CHANGED_EVENT, { detail: { interests } }));
+  } catch {
+    try { window.dispatchEvent(new Event(INTERESTS_CHANGED_EVENT)); } catch { /* personalization remains optional */ }
+  }
 }
 
 function interestScore(deal, interests) {
@@ -54,6 +64,7 @@ export function loadInterests() {
     const decayed = decayInterests(interests, now - lastDecay);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(decayed));
     window.localStorage.setItem(DECAY_KEY, String(now));
+    notifyInterestsChanged(decayed);
     return decayed;
   } catch {
     return {};
@@ -67,6 +78,7 @@ export function addCategoryInterest(category, weight = 1) {
   const current = loadInterests();
   const next = { ...current, [key]: Math.min(MAX_SCORE, Math.max(0, Number(current[key]) || 0) + Math.max(0, Number(weight) || 0)) };
   try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* personalization remains optional */ }
+  notifyInterestsChanged(next);
   return next;
 }
 
@@ -80,6 +92,7 @@ export function reduceCategoryInterest(category, weight = 3) {
   if (reduced >= MIN_RETAINED_SCORE) next[key] = Math.round(reduced * 100) / 100;
   else delete next[key];
   try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* personalization remains optional */ }
+  notifyInterestsChanged(next);
   return next;
 }
 
@@ -132,4 +145,4 @@ export function dwellWeight(milliseconds) {
   return 0;
 }
 
-export { STORAGE_KEY, PERSONALIZATION_WINDOW, EXPLORATION_EVERY, MAX_CATEGORY_STREAK };
+export { STORAGE_KEY, INTERESTS_CHANGED_EVENT, PERSONALIZATION_WINDOW, EXPLORATION_EVERY, MAX_CATEGORY_STREAK };
