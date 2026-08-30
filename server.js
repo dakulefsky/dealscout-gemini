@@ -50,6 +50,7 @@ async function startServer() {
   if (isProduction) await dealRepository.hardenProduction();
 
   app.disable('x-powered-by');
+  if (isProduction) app.set('trust proxy', 1);
   const { securityHeaders, apiRateLimit } = require('./server/middleware/securityBaseline.js');
   app.use(securityHeaders);
   app.use(cors({ origin: isProduction ? (configuredOrigin || false) : true, credentials: true }));
@@ -96,8 +97,6 @@ async function startServer() {
     imageRepair.startImageRepairScheduler();
   } catch (cronErr) { console.warn('[DealScout] Scheduler initialization warning:', cronErr.message); }
 
-  // Keep the public health check intentionally minimal. Operational/provider/storage
-  // diagnostics belong behind authenticated admin endpoints, not in a public probe.
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
