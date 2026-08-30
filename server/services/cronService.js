@@ -4,6 +4,7 @@ const { recordObservation } = require('./priceHistoryService');
 const { scoreVerifiedDeal } = require('./dealQualityService');
 const { publishingDecision, getHoldbackPercent } = require('./editorialCadenceService');
 const { oldestCheckedFirst } = require('./verificationQueue');
+const { rediscoveryLifecycleChanges } = require('./rediscoveryLifecycle');
 
 async function safeRecordObservation(observation) {
   try { await recordObservation(observation); }
@@ -75,9 +76,19 @@ class DealCronService {
         await safeRecordObservation({ asin: item.asin, salePrice: sale, originalPrice: original, sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER' });
         const existing = await deals.findByIdOrAsin(item.asin);
         if (existing) {
-          const changes = { sale_price: sale, original_price: original, discount_percent: discount, price_check_at: verifiedAt, last_verify_attempt_at: verifiedAt, source_verified: 1, source_sufficient: 1, source_provider: item.sourceProvider || existing.source_provider, quality_score: quality.score };
+          const changes = {
+            sale_price: sale,
+            original_price: original,
+            discount_percent: discount,
+            price_check_at: verifiedAt,
+            last_verify_attempt_at: verifiedAt,
+            source_verified: 1,
+            source_sufficient: 1,
+            source_provider: item.sourceProvider || existing.source_provider,
+            quality_score: quality.score,
+            ...rediscoveryLifecycleChanges(existing, status),
+          };
           if (item.imageUrl && item.imageUrl !== existing.image_url) changes.image_url = item.imageUrl;
-          if (existing.status !== 'APPROVED' && status === 'APPROVED') changes.status = 'APPROVED';
           await deals.update(existing.id, changes); updatedCount += 1; continue;
         }
         await deals.upsert({ id: item.asin, title: item.title, asin: item.asin, category: item.category || 'Amazon', original_price: original, sale_price: sale, discount_percent: discount, image_url: item.imageUrl || item.image_url || '', product_url: item.productUrl || item.product_url || `https://www.amazon.com/dp/${item.asin}`, rating: Number(item.rating) || 0, ratings_total: Number(item.ratingsTotal || item.ratings_total) || 0, short_bio: '', full_summary: '', pros: '', cons: '', reviews: [], source_sufficient: 1, source_verified: 1, source_provider: item.sourceProvider || 'VERIFIED_PROVIDER', status, quality_score: quality.score, is_expired: 0, expired_at: null, price_check_at: verifiedAt, last_verify_attempt_at: verifiedAt, raw_source_data: `${item.sourceProvider || 'Verified provider'} | ASIN: ${item.asin} | publication=${publication.reason}`, created_at: verifiedAt });
