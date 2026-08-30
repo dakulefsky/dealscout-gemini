@@ -1,8 +1,6 @@
 function scoreVerifiedDeal(item = {}) {
   const original = Number(item.originalPrice ?? item.original_price);
   const sale = Number(item.salePrice ?? item.sale_price);
-  const rating = Number(item.rating) || 0;
-  const ratingsTotal = Number(item.ratingsTotal ?? item.ratings_total) || 0;
   const hasImage = Boolean(item.imageUrl || item.image_url);
   const availability = String(item.availability || '').toLowerCase();
   const sourceVerified = item.sourceVerified === true || item.source_verified === 1;
@@ -24,14 +22,9 @@ function scoreVerifiedDeal(item = {}) {
   else if (discount >= 20) { score += 14; reasons.push('20%+ discount'); }
   else { score += 8; reasons.push('15%+ discount'); }
 
-  if (rating >= 4.5) { score += 12; reasons.push('4.5+ rating'); }
-  else if (rating >= 4.0) { score += 8; reasons.push('4.0+ rating'); }
-  else if (rating > 0 && rating < 3.5) { score -= 12; reasons.push('low rating'); }
-
-  if (ratingsTotal >= 1000) { score += 10; reasons.push('1000+ ratings'); }
-  else if (ratingsTotal >= 100) { score += 6; reasons.push('100+ ratings'); }
-  else if (ratingsTotal > 0 && ratingsTotal < 20) { score -= 5; reasons.push('low review volume'); }
-
+  // Publication quality must be based on facts that are available consistently
+  // across active providers. Ratings/review counts are intentionally excluded so
+  // the same verified deal does not receive a different decision by provider.
   if (hasImage) { score += 5; reasons.push('product image'); }
   if (item.isPrime === true || item.is_prime === true) { score += 3; reasons.push('Prime'); }
   if (item.dealBadge || item.deal_badge) { score += 5; reasons.push('Amazon deal badge'); }
