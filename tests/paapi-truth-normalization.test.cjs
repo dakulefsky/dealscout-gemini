@@ -6,10 +6,10 @@ const path = require('path');
 process.env.AMAZON_ASSOCIATE_TAG = 'real-tag-20';
 const { normalizeStrictPaapiItem, onlyRequestedAsins } = require('../server/services/amazonPaapiStrictAdapter');
 
-test('strict PA-API normalization keeps only provider-supplied deal facts', () => {
-  const item = normalizeStrictPaapiItem({
+function realItem(overrides = {}) {
+  return {
     ASIN: 'B0GGGQDY9H',
-    DetailPageURL: 'https://www.amazon.com/dp/B0GGGQDY9H?tag=real-tag-20',
+    DetailPageURL: 'https://www.amazon.com/dp/B0GGGQDY9H?tag=wrong-tag-20&ref_=abc',
     ItemInfo: {
       Title: { DisplayValue: '  Real Product  ' },
       ByLineInfo: { Brand: { DisplayValue: 'Real Brand' } },
@@ -22,8 +22,12 @@ test('strict PA-API normalization keeps only provider-supplied deal facts', () =
       DeliveryInfo: { IsPrimeEligible: true },
       Availability: { Message: 'In Stock' },
     }] },
-  });
+    ...overrides,
+  };
+}
 
+test('strict PA-API normalization keeps only provider-supplied deal facts', () => {
+  const item = normalizeStrictPaapiItem(realItem());
   assert.ok(item);
   assert.equal(item.title, 'Real Product');
   assert.equal(item.salePrice, 79.99);
@@ -37,6 +41,22 @@ test('strict PA-API normalization keeps only provider-supplied deal facts', () =
   assert.equal(item.pros, '');
   assert.equal(item.cons, '');
   assert.equal(item.sourceVerified, true);
+});
+
+test('PA-API product URLs always use the configured affiliate tag', () => {
+  const item = normalizeStrictPaapiItem(realItem());
+  const url = new URL(item.productUrl);
+  assert.equal(url.hostname, 'www.amazon.com');
+  assert.equal(url.searchParams.get('tag'), 'real-tag-20');
+  assert.notEqual(url.searchParams.get('tag'), 'wrong-tag-20');
+});
+
+test('non-Amazon provider detail URLs cannot become stored product URLs', () => {
+  const item = normalizeStrictPaapiItem(realItem({ DetailPageURL: 'https://evil.example/product/B0GGGQDY9H?tag=attacker' }));
+  assert.ok(item);
+  assert.equal(new URL(item.productUrl).hostname, 'www.amazon.com');
+  assert.equal(new URL(item.productUrl).searchParams.get('tag'), 'real-tag-20');
+  assert.equal(new URL(item.rawProductUrl).hostname, 'www.amazon.com');
 });
 
 test('strict PA-API normalization rejects missing or invented discount basis', () => {

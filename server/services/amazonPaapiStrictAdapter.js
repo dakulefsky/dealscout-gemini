@@ -1,4 +1,5 @@
 const { sendPaapiRequest, getPaapiConfig } = require('./amazonPaapiService');
+const { isAmazonUrl, formatAffiliateUrl } = require('./amazonUrlService');
 
 const STRICT_RESOURCES = [
   'ItemInfo.Title',
@@ -16,10 +17,12 @@ function cleanText(value) {
 }
 
 function strictAffiliateUrl(asin, detailPageUrl) {
-  if (detailPageUrl) return detailPageUrl;
   const tag = String(process.env.AMAZON_PAAPI_PARTNER_TAG || process.env.AMAZON_ASSOCIATE_TAG || '').trim();
   if (!tag) throw new Error('Amazon Associate tag is required for PA-API product URLs');
-  return `https://www.amazon.com/dp/${asin}?tag=${encodeURIComponent(tag)}`;
+  const supplied = cleanText(detailPageUrl);
+  const canonical = `https://www.amazon.com/dp/${asin}`;
+  const amazonUrl = supplied && isAmazonUrl(supplied) ? supplied : canonical;
+  return formatAffiliateUrl(amazonUrl, tag);
 }
 
 function normalizeStrictPaapiItem(item, { allowNonDeal = false } = {}) {
@@ -56,7 +59,7 @@ function normalizeStrictPaapiItem(item, { allowNonDeal = false } = {}) {
     imageUrl,
     imageGallery: imageUrl ? [imageUrl] : [],
     productUrl: strictAffiliateUrl(asin, item.DetailPageURL),
-    rawProductUrl: item.DetailPageURL || `https://www.amazon.com/dp/${asin}`,
+    rawProductUrl: isAmazonUrl(cleanText(item.DetailPageURL)) ? cleanText(item.DetailPageURL) : `https://www.amazon.com/dp/${asin}`,
     rating: null,
     ratingsTotal: 0,
     reviews: [],
