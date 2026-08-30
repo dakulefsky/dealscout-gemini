@@ -22,6 +22,6 @@ test('live provider routing cannot fall back to legacy scraper metadata', () => 
   const source = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'providerRouter.js'), 'utf8');
   assert.equal(source.includes("require('./amazonScraperService')"), false);
   assert.equal(source.includes('resolveProductDetails'), false);
-  assert.equal(source.includes("process.env.NODE_ENV !== 'production'"), true);
+  assert.equal(source.includes("'curated'"), false);
   assert.equal(source.includes('Fail closed'), true);
 });
