@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { TrendingDown, Heart, ArrowRight, Clock, AlertCircle, ShieldCheck, EyeOff } from 'lucide-react';
 import { Image } from '@/components/ui/image';
@@ -40,7 +40,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
     setDismissed(true);
   }
 
-  function finishDwell() {
+  const finishDwell = useCallback(() => {
     if (!viewedAt.current || dwellRecorded.current) {
       viewedAt.current = null;
       return;
@@ -51,7 +51,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
       dwellRecorded.current = true;
       addCategoryInterest(deal.category, weight);
     }
-  }
+  }, [deal.category]);
 
   useEffect(() => {
     const node = cardRef.current;
@@ -68,7 +68,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
       finishDwell();
       observer.disconnect();
     };
-  }, [deal.category, dealId]);
+  }, [dealId, finishDwell]);
 
   function handleDealClick() { addCategoryInterest(deal.category, 2); }
 
@@ -108,14 +108,16 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
     <Link to={`/deal/${dealId}`} {...linkSignals} className={`group rounded-xl sm:rounded-2xl border overflow-hidden transition-all flex flex-col h-full w-full relative ${isExpired ? 'bg-slate-50/90 border-dashed border-slate-300 opacity-75' : 'bg-white border-slate-200 hover:shadow-md hover:border-slate-300'}`}>
       <div className={`relative aspect-[4/3] w-full overflow-hidden p-2.5 sm:p-4 border-b ${isExpired ? 'bg-slate-100 border-slate-200 grayscale-[0.85]' : 'bg-slate-50/70 border-slate-100'}`}>
         <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-105 transition-transform duration-300" />
-        {isExpired ? <span className="absolute top-2 left-2 bg-slate-800 text-white text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md"><Clock className="w-2.5 h-2.5 inline mr-1 text-amber-400" /> Ended</span> : deal.discountPercent > 0 ? <span className="absolute top-2 left-2 inline-flex items-center gap-1 bg-emerald-600 text-white text-[10px] sm:text-[11px] font-black px-1.5 sm:px-2 py-0.5 rounded-md"><TrendingDown className="w-3 h-3 hidden sm:block" /> {deal.discountPercent}% OFF</span> : null}
-        <button type="button" onClick={handleDismissClick} title="Not interested" aria-label="Not interested" className="absolute top-2 right-10 w-7 h-7 rounded-full flex items-center justify-center transition shadow-xs border z-10 bg-white/95 text-slate-400 hover:text-slate-700 border-slate-200"><EyeOff className="w-3.5 h-3.5" /></button>
-        <button type="button" onClick={handleBookmarkClick} title={saved ? 'Remove from Saved' : 'Save Deal'} className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition shadow-xs border z-10 ${saved ? 'bg-rose-600 text-white border-rose-600' : 'bg-white/95 text-slate-600 hover:text-rose-600 border-slate-200'}`}><Heart className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} /></button>
+        {isExpired ? <span className="absolute top-2 left-2 bg-slate-800 text-white text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded"><Clock className="w-2.5 h-2.5 inline mr-0.5" /> Ended</span> : deal.discountPercent > 0 ? <span className="absolute top-2 left-2 bg-emerald-600 text-white text-[10px] sm:text-xs font-black px-2 py-1 rounded-lg">-{deal.discountPercent}%</span> : null}
+        <div className="absolute top-2 right-2 flex items-center gap-1.5">
+          <button type="button" onClick={handleDismissClick} title="Not interested" aria-label="Not interested" className="w-8 h-8 rounded-full flex items-center justify-center transition border bg-white/95 backdrop-blur text-slate-400 hover:text-slate-700 border-slate-200"><EyeOff className="w-3.5 h-3.5" /></button>
+          <button type="button" onClick={handleBookmarkClick} title={saved ? 'Remove from Saved' : 'Save Deal'} className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm transition border ${saved ? 'bg-rose-600 text-white border-rose-600' : 'bg-white/95 backdrop-blur text-slate-500 hover:text-rose-600 border-slate-200'}`}><Heart className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} /></button>
+        </div>
       </div>
-      <div className="p-2.5 sm:p-4 flex-1 flex flex-col min-w-0">
-        <div className="flex items-center justify-between gap-1.5 min-w-0 mb-2">{isExpired ? <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded truncate">{hoursLeft ? `Deletes in ${hoursLeft}h` : 'Ended'}</span> : <span className="text-[9px] sm:text-[10px] uppercase font-bold text-emerald-700 bg-emerald-50 px-1.5 sm:px-2 py-0.5 rounded truncate max-w-[95px] sm:max-w-[130px]">{deal.category || 'Deal'}</span>}{sourceBadge}</div>
-        <h3 className={`text-[12px] sm:text-sm font-bold leading-snug line-clamp-2 min-h-[2.1rem] sm:min-h-[2.625rem] ${isExpired ? 'text-slate-600 line-through' : 'text-slate-900 group-hover:text-emerald-700'}`}>{deal.title}</h3>
-        <div className="mt-auto pt-2.5 sm:pt-3 border-t border-slate-100 flex items-end justify-between gap-1.5 min-w-0"><div className="min-w-0"><div className="flex items-baseline gap-1 min-w-0"><span className={`text-base sm:text-lg font-black truncate ${isExpired ? 'text-slate-500 line-through' : 'text-emerald-700'}`}>{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-[10px] sm:text-xs text-slate-400 line-through truncate">{formatPrice(deal.originalPrice)}</span>}</div>{!isExpired && savings > 0 && <div className="text-[9px] sm:text-[10px] font-semibold text-emerald-700 mt-0.5">Save {formatPrice(savings)}</div>}</div><span className="hidden sm:inline-flex text-xs font-bold items-center gap-1 shrink-0 text-slate-500 group-hover:text-emerald-600">View <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" /></span></div>
+      <div className="p-3 sm:p-4 flex flex-col flex-1 min-h-0">
+        <div className="flex items-center gap-1.5 mb-1.5 min-h-[20px] overflow-hidden">{deal.category && <span className="text-[8px] sm:text-[9px] uppercase font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded truncate max-w-[110px] sm:max-w-[150px]">{deal.category}</span>}{sourceBadge}</div>
+        <h3 className={`text-xs sm:text-sm font-bold leading-snug line-clamp-2 min-h-[2.4rem] sm:min-h-[2.5rem] ${isExpired ? 'text-slate-600 line-through' : 'text-slate-900 group-hover:text-emerald-700'}`}>{deal.title}</h3>
+        <div className="mt-auto pt-2.5 flex items-end justify-between gap-1.5"><div className="min-w-0"><div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap"><span className={`text-base sm:text-lg font-black ${isExpired ? 'text-slate-500 line-through' : 'text-emerald-700'}`}>{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-[10px] sm:text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>{!isExpired && savings > 0 && <div className="text-[9px] sm:text-[10px] font-bold text-emerald-700 mt-0.5">Save {formatPrice(savings)}</div>}</div><ArrowRight className={`w-4 h-4 shrink-0 mb-0.5 ${isExpired ? 'text-slate-300' : 'text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition'}`} /></div>
       </div>
     </Link>
   );
