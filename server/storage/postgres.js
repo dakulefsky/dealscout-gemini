@@ -104,4 +104,11 @@ async function health() {
   }
 }
 
-module.exports = { isConfigured, getSslConfig, getPoolConfig, getPool, query, withAdvisoryLock, health };
+async function closePool() {
+  const current = pool;
+  pool = null;
+  if (!current) return;
+  await current.end();
+}
+
+module.exports = { isConfigured, getSslConfig, getPoolConfig, getPool, query, withAdvisoryLock, health, closePool };
