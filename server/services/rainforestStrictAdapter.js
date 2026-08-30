@@ -19,7 +19,7 @@ function affiliateUrl(asin) {
   return `https://www.amazon.com/dp/${asin}?tag=${encodeURIComponent(tag)}`;
 }
 
-async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com', language = 'en_US' } = {}) {
+async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com', language = 'en_US', allowNonDeal = false } = {}) {
   const apiKey = process.env.RAINFOREST_API_KEY;
   if (!apiKey) throw new Error('RAINFOREST_API_KEY is not configured');
 
@@ -44,9 +44,14 @@ async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com',
 
   const buybox = product.buybox_winner || {};
   const salePrice = moneyValue(buybox.price) ?? moneyValue(product.price);
-  const originalPrice = moneyValue(buybox.rrp) ?? moneyValue(product.rrp);
+  const observedOriginalPrice = moneyValue(buybox.rrp) ?? moneyValue(product.rrp);
   if (!Number.isFinite(salePrice) || salePrice <= 0) throw new Error('Rainforest product has no verifiable current buy-box price');
-  if (!Number.isFinite(originalPrice) || originalPrice <= salePrice) throw new Error('Rainforest product has no verifiable higher RRP/list price, so it is not treated as a deal');
+
+  const hasVerifiedDiscount = Number.isFinite(observedOriginalPrice) && observedOriginalPrice > salePrice;
+  if (!hasVerifiedDiscount && !allowNonDeal) {
+    throw new Error('Rainforest product has no verifiable higher RRP/list price, so it is not treated as a deal');
+  }
+  const originalPrice = hasVerifiedDiscount ? observedOriginalPrice : salePrice;
 
   const categories = Array.isArray(product.categories) ? product.categories : [];
   const category = categories[0]?.name || product.search_alias || 'Amazon';
@@ -75,6 +80,7 @@ async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com',
     recentSales: product.recent_sales || null,
     sourceProvider: 'RAINFOREST',
     sourceVerified: true,
+    isDeal: hasVerifiedDiscount,
     rawSourceData: `Rainforest API product lookup | ASIN: ${product.asin}`,
   };
 }
