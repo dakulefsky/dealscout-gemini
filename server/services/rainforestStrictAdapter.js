@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { imageCandidates } = require('./rainforestImage');
+const { normalizeAvailability } = require('./availabilityService');
 
 const ENDPOINT = 'https://api.rainforestapi.com/request';
 
@@ -84,7 +85,7 @@ async function fetchStrictRainforestProduct(asin, { amazonDomain = 'amazon.com',
     ratingsTotal: Number(product.ratings_total) || 0,
     reviews: [],
     isPrime: buybox.is_prime === true,
-    availability: buybox.availability?.raw || null,
+    availability: normalizeAvailability(buybox.availability?.raw),
     condition: buybox.condition?.is_new === true ? 'New' : null,
     dealBadge: product.deal_badge || product.product_deal?.deal_badge || null,
     recentSales: product.recent_sales || null,

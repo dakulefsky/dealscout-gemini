@@ -1,5 +1,6 @@
 const { sendPaapiRequest, getPaapiConfig } = require('./amazonPaapiService');
 const { isAmazonUrl, formatAffiliateUrl } = require('./amazonUrlService');
+const { normalizeAvailability } = require('./availabilityService');
 
 const STRICT_RESOURCES = [
   'ItemInfo.Title',
@@ -44,7 +45,7 @@ function normalizeStrictPaapiItem(item, { allowNonDeal = false } = {}) {
   const category = cleanText(item?.ItemInfo?.Classifications?.Binding?.DisplayValue)
     || cleanText(item?.ItemInfo?.Classifications?.ProductGroup?.DisplayValue)
     || 'Amazon';
-  const availability = cleanText(listing?.Availability?.Message) || null;
+  const availability = normalizeAvailability(listing?.Availability?.Message);
   const discountPercent = Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1));
 
   return {
