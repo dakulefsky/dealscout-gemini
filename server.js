@@ -13,7 +13,6 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT || 3000);
   const isProduction = process.env.NODE_ENV === 'production';
-  const configuredOrigin = process.env.FRONTEND_URL;
 
   const postgres = require('./server/storage/postgres.js');
   const runtimeBootstrap = require('./server/startup/runtimeBootstrap.js');
@@ -24,7 +23,10 @@ async function startServer() {
   const dealCron = require('./server/services/cronService.js');
   const imageRepair = require('./server/services/imageRepairService.js');
   const { resolveTrustProxy } = require('./server/config/trustProxy.js');
+  const { resolvePublicWebUrl, resolveCorsOrigins, createCorsOriginPolicy } = require('./server/config/publicSurface.js');
   const { buildShopperApi } = require('./server/routes/shopperApi.js');
+  const publicWebUrl = resolvePublicWebUrl(process.env, { isProduction });
+  const corsOrigins = resolveCorsOrigins(process.env, { isProduction });
 
   await runtimeBootstrap.initializeRuntime({ isProduction });
 
@@ -33,7 +35,7 @@ async function startServer() {
   if (trustProxy !== false) app.set('trust proxy', trustProxy);
   const { securityHeaders, apiRateLimit } = require('./server/middleware/securityBaseline.js');
   app.use(securityHeaders);
-  app.use(cors({ origin: isProduction ? (configuredOrigin || false) : true, credentials: true }));
+  app.use(cors({ origin: createCorsOriginPolicy(corsOrigins, { isProduction }), credentials: true }));
   app.use(express.json({ limit: '1mb' }));
   app.use(apiRateLimit());
 
@@ -42,14 +44,14 @@ async function startServer() {
   app.use(amazonContentPolicy.strictRainforestSearch);
   app.use(require('./server/middleware/adminActivityAudit.js').adminActivityAudit);
 
-  app.get('/robots.txt', (req, res) => res.type('text/plain').send(seo.buildRobots(seo.siteBase(req, configuredOrigin))));
+  app.get('/robots.txt', (req, res) => res.type('text/plain').send(seo.buildRobots(seo.siteBase(req, publicWebUrl))));
   app.get('/sitemap.xml', async (req, res) => {
     try {
       const [liveDeals, categories] = await Promise.all([
         sitemapRepository.listFreshPublicDeals({ maxAgeHours: 168 }),
         categoryRepository.list(),
       ]);
-      res.type('application/xml').send(seo.buildSitemap({ baseUrl: seo.siteBase(req, configuredOrigin), deals: liveDeals, categories }));
+      res.type('application/xml').send(seo.buildSitemap({ baseUrl: seo.siteBase(req, publicWebUrl), deals: liveDeals, categories }));
     } catch (err) {
       console.warn('[DealScout] Sitemap generation failed:', err.message);
       res.status(503).type('text/plain').send('Sitemap temporarily unavailable');
@@ -96,7 +98,7 @@ async function startServer() {
     app.use(async (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
       try {
-        const baseUrl = seo.siteBase(req, configuredOrigin);
+        const baseUrl = seo.siteBase(req, publicWebUrl);
         let meta = seo.homeMeta(baseUrl);
         const dealMatch = req.path.match(/^\/deal\/([^/]+)$/);
         const categoryMatch = req.path.match(/^\/category\/([^/]+)$/);

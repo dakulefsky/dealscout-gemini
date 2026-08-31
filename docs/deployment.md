@@ -20,6 +20,18 @@ At startup the web/API process:
 
 `GET /api/health` is a process liveness check and does not depend on PostgreSQL. `GET /api/ready` is a readiness check and returns HTTP 503 when shared storage is unavailable.
 
+## Product origins and API clients
+
+Do not use one hostname setting for every product surface. Configure these separately:
+
+- `PUBLIC_WEB_URL` — canonical public website origin and password-reset destination, for example `https://deals.example.com`.
+- `CORS_ORIGINS` — comma-separated browser origins allowed to call the API, for example `https://deals.example.com,https://admin.example.com`.
+- `VITE_API_URL` — optional website build-time API base URL when the web frontend is not served from the API origin.
+
+`FRONTEND_URL` remains a compatibility fallback for older deployments but new deployments should use `PUBLIC_WEB_URL`.
+
+CORS is a browser boundary. Native mobile clients, publication workers, CLI jobs, and other server-to-server callers normally do not send an `Origin` header and are allowed through the CORS middleware; they must still satisfy the API's normal authentication and authorization rules. Never treat CORS as authentication.
+
 ## Container
 
 Build from the repository root:
@@ -36,7 +48,8 @@ docker run --rm -p 8080:8080 \
   -e AMAZON_ASSOCIATE_TAG='your-tag' \
   -e DATABASE_URL='postgresql://...' \
   -e PGSSL='verify-full' \
-  -e FRONTEND_URL='https://example.com' \
+  -e PUBLIC_WEB_URL='https://example.com' \
+  -e CORS_ORIGINS='https://example.com' \
   dealscout
 ```
 
@@ -70,7 +83,7 @@ Keep secrets outside the image and source tree. At minimum, production needs:
 - PostgreSQL or complete Cloud SQL configuration;
 - credentials for the selected verified deal-data provider.
 
-`FRONTEND_URL`, when supplied in production, must be an absolute HTTPS URL. It is used for canonical URLs, CORS, and password-reset links.
+`PUBLIC_WEB_URL`, when supplied in production, must be an absolute HTTPS origin. `CORS_ORIGINS` entries must also use HTTPS in production. Use multiple CORS origins when separate website/admin browser products need the same API; do not widen CORS to `*` when credentialed requests are enabled.
 
 SMTP credentials, provider credentials, admin bootstrap password, and any future publication transport secret should be mounted from the deployment secret store rather than committed to GitHub.
 
@@ -97,4 +110,4 @@ Every release should pass the repository Quality workflow (`npm ci`, lint, tests
 /api/ready  -> 200 {"status":"ready"}
 ```
 
-Then validate one public feed request, one admin sign-in, and one provider diagnostic before shifting all traffic to the new revision.
+Then validate one `/api/v1` public feed request, one admin sign-in, and one provider diagnostic before shifting all traffic to the new revision.
