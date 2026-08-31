@@ -29,13 +29,12 @@ export default function DealDetailScreen() {
     setError(null);
     Promise.all([
       deals.get(id, { signal: controller.signal }),
-      bookmarks.list().catch(() => []),
+      bookmarks.list().catch(() => ({ bookmarkIds: [] })),
     ])
-      .then(([nextDeal, savedRows]) => {
+      .then(([nextDeal, savedResult]) => {
         if (controller.signal.aborted) return;
         setDeal(nextDeal);
-        const rows = Array.isArray(savedRows) ? savedRows : savedRows?.items || savedRows?.bookmarks || [];
-        setSaved(rows.some((row) => String(row?.dealId || row?.deal_id || row?.deal?.id || row?.deal?.asin || '') === id));
+        setSaved((savedResult?.bookmarkIds || []).map(String).includes(id));
       })
       .catch((err) => { if (err?.name !== 'AbortError') setError(err?.message || 'Could not load this deal'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -46,7 +45,12 @@ export default function DealDetailScreen() {
     if (!id) return;
     const previous = saved;
     setSaved(!previous);
-    try { await bookmarks.toggle(id); } catch { setSaved(previous); }
+    try {
+      const result = await bookmarks.toggle(id);
+      setSaved(Boolean(result?.isSaved));
+    } catch {
+      setSaved(previous);
+    }
   }
 
   async function openAmazon() {
