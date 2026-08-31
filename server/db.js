@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const DB_FILE = path.join(__dirname, 'data', 'db.json');
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 const tables = {
   users: [],
@@ -35,6 +36,9 @@ function removeLegacyDefaultAdmin() {
 }
 
 function saveDb() {
+  // The JSON database is development-only. Production requires PostgreSQL and
+  // must not mutate ephemeral container files as a hidden secondary datastore.
+  if (IS_PRODUCTION) return;
   try {
     fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
     fs.writeFileSync(DB_FILE, JSON.stringify(tables, null, 2), 'utf-8');
@@ -44,16 +48,18 @@ function saveDb() {
 }
 
 function loadDb() {
-  try {
-    if (fs.existsSync(DB_FILE)) {
-      const parsed = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
-      for (const key of Object.keys(tables)) {
-        tables[key] = Array.isArray(parsed?.[key]) ? parsed[key] : [];
+  if (!IS_PRODUCTION) {
+    try {
+      if (fs.existsSync(DB_FILE)) {
+        const parsed = JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+        for (const key of Object.keys(tables)) {
+          tables[key] = Array.isArray(parsed?.[key]) ? parsed[key] : [];
+        }
       }
+    } catch (err) {
+      console.error('Failed to load DB:', err.message);
+      for (const key of Object.keys(tables)) tables[key] = [];
     }
-  } catch (err) {
-    console.error('Failed to load DB:', err.message);
-    for (const key of Object.keys(tables)) tables[key] = [];
   }
 
   removeLegacyDefaultAdmin();
