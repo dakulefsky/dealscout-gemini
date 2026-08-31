@@ -22,15 +22,9 @@ async function startServer() {
   const isProduction = process.env.NODE_ENV === 'production';
   const configuredOrigin = process.env.FRONTEND_URL;
 
-  if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) {
-    throw new Error('JWT_SECRET must be configured with at least 32 characters in production');
-  }
-  if (isProduction && !String(process.env.AMAZON_ASSOCIATE_TAG || '').trim()) {
-    throw new Error('AMAZON_ASSOCIATE_TAG must be configured in production');
-  }
-
   const db = require('./server/db.js');
   const postgres = require('./server/storage/postgres.js');
+  const runtimeBootstrap = require('./server/startup/runtimeBootstrap.js');
   const dealRepository = require('./server/repositories/dealRepository.js');
   const sitemapRepository = require('./server/repositories/sitemapRepository.js');
   const userRepository = require('./server/repositories/userRepository.js');
@@ -44,12 +38,7 @@ async function startServer() {
   const { resolveTrustProxy } = require('./server/config/trustProxy.js');
   if (isProduction) hardenJsonUsers(db);
 
-  await Promise.all([
-    dealRepository.ensureSchema(), userRepository.ensureSchema(), categoryRepository.ensureSchema(),
-    editorialRepository.ensureSchema(), activityRepository.ensureSchema(),
-  ]);
-  await bookmarkRepository.ensureSchema();
-  if (isProduction) await dealRepository.hardenProduction();
+  await runtimeBootstrap.initializeRuntime({ isProduction });
 
   app.disable('x-powered-by');
   const trustProxy = resolveTrustProxy(process.env.TRUST_PROXY, { isProduction });
@@ -106,6 +95,7 @@ async function startServer() {
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
+  app.get('/api/ready', runtimeBootstrap.readinessEndpoint);
 
   let vite = null;
   if (!isProduction) {
