@@ -5,6 +5,7 @@ const path = require('path');
 
 const dismissals = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'feedDismissals.js'), 'utf8');
 const personalization = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'feedPersonalization.js'), 'utf8');
+const personalizationCore = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'personalizationCore.js'), 'utf8');
 const card = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'DealCard.jsx'), 'utf8');
 
 test('not interested hides an exact deal temporarily and locally', () => {
@@ -17,7 +18,7 @@ test('not interested hides an exact deal temporarily and locally', () => {
 
 test('negative category feedback is modest and never goes below zero', () => {
   assert.match(personalization, /reduceCategoryInterest\(category, weight = 3\)/);
-  assert.match(personalization, /Math\.max\(0,/);
+  assert.match(personalizationCore, /Math\.max\(0,/);
   assert.match(card, /reduceCategoryInterest\(deal\.category, 3\)/);
 });
 
