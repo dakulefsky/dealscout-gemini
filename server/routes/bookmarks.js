@@ -7,7 +7,7 @@ const bookmarks = require('../repositories/bookmarkRepository');
 const bookmarkQueries = require('../repositories/bookmarkQueryRepository');
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const GUEST_ID_RE = /^guest_[a-z0-9]{9,64}$/i;
+const GUEST_ID_RE = /^guest_[a-z0-9_-]{9,80}$/i;
 
 async function getClientIdentity(req) {
   const authHeader = req.headers.authorization;
