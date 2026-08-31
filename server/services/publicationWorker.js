@@ -1,4 +1,5 @@
 const publication = require('./publicationService');
+const { composePublicationContent } = require('./publicationContentService');
 
 function normalizeAdapterResult(result) {
   if (result == null) return { externalPublicationId: null };
@@ -11,7 +12,7 @@ function normalizeAdapterResult(result) {
 
 async function runPublicationOnce(channel, adapter, options = {}) {
   if (!adapter || typeof adapter.publish !== 'function') {
-    throw new TypeError('Publication adapter must expose an async publish({ channel, job, deal }) function');
+    throw new TypeError('Publication adapter must expose an async publish({ channel, job, deal, content }) function');
   }
 
   const leased = await publication.leaseNextPublishable(channel, options);
@@ -19,7 +20,10 @@ async function runPublicationOnce(channel, adapter, options = {}) {
 
   const { job, deal } = leased;
   try {
-    const result = normalizeAdapterResult(await adapter.publish({ channel, job, deal }));
+    // Compose only after the queue service has revalidated the current deal.
+    // Adapters receive transport-ready factual content, but never own deal truth.
+    const content = composePublicationContent(channel, deal, options);
+    const result = normalizeAdapterResult(await adapter.publish({ channel, job, deal, content }));
     const completed = await publication.completePublication(job.id, result.externalPublicationId, options);
     if (!completed) throw new Error('Publication lease was lost before completion');
     return {
