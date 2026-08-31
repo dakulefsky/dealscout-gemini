@@ -4,17 +4,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
-import { createServer as createViteServer } from 'vite';
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-function hardenJsonUsers(db) {
-  const beforeUsers = db.tables.users.length;
-  db.tables.users = db.tables.users.filter((user) => user.id !== 'usr-admin-1' && user.email !== 'admin@dealscout.local');
-  if (db.tables.users.length !== beforeUsers) db.saveDb();
-}
 
 async function startServer() {
   const app = express();
@@ -22,34 +15,17 @@ async function startServer() {
   const isProduction = process.env.NODE_ENV === 'production';
   const configuredOrigin = process.env.FRONTEND_URL;
 
-  if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) {
-    throw new Error('JWT_SECRET must be configured with at least 32 characters in production');
-  }
-  if (isProduction && !String(process.env.AMAZON_ASSOCIATE_TAG || '').trim()) {
-    throw new Error('AMAZON_ASSOCIATE_TAG must be configured in production');
-  }
-
-  const db = require('./server/db.js');
   const postgres = require('./server/storage/postgres.js');
+  const runtimeBootstrap = require('./server/startup/runtimeBootstrap.js');
   const dealRepository = require('./server/repositories/dealRepository.js');
   const sitemapRepository = require('./server/repositories/sitemapRepository.js');
-  const userRepository = require('./server/repositories/userRepository.js');
   const categoryRepository = require('./server/repositories/categoryRepository.js');
-  const bookmarkRepository = require('./server/repositories/bookmarkRepository.js');
-  const editorialRepository = require('./server/repositories/editorialRepository.js');
-  const activityRepository = require('./server/repositories/activityRepository.js');
   const seo = require('./server/services/seoService.js');
   const dealCron = require('./server/services/cronService.js');
   const imageRepair = require('./server/services/imageRepairService.js');
   const { resolveTrustProxy } = require('./server/config/trustProxy.js');
-  if (isProduction) hardenJsonUsers(db);
 
-  await Promise.all([
-    dealRepository.ensureSchema(), userRepository.ensureSchema(), categoryRepository.ensureSchema(),
-    editorialRepository.ensureSchema(), activityRepository.ensureSchema(),
-  ]);
-  await bookmarkRepository.ensureSchema();
-  if (isProduction) await dealRepository.hardenProduction();
+  await runtimeBootstrap.initializeRuntime({ isProduction });
 
   app.disable('x-powered-by');
   const trustProxy = resolveTrustProxy(process.env.TRUST_PROXY, { isProduction });
@@ -106,9 +82,11 @@ async function startServer() {
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
+  app.get('/api/ready', runtimeBootstrap.readinessEndpoint);
 
   let vite = null;
   if (!isProduction) {
+    const { createServer: createViteServer } = await import('vite');
     vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
     app.use(vite.middlewares);
   } else {
