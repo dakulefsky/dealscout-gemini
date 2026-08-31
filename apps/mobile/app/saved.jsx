@@ -4,10 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import DealCard from '../src/components/DealCard';
 import { bookmarks } from '../src/api';
 
-function dealOf(row) {
-  return row?.deal || row;
-}
-
 function idOf(deal) {
   return String(deal?.id || deal?.asin || '');
 }
@@ -23,8 +19,7 @@ export default function SavedDealsScreen() {
     setError(null);
     try {
       const result = await bookmarks.list();
-      const rows = Array.isArray(result) ? result : result?.items || result?.bookmarks || [];
-      setItems(rows.map(dealOf).filter((deal) => idOf(deal)));
+      setItems((result?.deals || []).filter((deal) => idOf(deal)));
     } catch (err) {
       setError(err?.message || 'Could not load saved deals');
     } finally {
@@ -40,7 +35,12 @@ export default function SavedDealsScreen() {
     if (!id) return;
     const previous = items;
     setItems((current) => current.filter((item) => idOf(item) !== id));
-    try { await bookmarks.toggle(id); } catch { setItems(previous); }
+    try {
+      const result = await bookmarks.toggle(id);
+      if (result?.isSaved) setItems(previous);
+    } catch {
+      setItems(previous);
+    }
   }, [items]);
 
   if (loading && !items.length) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /></SafeAreaView>;
