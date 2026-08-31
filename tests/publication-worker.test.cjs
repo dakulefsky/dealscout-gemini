@@ -42,7 +42,7 @@ function reset() {
 test.beforeEach(reset);
 test.after(reset);
 
-test('worker publishes through an adapter and records external identity', async () => {
+test('worker publishes factual transport content through an adapter and records external identity', async () => {
   const deal = verifiedDeal();
   db.tables.deals.push(deal);
   await queue.enqueueDeal(deal, CHANNELS.WHATSAPP_STATUS, { nowUnix: NOW });
@@ -59,6 +59,12 @@ test('worker publishes through an adapter and records external identity', async 
   assert.equal(result.externalPublicationId, 'status-777');
   assert.equal(payload.deal.asin, 'B000000010');
   assert.equal(payload.channel, CHANNELS.WHATSAPP_STATUS);
+  assert.equal(payload.content.facts.asin, 'B000000010');
+  assert.equal(payload.content.facts.salePrice, 55);
+  assert.equal(payload.content.format, 'image_caption');
+  assert.match(payload.content.caption, /\$55/);
+  assert.match(payload.content.caption, /45% off/);
+  assert.match(payload.content.caption, /Price verified by DealScout/);
   assert.equal(db.tables.publication_jobs[0].state, queue.STATES.PUBLISHED);
 });
 
