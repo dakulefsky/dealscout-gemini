@@ -11,7 +11,7 @@ const mobilePersonalization = fs.readFileSync(path.join(root, 'apps', 'mobile', 
 const webPersonalization = fs.readFileSync(path.join(root, 'src', 'lib', 'feedPersonalization.js'), 'utf8');
 
 test('web and native use one platform-neutral personalization algorithm', () => {
-  assert.match(webPersonalization, /from '\.\/personalizationCore'/);
+  assert.match(webPersonalization, /from '\.\/personalizationCore\.js'/);
   assert.match(mobilePersonalization, /personalizationCore/);
   assert.match(mobileHome, /personalizedRank\(rankDeals\(items\), interests\)/);
   assert.doesNotMatch(fs.readFileSync(path.join(root, 'src', 'lib', 'personalizationCore.js'), 'utf8'), /window|localStorage|SecureStore/);
