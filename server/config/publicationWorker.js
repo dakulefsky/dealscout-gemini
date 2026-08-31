@@ -39,12 +39,6 @@ function resolvePublicationWorkerConfig(env = process.env, { isProduction = env.
   }
 
   const isWhatsAppStatus = channel === 'whatsapp_status';
-  const maxPublishesPerCycle = boundedInteger(
-    env.PUBLICATION_MAX_PER_CYCLE,
-    isWhatsAppStatus ? 1 : 5,
-    { min: 1, max: isWhatsAppStatus ? 1 : 50, name: 'PUBLICATION_MAX_PER_CYCLE' },
-  );
-
   return {
     channel,
     transport,
@@ -52,7 +46,7 @@ function resolvePublicationWorkerConfig(env = process.env, { isProduction = env.
     webhookUrl: parsedWebhook.toString(),
     webhookToken,
     pollMs: boundedInteger(env.PUBLICATION_POLL_MS, isWhatsAppStatus ? 30 * 60_000 : 30_000, {
-      min: isWhatsAppStatus ? 5 * 60_000 : 1_000,
+      min: 1_000,
       max: isWhatsAppStatus ? 6 * 60 * 60_000 : 300_000,
       name: 'PUBLICATION_POLL_MS',
     }),
@@ -63,7 +57,7 @@ function resolvePublicationWorkerConfig(env = process.env, { isProduction = env.
     }),
     queueBatch: boundedInteger(env.PUBLICATION_QUEUE_BATCH, isWhatsAppStatus ? 2 : 5, { min: 1, max: 50, name: 'PUBLICATION_QUEUE_BATCH' }),
     candidateLimit: boundedInteger(env.PUBLICATION_CANDIDATE_LIMIT, 100, { min: 10, max: 100, name: 'PUBLICATION_CANDIDATE_LIMIT' }),
-    maxPublishesPerCycle,
+    maxPublishesPerCycle: boundedInteger(env.PUBLICATION_MAX_PER_CYCLE, isWhatsAppStatus ? 1 : 5, { min: 1, max: 50, name: 'PUBLICATION_MAX_PER_CYCLE' }),
     webhookTimeoutMs: boundedInteger(env.PUBLICATION_WEBHOOK_TIMEOUT_MS, 15_000, { min: 1_000, max: 60_000, name: 'PUBLICATION_WEBHOOK_TIMEOUT_MS' }),
   };
 }
