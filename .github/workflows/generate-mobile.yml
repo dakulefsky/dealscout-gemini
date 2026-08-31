@@ -1,4 +1,4 @@
-name: Generate mobile scaffold
+name: Prepare mobile dependencies
 
 on:
   push:
@@ -9,28 +9,29 @@ permissions:
   contents: write
 
 jobs:
-  scaffold:
+  mobile-deps:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Generate current stable Expo app
+      - name: Install Expo-compatible persistent storage
         run: |
-          if [ -f apps/mobile/package.json ]; then
-            echo "Mobile scaffold already exists"
-            exit 0
+          cd apps/mobile
+          if node -e "const p=require('./package.json'); process.exit(p.dependencies?.['expo-secure-store'] ? 0 : 1)"; then
+            echo "expo-secure-store already installed"
+          else
+            npx expo install expo-secure-store
           fi
-          npx --yes create-expo-app@latest apps/mobile --yes
-      - name: Commit generated scaffold
+      - name: Commit dependency lock
         run: |
-          if git diff --quiet -- apps/mobile && git ls-files --error-unmatch apps/mobile/package.json >/dev/null 2>&1; then
-            echo "Mobile scaffold is already committed"
+          if git diff --quiet -- apps/mobile/package.json apps/mobile/package-lock.json; then
+            echo "Mobile dependencies already current"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/mobile
-          git commit -m "Generate Expo mobile scaffold"
+          git add apps/mobile/package.json apps/mobile/package-lock.json
+          git commit -m "Add secure mobile identity storage"
           git push
