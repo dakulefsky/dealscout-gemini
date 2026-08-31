@@ -8,12 +8,12 @@ async function startPublicationWorker() {
   const runtimeBootstrap = require('./server/startup/runtimeBootstrap.js');
   const { RUNTIME_ROLES } = require('./server/config/runtimeRequirements.js');
   const { resolvePublicationWorkerConfig } = require('./server/config/publicationWorker.js');
-  const { createWebhookPublicationAdapter } = require('./server/adapters/webhookPublicationAdapter.js');
+  const { createPublicationAdapter } = require('./server/adapters/publicationAdapterFactory.js');
   const { runPublicationCycle, runPublicationLoop } = require('./server/services/publicationWorkerRuntime.js');
 
   const config = resolvePublicationWorkerConfig(process.env, { isProduction });
   await runtimeBootstrap.initializeRuntime({ isProduction, role: RUNTIME_ROLES.PUBLICATION_WORKER });
-  const adapter = createWebhookPublicationAdapter(config);
+  const adapter = createPublicationAdapter(config);
   const controller = new AbortController();
   let shuttingDown = false;
 
@@ -30,16 +30,16 @@ async function startPublicationWorker() {
   try {
     if (config.runMode === 'once') {
       const result = await runPublicationCycle(config, adapter);
-      console.log(`[DealScout publisher] cycle complete channel=${result.channel} candidates=${result.candidates} enqueued=${result.enqueued} published=${result.published} retries=${result.retriesScheduled} failed=${result.failed}`);
+      console.log(`[DealScout publisher] cycle complete transport=${config.transport} channel=${result.channel} candidates=${result.candidates} enqueued=${result.enqueued} published=${result.published} retries=${result.retriesScheduled} failed=${result.failed}`);
       return;
     }
 
-    console.log(`[DealScout publisher] started channel=${config.channel} pollMs=${config.pollMs}`);
+    console.log(`[DealScout publisher] started transport=${config.transport} channel=${config.channel} pollMs=${config.pollMs}`);
     await runPublicationLoop(config, adapter, {
       signal: controller.signal,
       onCycle(result) {
         if (result.enqueued || result.published || result.retriesScheduled || result.failed) {
-          console.log(`[DealScout publisher] cycle channel=${result.channel} candidates=${result.candidates} enqueued=${result.enqueued} published=${result.published} retries=${result.retriesScheduled} failed=${result.failed}`);
+          console.log(`[DealScout publisher] cycle transport=${config.transport} channel=${result.channel} candidates=${result.candidates} enqueued=${result.enqueued} published=${result.published} retries=${result.retriesScheduled} failed=${result.failed}`);
         }
       },
       onError(error) {
