@@ -68,6 +68,7 @@ test('publication cycle feeds the queue before bounded Status draining', async (
     minPublishSpacingSeconds: 0,
   }, { publish: async () => ({}) }, {
     publicationMetrics: { latestPublishedAt: async () => null },
+    postgres: { withAdvisoryLock: async (_id, task) => ({ acquired: true, result: await task() }) },
     dealQueries: {
       async list(options) {
         calls.query = options;
@@ -96,6 +97,49 @@ test('publication cycle feeds the queue before bounded Status draining', async (
   assert.equal(calls.runs, 1);
   assert.equal(result.enqueued, 2);
   assert.equal(result.published, 1);
+});
+
+test('WhatsApp Status defers transport until durable spacing has elapsed', async () => {
+  let runs = 0;
+  const now = 2_000_000_000;
+  const result = await runPublicationCycle({
+    channel: 'whatsapp_status',
+    candidateLimit: 50,
+    queueBatch: 2,
+    maxPublishesPerCycle: 5,
+    minPublishSpacingSeconds: 1800,
+  }, { publish: async () => ({}) }, {
+    nowUnix: () => now,
+    publicationMetrics: { latestPublishedAt: async () => now - 300 },
+    postgres: { withAdvisoryLock: async (_id, task) => ({ acquired: true, result: await task() }) },
+    dealQueries: { list: async () => [] },
+    publication: { queueBestDeals: async () => ({ selectedCount: 0, createdCount: 0, jobs: [] }) },
+    worker: { runPublicationOnce: async () => { runs += 1; return { status: 'published' }; } },
+  });
+
+  assert.equal(runs, 0);
+  assert.equal(result.cadenceDeferred, true);
+  assert.equal(result.nextPublishEligibleAt, now + 1500);
+  assert.equal(result.published, 0);
+});
+
+test('WhatsApp Status cycle defers when another replica owns the publication lock', async () => {
+  let queried = false;
+  const result = await runPublicationCycle({
+    channel: 'whatsapp_status',
+    candidateLimit: 50,
+    queueBatch: 2,
+    maxPublishesPerCycle: 1,
+    minPublishSpacingSeconds: 1800,
+  }, { publish: async () => ({}) }, {
+    postgres: { withAdvisoryLock: async () => ({ acquired: false, result: null }) },
+    dealQueries: { list: async () => { queried = true; return []; } },
+  });
+
+  assert.equal(queried, false);
+  assert.equal(result.coordinationDeferred, true);
+  assert.equal(result.cadenceDeferred, true);
+  assert.equal(result.published, 0);
 });
 
 test('webhook transport sends a versioned idempotent envelope and returns external identity', async () => {
