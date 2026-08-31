@@ -15,6 +15,12 @@ All v1 responses include `X-DealScout-API-Version: 1`, including errors generate
 
 All API responses include `X-Request-ID`. Surface this identifier in client diagnostics/support reports so server logs can be correlated without exposing internal implementation details.
 
+## Shared client boundary
+
+`src/lib/apiCore.js` is the platform-neutral JavaScript client for the v1 contract. It owns request/error handling and the resource methods, but it does not own browser storage, `window`, or Vite environment state. Token and guest-identity providers may return values synchronously or asynchronously, so native clients can use secure/async storage without forking API behavior.
+
+`src/lib/api.js` is the website adapter. It supplies the website API base URL plus `localStorage` token/guest identity. A native client should instantiate `createDealScoutClient` with its own API base URL, fetch implementation when needed, secure token reader, and persisted guest-identity reader. Private admin operations remain available to the website adapter but are outside the supported mobile v1 compatibility surface.
+
 ## Error contract
 
 Existing human-readable `error` messages are preserved. v1 error responses add a stable machine category and request identifier:
