@@ -33,5 +33,5 @@ test('intersection paging reveals loaded deals before requesting the next remote
 test('search paging is cancellable and modestly debounced', () => {
   assert.match(home, /AbortController/);
   assert.match(home, /signal: controller\.signal/);
-  assert.match(home, /SEARCH_DEBOUNCE_MS/);
+  assert.match(home, /searchQuery\.trim\(\) \? 250 : 0/);
 });
