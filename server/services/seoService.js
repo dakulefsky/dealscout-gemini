@@ -34,7 +34,7 @@ function buildRobots(baseUrl) {
   return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: ${baseUrl}/sitemap.xml\n`;
 }
 
-function replaceMeta(html, { title, description, canonical, robots = 'index,follow', jsonLd, image }) {
+function replaceMeta(html, { title, description, canonical, robots = 'index,follow', jsonLd, image, nonce }) {
   let out = html;
   out = out.replace(/<title>.*?<\/title>/i, `<title>${htmlEscape(title)}</title>`);
   out = out.replace(/<meta name="description"[^>]*>/i, `<meta name="description" content="${htmlEscape(description)}" />`);
@@ -45,7 +45,7 @@ function replaceMeta(html, { title, description, canonical, robots = 'index,foll
     `<meta property="og:description" content="${htmlEscape(description)}" />`,
     canonical ? `<meta property="og:url" content="${htmlEscape(canonical)}" />` : '',
     image ? `<meta property="og:image" content="${htmlEscape(image)}" />` : '',
-    jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>` : '',
+    jsonLd ? `<script${nonce ? ` nonce="${htmlEscape(nonce)}"` : ''} type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>` : '',
   ].filter(Boolean).join('\n    ');
   return out.replace('</head>', `    ${additions}\n  </head>`);
 }
