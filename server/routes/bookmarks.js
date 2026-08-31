@@ -5,9 +5,9 @@ const users = require('../repositories/userRepository');
 const deals = require('../repositories/dealRepository');
 const bookmarks = require('../repositories/bookmarkRepository');
 const bookmarkQueries = require('../repositories/bookmarkQueryRepository');
+const { normalizeGuestId, isValidGuestId } = require('../services/clientIdentityService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const GUEST_ID_RE = /^guest_[a-z0-9_-]{9,80}$/i;
 
 async function getClientIdentity(req) {
   const authHeader = req.headers.authorization;
@@ -18,8 +18,8 @@ async function getClientIdentity(req) {
       if (user) return { id: user.id, email: user.email, authenticated: true };
     } catch {}
   }
-  const guestId = String(req.headers['x-guest-id'] || '');
-  if (!GUEST_ID_RE.test(guestId)) return null;
+  const guestId = normalizeGuestId(req.headers['x-guest-id']);
+  if (!isValidGuestId(guestId)) return null;
   return { id: guestId, email: null, authenticated: false };
 }
 
