@@ -11,20 +11,22 @@ function field(deal, camel, snake) {
   return deal?.[camel] ?? deal?.[snake];
 }
 
-export default function DealCard({ deal, onSave, saved = false }) {
+export default function DealCard({ deal, onSave, onOpen, onDismiss, saved = false }) {
   const id = deal?.id || deal?.asin;
   const salePrice = field(deal, 'salePrice', 'sale_price');
   const originalPrice = field(deal, 'originalPrice', 'original_price');
   const discount = Number(field(deal, 'discountPercent', 'discount_percent') || 0);
   const imageUrl = field(deal, 'imageUrl', 'image_url');
 
+  function openDeal() {
+    if (!id) return;
+    onOpen?.(deal);
+    router.push({ pathname: '/deal/[id]', params: { id } });
+  }
+
   return (
     <View style={styles.card}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${deal?.title || 'deal'}`}
-        onPress={() => id && router.push({ pathname: '/deal/[id]', params: { id } })}
-      >
+      <Pressable accessibilityRole="button" accessibilityLabel={`Open ${deal?.title || 'deal'}`} onPress={openDeal}>
         <Image source={imageUrl ? { uri: imageUrl } : undefined} style={styles.image} contentFit="contain" transition={150} />
         <View style={styles.body}>
           {discount > 0 && <Text style={styles.discount}>{Math.round(discount)}% OFF</Text>}
@@ -35,14 +37,24 @@ export default function DealCard({ deal, onSave, saved = false }) {
           </View>
         </View>
       </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={saved ? `Remove ${deal?.title || 'deal'} from saved deals` : `Save ${deal?.title || 'deal'}`}
-        onPress={() => onSave?.(deal)}
-        style={styles.saveButton}
-      >
-        <Text style={styles.saveText}>{saved ? 'Saved' : 'Save'}</Text>
-      </Pressable>
+      <View style={styles.actions}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Not interested in ${deal?.title || 'deal'}`}
+          onPress={() => onDismiss?.(deal)}
+          style={styles.dismissButton}
+        >
+          <Text style={styles.dismissText}>Not interested</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={saved ? `Remove ${deal?.title || 'deal'} from saved deals` : `Save ${deal?.title || 'deal'}`}
+          onPress={() => onSave?.(deal)}
+          style={styles.saveButton}
+        >
+          <Text style={styles.saveText}>{saved ? 'Saved' : 'Save'}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -56,6 +68,9 @@ const styles = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginTop: 8 },
   sale: { fontSize: 17, color: '#0f172a', fontWeight: '900' },
   original: { fontSize: 12, color: '#94a3b8', textDecorationLine: 'line-through' },
-  saveButton: { marginHorizontal: 10, marginBottom: 10, paddingVertical: 9, borderRadius: 11, alignItems: 'center', backgroundColor: '#f1f5f9' },
+  actions: { flexDirection: 'row', gap: 7, marginHorizontal: 10, marginBottom: 10 },
+  dismissButton: { flex: 1.3, paddingVertical: 9, borderRadius: 11, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#fff' },
+  dismissText: { fontSize: 10, fontWeight: '800', color: '#64748b' },
+  saveButton: { flex: 1, paddingVertical: 9, borderRadius: 11, alignItems: 'center', backgroundColor: '#f1f5f9' },
   saveText: { fontSize: 12, fontWeight: '800', color: '#334155' },
 });

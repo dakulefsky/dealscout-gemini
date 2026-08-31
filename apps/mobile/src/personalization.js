@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { addInterest, decayInterests, DECAY_INTERVAL_MS } from '../../../src/lib/personalizationCore';
+import { addInterest, decayInterests, reduceInterest, DECAY_INTERVAL_MS } from '../../../src/lib/personalizationCore';
 
 const INTERESTS_KEY = 'dealscout-feed-interests-v1';
 const DECAY_KEY = 'dealscout-feed-interests-decay-v1';
@@ -40,6 +40,13 @@ async function addCategoryInterest(category, weight = 1) {
   return next;
 }
 
+async function reduceCategoryInterest(category, weight = 3) {
+  const current = await loadInterests();
+  const next = reduceInterest(current, category, weight);
+  await SecureStore.setItemAsync(INTERESTS_KEY, JSON.stringify(next));
+  return next;
+}
+
 async function resetInterests() {
   await Promise.all([
     SecureStore.deleteItemAsync(INTERESTS_KEY),
@@ -48,4 +55,4 @@ async function resetInterests() {
   return {};
 }
 
-export { INTERESTS_KEY, DECAY_KEY, loadInterests, addCategoryInterest, resetInterests };
+export { INTERESTS_KEY, DECAY_KEY, loadInterests, addCategoryInterest, reduceCategoryInterest, resetInterests };
