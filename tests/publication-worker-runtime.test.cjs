@@ -45,6 +45,7 @@ test('publication worker configuration is explicit, bounded and HTTPS in product
   assert.equal(config.pollMs, 5000);
   assert.equal(config.queueBatch, 3);
   assert.equal(config.maxPublishesPerCycle, 2);
+  assert.equal(config.minPublishSpacingSeconds, 1800);
   assert.throws(() => resolvePublicationWorkerConfig({
     PUBLICATION_CHANNEL: 'whatsapp_status',
     PUBLICATION_TRANSPORT: 'webhook',
@@ -53,7 +54,7 @@ test('publication worker configuration is explicit, bounded and HTTPS in product
   }, { isProduction: true }), /https/);
 });
 
-test('publication cycle feeds the queue before bounded worker draining', async () => {
+test('publication cycle feeds the queue before bounded Status draining', async () => {
   const calls = { query: null, queue: null, runs: 0 };
   const candidates = [
     { asin: 'B000000001', discount_percent: 30 },
@@ -64,7 +65,9 @@ test('publication cycle feeds the queue before bounded worker draining', async (
     candidateLimit: 50,
     queueBatch: 3,
     maxPublishesPerCycle: 4,
+    minPublishSpacingSeconds: 0,
   }, { publish: async () => ({}) }, {
+    publicationMetrics: { latestPublishedAt: async () => null },
     dealQueries: {
       async list(options) {
         calls.query = options;
@@ -80,9 +83,7 @@ test('publication cycle feeds the queue before bounded worker draining', async (
     worker: {
       async runPublicationOnce() {
         calls.runs += 1;
-        return calls.runs === 1
-          ? { status: 'published', channel: 'whatsapp_status', jobId: 'job-1' }
-          : { status: 'idle', channel: 'whatsapp_status', jobId: null };
+        return { status: 'published', channel: 'whatsapp_status', jobId: 'job-1' };
       },
     },
   });
@@ -92,7 +93,7 @@ test('publication cycle feeds the queue before bounded worker draining', async (
   assert.equal(calls.queue.channel, 'whatsapp_status');
   assert.deepEqual(calls.queue.rows, candidates);
   assert.equal(calls.queue.options.limit, 3);
-  assert.equal(calls.runs, 2);
+  assert.equal(calls.runs, 1);
   assert.equal(result.enqueued, 2);
   assert.equal(result.published, 1);
 });
