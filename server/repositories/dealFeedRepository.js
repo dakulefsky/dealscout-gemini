@@ -13,6 +13,22 @@ function normalizeLimit(value) {
   return Math.min(Math.max(Number.parseInt(value, 10) || 24, 1), 50);
 }
 
+function numberOrNull(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeFilters(options = {}) {
+  return {
+    q: typeof options.q === 'string' ? options.q.trim() : '',
+    category: typeof options.category === 'string' ? options.category.trim() : '',
+    minDiscount: numberOrNull(options.minDiscount),
+    minPrice: numberOrNull(options.minPrice),
+    maxPrice: numberOrNull(options.maxPrice),
+  };
+}
+
 function cursorFromRow(row, sort) {
   const primary = sort === 'discount_desc'
     ? Number(row.discount_percent)
@@ -43,6 +59,20 @@ function addCursorPredicate(where, params, cursor, sort) {
   where.push(`(${field} ${op} ${primary} OR (${field} = ${primary} AND (created_at < ${created} OR (created_at = ${created} AND id < ${id}))))`);
 }
 
+function filterFallback(rows, filters) {
+  return rows.filter((deal) => {
+    if (filters.category && String(deal.category || '').toLowerCase() !== filters.category.toLowerCase()) return false;
+    if (filters.q) {
+      const term = filters.q.toLowerCase();
+      if (![deal.title, deal.asin, deal.category].some((value) => String(value || '').toLowerCase().includes(term))) return false;
+    }
+    if (filters.minDiscount !== null && Number(deal.discount_percent) < filters.minDiscount) return false;
+    if (filters.minPrice !== null && Number(deal.sale_price) < filters.minPrice) return false;
+    if (filters.maxPrice !== null && Number(deal.sale_price) > filters.maxPrice) return false;
+    return true;
+  });
+}
+
 function fallbackSort(rows, sort) {
   return rows.sort((a, b) => {
     const createdDiff = Number(b.created_at) - Number(a.created_at);
@@ -67,11 +97,13 @@ function afterCursor(row, cursor, sort) {
 async function page(options = {}) {
   const sort = normalizeSort(options.sort);
   const limit = normalizeLimit(options.limit);
+  const filters = normalizeFilters(options);
   const cursor = decodeCursor(options.cursor, sort);
   if (options.cursor && !cursor) throw new Error('Invalid cursor');
 
   if (!postgres.isConfigured()) {
     let rows = (await deals.listAll()).filter((d) => d.status === 'APPROVED' && d.is_expired !== 1 && d.source_verified === 1);
+    rows = filterFallback(rows, filters);
     rows = fallbackSort(rows, sort).filter((row) => afterCursor(row, cursor, sort));
     const selected = rows.slice(0, limit + 1);
     const hasMore = selected.length > limit;
@@ -82,6 +114,15 @@ async function page(options = {}) {
   await deals.ensureSchema();
   const where = ["status = 'APPROVED'", 'is_expired <> 1', 'source_verified = 1'];
   const params = [];
+  if (filters.category) where.push(`LOWER(COALESCE(category, '')) = LOWER($${params.push(filters.category)})`);
+  if (filters.q) {
+    const pattern = `%${filters.q}%`;
+    const placeholder = `$${params.push(pattern)}`;
+    where.push(`(COALESCE(title, '') ILIKE ${placeholder} OR COALESCE(asin, '') ILIKE ${placeholder} OR COALESCE(category, '') ILIKE ${placeholder})`);
+  }
+  if (filters.minDiscount !== null) where.push(`discount_percent >= $${params.push(filters.minDiscount)}`);
+  if (filters.minPrice !== null) where.push(`sale_price >= $${params.push(filters.minPrice)}`);
+  if (filters.maxPrice !== null) where.push(`sale_price <= $${params.push(filters.maxPrice)}`);
   addCursorPredicate(where, params, cursor, sort);
   params.push(limit + 1);
   const result = await postgres.query(`
@@ -98,4 +139,4 @@ async function page(options = {}) {
   };
 }
 
-module.exports = { page, normalizeSort, normalizeLimit, orderBy };
+module.exports = { page, normalizeSort, normalizeLimit, normalizeFilters, orderBy };

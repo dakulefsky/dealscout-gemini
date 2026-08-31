@@ -33,6 +33,14 @@ test('cursor predicates are keyset based instead of offset pagination', () => {
   assert.match(feedRepo, /limit \+ 1/);
 });
 
+test('feed filters are parameterized before the cursor predicate', () => {
+  assert.match(feedRepo, /LOWER\(COALESCE\(category, ''\)\) = LOWER\(\$\$\{params\.push\(filters\.category\)\}\)/);
+  assert.match(feedRepo, /discount_percent >= \$\$\{params\.push\(filters\.minDiscount\)\}/);
+  assert.match(feedRepo, /sale_price >= \$\$\{params\.push\(filters\.minPrice\)\}/);
+  assert.match(feedRepo, /sale_price <= \$\$\{params\.push\(filters\.maxPrice\)\}/);
+  assert.match(feedRepo, /COALESCE\(title, ''\) ILIKE/);
+});
+
 test('public cursor feed is a separate contract and rejects malformed cursors', () => {
   assert.match(dealsRoute, /router\.get\('\/feed'/);
   assert.match(dealsRoute, /Invalid feed cursor/);

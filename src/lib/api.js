@@ -116,12 +116,20 @@ export const auth = {
   logout:         () => setToken(null),
 };
 
+function queryString(params = {}) {
+  return new URLSearchParams(
+    Object.fromEntries(Object.entries(params).filter(([, value]) => value != null && value !== ''))
+  ).toString();
+}
+
 export const deals = {
   list: (params = {}, options) => {
-    const qs = new URLSearchParams(
-      Object.fromEntries(Object.entries(params).filter(([, value]) => value != null && value !== ''))
-    ).toString();
+    const qs = queryString(params);
     return api.get(`/api/deals${qs ? `?${qs}` : ''}`, options);
+  },
+  page: (params = {}, options) => {
+    const qs = queryString(params);
+    return api.get(`/api/deals/feed${qs ? `?${qs}` : ''}`, options);
   },
   get:    (id, options) => api.get(`/api/deals/${id}`, options),
   create: (data) => api.post('/api/deals', data),
@@ -145,9 +153,7 @@ export const editorial = {
 
 export const categories = {
   list: (params = {}) => {
-    const qs = new URLSearchParams(
-      Object.fromEntries(Object.entries(params).filter(([, value]) => value != null && value !== ''))
-    ).toString();
+    const qs = queryString(params);
     return api.get(`/api/categories${qs ? `?${qs}` : ''}`);
   },
   get:    (id) => api.get(`/api/categories/${id}`),
