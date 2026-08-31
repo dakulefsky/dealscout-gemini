@@ -17,7 +17,7 @@ RUN npm ci --omit=dev --no-audit --no-fund \
     && npm cache clean --force
 
 COPY --from=build --chown=node:node /app/dist ./dist
-COPY --chown=node:node server.js ./server.js
+COPY --chown=node:node server.js publication-worker.js ./
 COPY --chown=node:node server ./server
 
 USER node
