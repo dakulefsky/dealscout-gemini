@@ -1,6 +1,7 @@
 const db = require('../db');
 const postgres = require('../storage/postgres');
 const { demoSeedAllowed } = require('../services/demoSeedPolicy');
+const { extractAsin } = require('../services/amazonUrlService');
 
 let schemaReady = false;
 
@@ -16,10 +17,16 @@ function normalizeReviews(value) {
   return [];
 }
 
+function canonicalIdentity(value) {
+  const raw = String(value || '').trim();
+  return extractAsin(raw) || raw.toUpperCase();
+}
+
 function normalizeRecord(input) {
   const d = { ...input };
-  d.id = String(d.id || d.asin || '').trim();
-  d.asin = String(d.asin || d.id || '').trim().toUpperCase();
+  const identity = canonicalIdentity(d.asin || d.id);
+  d.asin = identity;
+  d.id = /^[A-Z0-9]{10}$/.test(identity) ? identity : String(d.id || identity || '').trim();
   d.original_price = Number(d.original_price ?? d.originalPrice ?? 0);
   d.sale_price = Number(d.sale_price ?? d.salePrice ?? 0);
   d.discount_percent = Number(d.discount_percent ?? d.discountPercent ?? 0);
@@ -127,13 +134,14 @@ async function listAll() {
 }
 
 async function findByIdOrAsin(value) {
-  const key = String(value || '').trim();
+  const rawKey = String(value || '').trim();
+  const canonicalKey = canonicalIdentity(rawKey);
   if (!postgres.isConfigured()) {
-    const row = fallbackDeals().find((d) => d.id === key || d.asin === key);
+    const row = fallbackDeals().find((d) => d.id === rawKey || d.asin === rawKey || d.id === canonicalKey || d.asin === canonicalKey);
     return row ? normalizeRecord(row) : null;
   }
   await ensureSchema();
-  const result = await postgres.query('SELECT * FROM deals WHERE id = $1 OR asin = $1 LIMIT 1', [key]);
+  const result = await postgres.query('SELECT * FROM deals WHERE id = $1 OR asin = $1 OR id = $2 OR asin = $2 LIMIT 1', [rawKey, canonicalKey]);
   return rowFromPg(result.rows[0]);
 }
 
@@ -145,8 +153,8 @@ async function upsert(input, options = {}) {
 
   if (!postgres.isConfigured()) {
     const record = toJsonFallback(d);
-    const index = db.tables.deals.findIndex((x) => x.id === d.id || x.asin === d.asin);
-    if (index >= 0) db.tables.deals[index] = { ...db.tables.deals[index], ...record };
+    const index = db.tables.deals.findIndex((x) => canonicalIdentity(x.asin || x.id) === d.asin);
+    if (index >= 0) db.tables.deals[index] = { ...db.tables.deals[index], ...record, id: d.asin, asin: d.asin };
     else db.tables.deals.unshift(record);
     db.saveDb();
     return normalizeRecord(index >= 0 ? db.tables.deals[index] : record);
@@ -161,8 +169,8 @@ async function upsert(input, options = {}) {
     ) VALUES (
       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
     )
-    ON CONFLICT (id) DO UPDATE SET
-      asin=EXCLUDED.asin, title=EXCLUDED.title, category=EXCLUDED.category,
+    ON CONFLICT (asin) DO UPDATE SET
+      id=EXCLUDED.id, title=EXCLUDED.title, category=EXCLUDED.category,
       original_price=EXCLUDED.original_price, sale_price=EXCLUDED.sale_price,
       discount_percent=EXCLUDED.discount_percent, image_url=EXCLUDED.image_url,
       product_url=EXCLUDED.product_url, rating=EXCLUDED.rating, ratings_total=EXCLUDED.ratings_total,
@@ -186,25 +194,26 @@ async function upsert(input, options = {}) {
 async function update(value, changes) {
   const current = await findByIdOrAsin(value);
   if (!current) return null;
-  return upsert({ ...current, ...changes, id: current.id, asin: changes.asin || current.asin, created_at: current.created_at });
+  return upsert({ ...current, ...changes, id: changes.asin || current.asin, asin: changes.asin || current.asin, created_at: current.created_at });
 }
 
 async function remove(value) {
-  const key = String(value || '');
+  const rawKey = String(value || '').trim();
+  const canonicalKey = canonicalIdentity(rawKey);
   if (!postgres.isConfigured()) {
-    const index = db.tables.deals.findIndex((d) => d.id === key || d.asin === key);
+    const index = db.tables.deals.findIndex((d) => d.id === rawKey || d.asin === rawKey || canonicalIdentity(d.asin || d.id) === canonicalKey);
     if (index < 0) return false;
     db.tables.deals.splice(index, 1); db.saveDb(); return true;
   }
   await ensureSchema();
-  const result = await postgres.query('DELETE FROM deals WHERE id = $1 OR asin = $1', [key]);
+  const result = await postgres.query('DELETE FROM deals WHERE id = $1 OR asin = $1 OR id = $2 OR asin = $2', [rawKey, canonicalKey]);
   return result.rowCount > 0;
 }
 
 async function expire(value, reason = 'Deal ended') {
   const d = await findByIdOrAsin(value);
   if (!d) return null;
-  return update(d.id, {
+  return update(d.asin, {
     status: 'EXPIRED', is_expired: 1, expired_at: nowUnix(), price_check_at: nowUnix(),
     raw_source_data: `${d.raw_source_data || ''} | [EXPIRED: ${new Date().toISOString()} - ${reason}]`,
   });
@@ -213,11 +222,16 @@ async function expire(value, reason = 'Deal ended') {
 async function restore(value) {
   const d = await findByIdOrAsin(value);
   if (!d || !isVerified(d)) return null;
-  return update(d.id, { status: 'APPROVED', is_expired: 0, expired_at: null, price_check_at: nowUnix() });
+  return update(d.asin, { status: 'APPROVED', is_expired: 0, expired_at: null, price_check_at: nowUnix() });
 }
 
 async function bulkStatus(ids, status) {
-  const keys = [...new Set((ids || []).map((value) => String(value || '').trim()).filter(Boolean))];
+  const keys = [...new Set((ids || []).flatMap((value) => {
+    const raw = String(value || '').trim();
+    if (!raw) return [];
+    const canonical = canonicalIdentity(raw);
+    return raw === canonical ? [raw] : [raw, canonical];
+  }))];
   if (!keys.length) return 0;
   if (!postgres.isConfigured()) {
     const set = new Set(keys);
@@ -229,7 +243,7 @@ async function bulkStatus(ids, status) {
       const changes = { status };
       if (status === 'EXPIRED') { changes.is_expired = 1; changes.expired_at = nowUnix(); }
       else if (status === 'APPROVED') { changes.is_expired = 0; changes.expired_at = null; }
-      await update(d.id, changes); updatedCount += 1;
+      await update(d.asin, changes); updatedCount += 1;
     }
     return updatedCount;
   }
@@ -249,7 +263,7 @@ async function bulkStatus(ids, status) {
 async function approveAllVerified() {
   if (!postgres.isConfigured()) {
     const all = await listAll();
-    return bulkStatus(all.filter((d) => d.status === 'PENDING_REVIEW' && isVerified(d)).map((d) => d.id), 'APPROVED');
+    return bulkStatus(all.filter((d) => d.status === 'PENDING_REVIEW' && isVerified(d)).map((d) => d.asin), 'APPROVED');
   }
   await ensureSchema();
   const result = await postgres.query(`
@@ -287,7 +301,7 @@ async function hardenProduction() {
   if (process.env.NODE_ENV !== 'production') return;
   if (!postgres.isConfigured()) {
     const all = await listAll();
-    for (const d of all) if (!isVerified(d) && (d.source_sufficient !== 0 || d.status === 'APPROVED')) await update(d.id, { source_sufficient: 0, status: d.status === 'APPROVED' ? 'PENDING_REVIEW' : d.status });
+    for (const d of all) if (!isVerified(d) && (d.source_sufficient !== 0 || d.status === 'APPROVED')) await update(d.asin, { source_sufficient: 0, status: d.status === 'APPROVED' ? 'PENDING_REVIEW' : d.status });
     return;
   }
   await ensureSchema();
@@ -300,4 +314,4 @@ async function hardenProduction() {
   `);
 }
 
-module.exports = { ensureSchema, listAll, findByIdOrAsin, upsert, update, remove, expire, restore, bulkStatus, approveAllVerified, purgeExpired, lifecycleStats, hardenProduction, normalizeRecord, isVerified, shouldBootstrapDeal };
+module.exports = { ensureSchema, listAll, findByIdOrAsin, upsert, update, remove, expire, restore, bulkStatus, approveAllVerified, purgeExpired, lifecycleStats, hardenProduction, normalizeRecord, canonicalIdentity, isVerified, shouldBootstrapDeal };
