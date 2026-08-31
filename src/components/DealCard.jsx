@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TrendingDown, Heart, ArrowRight, Clock, AlertCircle, ShieldCheck, EyeOff } from 'lucide-react';
+import { Heart, ArrowRight, Clock, AlertCircle, ShieldCheck, EyeOff } from 'lucide-react';
 import { Image } from '@/components/ui/image';
 import { useBookmarks } from '@/lib/BookmarksContext';
 import { verificationFreshness } from '@/lib/verificationFreshness';
