@@ -38,7 +38,7 @@ test('PA-API normalization never invents commercial facts', () => {
 });
 
 test('client API surface contains no nonexistent lifecycle endpoint', () => {
-  const source = read('src/lib/api.js');
+  const source = `${read('src/lib/api.js')}\n${read('src/lib/apiCore.js')}`;
   assert.doesNotMatch(source, /getLifecycleStats/);
   assert.doesNotMatch(source, /\/api\/deals\/lifecycle-stats/);
 });
@@ -51,11 +51,13 @@ test('unreachable public auth pages stay removed and backend manifest is only a 
 });
 
 test('shared API client bounds requests and supports cancellation', () => {
-  const source = read('src/lib/api.js');
-  assert.match(source, /DEFAULT_TIMEOUT_MS/);
-  assert.match(source, /AbortController/);
-  assert.match(source, /signal: controller\.signal/);
-  assert.match(source, /crypto\?\.randomUUID|crypto\.randomUUID|globalThis\.crypto\?\.randomUUID/);
+  const core = read('src/lib/apiCore.js');
+  const browser = read('src/lib/api.js');
+  assert.match(core, /DEFAULT_TIMEOUT_MS/);
+  assert.match(core, /AbortController/);
+  assert.match(core, /signal: controller\.signal/);
+  assert.match(browser, /globalThis\.crypto\?\.randomUUID/);
+  assert.match(browser, /createDealScoutClient/);
 });
 
 test('admin dashboard surfaces partial load failures instead of silently treating them as zero', () => {

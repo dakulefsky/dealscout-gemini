@@ -60,13 +60,13 @@ test('publication health distinguishes overdue, retrying, failed and successful 
 test('admin wiring keeps publication health private and failure-aware', () => {
   const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
   const endpoint = fs.readFileSync(path.join(__dirname, '..', 'server', 'middleware', 'publicationHealthEndpoint.js'), 'utf8');
-  const api = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'api.js'), 'utf8');
+  const apiCore = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'apiCore.js'), 'utf8');
   const admin = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'AdminHome.jsx'), 'utf8');
 
   assert.match(server, /publicationHealthEndpoint/);
   assert.match(endpoint, /requireAdmin\(req, res/);
   assert.match(endpoint, /publicationMetrics\.health\(\)/);
-  assert.match(api, /publicationHealth:\s*\(\) => api\.get\('\/api\/functions\/publication-health'\)/);
+  assert.match(apiCore, /publicationHealth:\s*\(\) => api\.get\('\/api\/functions\/publication-health'\)/);
   assert.match(admin, /\['publication health', functions\.publicationHealth\(\)\]/);
   assert.match(admin, /Publication automation/);
   assert.match(admin, /publicationUnavailable/);
