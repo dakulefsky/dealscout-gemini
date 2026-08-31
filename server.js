@@ -136,7 +136,7 @@ async function startServer() {
         } else if (req.path === '/saved') {
           meta = { ...seo.homeMeta(baseUrl), title: 'Saved Deals — DealScout', description: 'Your saved DealScout deals.', canonical: null, robots: 'noindex,follow' };
         }
-        res.type('html').send(seo.replaceMeta(indexTemplate, meta));
+        res.type('html').send(seo.replaceMeta(indexTemplate, { ...meta, nonce: res.locals.cspNonce }));
       } catch (err) {
         console.warn('[DealScout] SEO render fallback:', err.message);
         res.type('html').send(indexTemplate);
