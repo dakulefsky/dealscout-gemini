@@ -6,6 +6,7 @@ import { deals as dealsApi, categories as categoriesApi, editorial as editorialA
 import { rankDeals } from '@/lib/dealRanking';
 import { loadInterests, personalizedRank, STORAGE_KEY, INTERESTS_CHANGED_EVENT } from '@/lib/feedPersonalization';
 import { loadDismissedDeals, DISMISSALS_CHANGED_EVENT } from '@/lib/feedDismissals';
+import { loadPreviousVisit, checkpointVisit, dealCreatedTimestampMs, dealFreshnessTimestampMs } from '@/lib/feedReturnLoop';
 import { INITIAL_FEED_SIZE, nextVisibleCount } from '@/lib/progressiveFeed';
 import { loadSeenDealDrop, markDealDropSeen, freshDealDrop } from '@/lib/dealDropFreshness';
 import { buildFeedChapters, chapterDealIds } from '@/lib/feedChapters';
@@ -21,17 +22,7 @@ const SORTS = [
 ];
 const DISCOUNT_TIERS = [{ value: 0, label: 'Any discount' }, { value: 15, label: '15%+ off' }, { value: 25, label: '25%+ off' }, { value: 30, label: '30%+ off' }, { value: 50, label: '50%+ off' }];
 const PRICE_TIERS = [{ value: 'all', label: 'Any price' }, { value: 'under-50', label: 'Under $50', max: 50 }, { value: '50-150', label: '$50–$150', min: 50, max: 150 }, { value: '150-300', label: '$150–$300', min: 150, max: 300 }, { value: 'over-300', label: '$300+', min: 300 }];
-const LAST_VISIT_KEY = 'dealscout-feed-last-visit-v1';
 const CHAPTER_INTERVAL = 8;
-
-function dealTimestamp(deal) {
-  const raw = deal?.createdAt || deal?.created_at;
-  if (!raw) return 0;
-  const numeric = Number(raw);
-  if (Number.isFinite(numeric) && numeric > 0) return numeric;
-  const parsed = Date.parse(raw);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
 
 function dealIdentity(deal) {
   return String(deal?.id || deal?.asin || '').trim();
@@ -47,19 +38,20 @@ export default function Home() {
   const [dismissals, setDismissals] = useState(() => loadDismissedDeals());
   const [visibleCount, setVisibleCount] = useState(INITIAL_FEED_SIZE);
   const [initialSeenDrop] = useState(() => loadSeenDealDrop());
-  const [lastVisit] = useState(() => {
-    if (typeof window === 'undefined') return 0;
-    try { return Number(window.localStorage.getItem(LAST_VISIT_KEY)) || 0; } catch { return 0; }
-  });
+  const [lastVisit] = useState(() => loadPreviousVisit());
   const feedSentinel = useRef(null);
   const dropSeenMarker = useRef(null);
   const dealDropMarked = useRef(false);
 
   useEffect(() => { const q = searchParams.get('q'); if (q !== null) setSearchQuery(q); const c = searchParams.get('category'); if (c !== null) setActiveCat(c); }, [searchParams]);
   useEffect(() => {
-    try { window.localStorage.setItem(LAST_VISIT_KEY, String(Date.now())); } catch { /* return-loop tracking stays optional */ }
     Promise.all([dealsApi.list({ status: 'APPROVED', limit: 100 }), categoriesApi.list(), editorialApi.picks(4).catch(() => ({ picks: [] }))])
       .then(([d, c, p]) => { setDeals(d || []); setCategories(c || []); setPicks(p?.picks || []); }).catch((e) => setError(e.message)).finally(() => setLoading(false));
+  }, []);
+  useEffect(() => {
+    const saveCheckpoint = () => checkpointVisit();
+    window.addEventListener('pagehide', saveCheckpoint);
+    return () => window.removeEventListener('pagehide', saveCheckpoint);
   }, []);
   useEffect(() => {
     const refresh = () => setInterests(loadInterests());
@@ -96,7 +88,7 @@ export default function Home() {
     if (sort === 'discount') return list.sort((a, b) => (b.discountPercent || 0) - (a.discountPercent || 0));
     if (sort === 'price-low') return list.sort((a, b) => (a.salePrice || 0) - (b.salePrice || 0));
     if (sort === 'price-high') return list.sort((a, b) => (b.salePrice || 0) - (a.salePrice || 0));
-    return list.sort((a, b) => dealTimestamp(b) - dealTimestamp(a));
+    return list.sort((a, b) => dealCreatedTimestampMs(b) - dealCreatedTimestampMs(a));
   }, [availableDeals, activeCat, searchQuery, minDiscount, priceTier, sort, interests]);
 
   const filteredPicks = useMemo(() => picks.filter((pick) => !dismissals[dealIdentity(pick.deal) || String(pick.asin || '')]), [picks, dismissals]);
@@ -111,7 +103,7 @@ export default function Home() {
   }), [visibleDeals, hasActiveFilters, dropIds, chapterIds]);
   const progressiveDeals = exploreDeals.slice(0, visibleCount);
   const hasMore = visibleCount < exploreDeals.length;
-  const newSinceLastVisit = lastVisit > 0 ? availableDeals.filter((deal) => dealTimestamp(deal) > lastVisit).length : 0;
+  const refreshedSinceLastVisit = lastVisit > 0 ? availableDeals.filter((deal) => dealFreshnessTimestampMs(deal) > lastVisit).length : 0;
 
   useEffect(() => { setVisibleCount(INITIAL_FEED_SIZE); }, [activeCat, searchQuery, minDiscount, priceTier, sort, interests, dismissals]);
   useEffect(() => {
@@ -158,7 +150,7 @@ export default function Home() {
   };
 
   return <div className="space-y-5 sm:space-y-6">
-    <section className="bg-gradient-to-b from-white to-slate-50 border-b border-slate-200/80"><div className="max-w-7xl mx-auto px-4 py-7 sm:py-10"><div className="max-w-3xl"><div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 mb-3"><ShieldCheck className="w-3.5 h-3.5" /> Prices checked regularly</div><h1 className="font-heading text-3xl sm:text-5xl font-black text-slate-950 tracking-tight leading-[1.05]">Great Amazon deals, without the clutter.</h1><p className="text-sm sm:text-base text-slate-600 mt-3 max-w-2xl">The feed quietly learns which categories you spend time with, open, and save, while still keeping deal quality first.</p>{newSinceLastVisit > 0 && <div className="inline-flex items-center gap-1.5 mt-4 text-sm font-bold text-violet-800 bg-violet-50 border border-violet-200 rounded-full px-3 py-1.5"><Sparkles className="w-4 h-4" /> {newSinceLastVisit} new {newSinceLastVisit === 1 ? 'deal' : 'deals'} since your last visit</div>}</div></div></section>
+    <section className="bg-gradient-to-b from-white to-slate-50 border-b border-slate-200/80"><div className="max-w-7xl mx-auto px-4 py-7 sm:py-10"><div className="max-w-3xl"><div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 mb-3"><ShieldCheck className="w-3.5 h-3.5" /> Prices checked regularly</div><h1 className="font-heading text-3xl sm:text-5xl font-black text-slate-950 tracking-tight leading-[1.05]">Great Amazon deals, without the clutter.</h1><p className="text-sm sm:text-base text-slate-600 mt-3 max-w-2xl">The feed quietly learns which categories you spend time with, open, and save, while still keeping deal quality first.</p>{refreshedSinceLastVisit > 0 && <div className="inline-flex items-center gap-1.5 mt-4 text-sm font-bold text-violet-800 bg-violet-50 border border-violet-200 rounded-full px-3 py-1.5"><Sparkles className="w-4 h-4" /> {refreshedSinceLastVisit} {refreshedSinceLastVisit === 1 ? 'deal' : 'deals'} refreshed since your last visit</div>}</div></div></section>
     {dropDeals.length > 0 && <section className="max-w-7xl mx-auto px-4"><div ref={dropSeenMarker} className="h-px" aria-hidden="true" /><div className="rounded-2xl sm:rounded-3xl border border-orange-200 bg-orange-50/60 p-4 sm:p-5"><div className="mb-4"><div className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-orange-700"><Flame className="w-3.5 h-3.5" /> Deal Drop</div><h2 className="font-heading text-xl sm:text-2xl font-black text-slate-900 mt-1">{dropDeals.length} {dropDeals.length === 1 ? 'deal' : 'deals'} worth seeing right now</h2><p className="text-xs sm:text-sm text-slate-600 mt-1">A quick hit of the strongest verified deals in your feed.</p></div>{feedGrid(dropDeals)}</div></section>}
     {filteredPicks.length > 0 && <section className="max-w-7xl mx-auto px-4"><div className="rounded-2xl sm:rounded-3xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5"><div className="mb-4"><div className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-emerald-700"><Star className="w-3.5 h-3.5 fill-emerald-600 text-emerald-600" /> Standout finds</div><h2 className="font-heading text-xl sm:text-2xl font-black text-slate-900 mt-1">DealScout Picks</h2></div><div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">{filteredPicks.map((pick) => <div key={pick.asin} className="flex flex-col gap-2 min-w-0"><DealCard deal={pick.deal} viewMode="grid" />{pick.editorialNote && <div className="hidden sm:block rounded-xl bg-white border border-emerald-200 px-3 py-2 text-xs text-slate-700 leading-relaxed"><span className="font-bold text-emerald-800">Why we picked it: </span>{pick.editorialNote}</div>}</div>)}</div></div></section>}
     <section className="max-w-7xl mx-auto px-4 pb-16">

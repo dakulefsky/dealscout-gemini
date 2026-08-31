@@ -57,6 +57,6 @@ test('Home reacts to dismissals immediately and keeps navigation counts based on
   assert.match(home, /filteredPicks/);
 });
 
-test('new-since-last-visit count excludes deals the shopper dismissed', () => {
-  assert.match(home, /availableDeals\.filter\(\(deal\) => dealTimestamp\(deal\) > lastVisit\)/);
+test('refreshed-since-last-visit count excludes deals the shopper dismissed', () => {
+  assert.match(home, /availableDeals\.filter\(\(deal\) => dealFreshnessTimestampMs\(deal\) > lastVisit\)/);
 });
