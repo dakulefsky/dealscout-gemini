@@ -8,7 +8,7 @@ import {
   PERSONALIZATION_WINDOW,
   EXPLORATION_EVERY,
   MAX_CATEGORY_STREAK,
-} from './personalizationCore';
+} from './personalizationCore.js';
 
 const STORAGE_KEY = 'dealscout-feed-interests-v1';
 const DECAY_KEY = 'dealscout-feed-interests-decay-v1';
