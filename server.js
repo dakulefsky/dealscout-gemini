@@ -32,6 +32,7 @@ async function startServer() {
   const db = require('./server/db.js');
   const postgres = require('./server/storage/postgres.js');
   const dealRepository = require('./server/repositories/dealRepository.js');
+  const sitemapRepository = require('./server/repositories/sitemapRepository.js');
   const userRepository = require('./server/repositories/userRepository.js');
   const categoryRepository = require('./server/repositories/categoryRepository.js');
   const bookmarkRepository = require('./server/repositories/bookmarkRepository.js');
@@ -65,8 +66,10 @@ async function startServer() {
   app.get('/robots.txt', (req, res) => res.type('text/plain').send(seo.buildRobots(seo.siteBase(req, configuredOrigin))));
   app.get('/sitemap.xml', async (req, res) => {
     try {
-      const [allDeals, categories] = await Promise.all([dealRepository.listAll(), categoryRepository.list()]);
-      const liveDeals = allDeals.filter((d) => d.status === 'APPROVED' && d.source_verified === 1 && d.is_expired !== 1);
+      const [liveDeals, categories] = await Promise.all([
+        sitemapRepository.listFreshPublicDeals({ maxAgeHours: 168 }),
+        categoryRepository.list(),
+      ]);
       res.type('application/xml').send(seo.buildSitemap({ baseUrl: seo.siteBase(req, configuredOrigin), deals: liveDeals, categories }));
     } catch (err) {
       console.warn('[DealScout] Sitemap generation failed:', err.message);
