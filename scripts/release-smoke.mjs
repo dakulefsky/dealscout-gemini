@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 function cleanBaseUrl(value) {
@@ -15,12 +18,12 @@ function cleanBaseUrl(value) {
   return parsed.toString().replace(/\/$/, '');
 }
 
-async function requestJson(baseUrl, path, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = globalThis.fetch } = {}) {
+async function requestJson(baseUrl, requestPath, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = globalThis.fetch } = {}) {
   if (typeof fetchImpl !== 'function') throw new Error('fetch is required');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
   try {
-    const response = await fetchImpl(`${baseUrl}${path}`, {
+    const response = await fetchImpl(`${baseUrl}${requestPath}`, {
       method: 'GET',
       headers: { Accept: 'application/json', 'User-Agent': 'DealScout-Release-Smoke/1' },
       signal: controller.signal,
@@ -33,11 +36,11 @@ async function requestJson(baseUrl, path, { timeoutMs = DEFAULT_TIMEOUT_MS, fetc
     }
     if (!response.ok) {
       const detail = body?.error || `HTTP ${response.status}`;
-      throw new Error(`${path} failed: ${detail}`);
+      throw new Error(`${requestPath} failed: ${detail}`);
     }
     return { response, body };
   } catch (error) {
-    if (controller.signal.aborted && error?.name === 'AbortError') throw new Error(`${path} timed out`);
+    if (controller.signal.aborted && error?.name === 'AbortError') throw new Error(`${requestPath} timed out`);
     throw error;
   } finally {
     clearTimeout(timer);
@@ -48,10 +51,10 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function assertV1Headers(response, path) {
-  assert(response.headers.get('x-dealscout-api-version') === '1', `${path} missing X-DealScout-API-Version: 1`);
+function assertV1Headers(response, requestPath) {
+  assert(response.headers.get('x-dealscout-api-version') === '1', `${requestPath} missing X-DealScout-API-Version: 1`);
   const requestId = response.headers.get('x-request-id');
-  assert(Boolean(requestId), `${path} missing X-Request-ID`);
+  assert(Boolean(requestId), `${requestPath} missing X-Request-ID`);
 }
 
 async function runReleaseSmoke(baseUrl, options = {}) {
@@ -99,7 +102,7 @@ async function main() {
   if (!result.inventoryObserved) console.log('Feed is healthy but currently contains no public inventory; detail lookup skipped.');
 }
 
-const isDirect = process.argv[1] && new URL(import.meta.url).pathname === new URL(`file://${process.argv[1]}`).pathname;
+const isDirect = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 if (isDirect) {
   main().catch((error) => {
     console.error(`Release smoke failed: ${error.message}`);
