@@ -8,7 +8,7 @@ const activityRepository = require('../repositories/activityRepository');
 const refreshStateRepository = require('../repositories/refreshStateRepository');
 const publicationQueueRepository = require('../repositories/publicationQueueRepository');
 const priceHistoryService = require('../services/priceHistoryService');
-const { assertProductionRuntime } = require('../config/runtimeRequirements');
+const { RUNTIME_ROLES, assertProductionRuntime } = require('../config/runtimeRequirements');
 
 async function ensureOperationalSchemas() {
   await Promise.all([
@@ -24,9 +24,12 @@ async function ensureOperationalSchemas() {
   await bookmarkRepository.ensureSchema();
 }
 
-async function initializeRuntime({ isProduction = process.env.NODE_ENV === 'production' } = {}) {
+async function initializeRuntime({
+  isProduction = process.env.NODE_ENV === 'production',
+  role = RUNTIME_ROLES.WEB,
+} = {}) {
   if (isProduction) {
-    assertProductionRuntime(process.env, { postgresConfigured: postgres.isConfigured() });
+    assertProductionRuntime(process.env, { postgresConfigured: postgres.isConfigured(), role });
     const database = await postgres.health();
     if (!database.healthy) throw new Error('PostgreSQL readiness check failed during production startup');
   }
