@@ -5,12 +5,13 @@ const path = require('path');
 
 const serverSource = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
 const shopperRouterSource = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'shopperApi.js'), 'utf8');
-const clientSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'api.js'), 'utf8');
+const clientCoreSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'apiCore.js'), 'utf8');
+const browserAdapterSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'api.js'), 'utf8');
 
 test('v1 is the canonical web and mobile API while legacy routes remain aliases', () => {
   assert.match(serverSource, /app\.use\('\/api\/v1', buildShopperApi\(\{ version: 1 \}\)\)/);
   assert.match(serverSource, /app\.use\('\/api', buildShopperApi\(\)\)/);
-  assert.match(clientSource, /const SHOPPER_API = '\/api\/v1'/);
+  assert.match(clientCoreSource, /const SHOPPER_API = '\/api\/v1'/);
   assert.match(shopperRouterSource, /X-DealScout-API-Version/);
   assert.match(shopperRouterSource, /apiVersion: String\(version\)/);
 });
@@ -28,13 +29,15 @@ test('deal route ordering preserves price history and verified ingest boundaries
   assert.ok(historyIndex >= 0 && guardIndex > historyIndex && dealsIndex > guardIndex);
 });
 
-test('web resource clients use v1 while internal automation endpoints stay unversioned', () => {
+test('web and mobile resource clients use v1 while internal automation endpoints stay unversioned', () => {
   for (const resource of ['auth', 'deals', 'categories', 'bookmarks']) {
-    assert.ok(clientSource.includes(`export const ${resource} =`));
+    assert.match(clientCoreSource, new RegExp(`const ${resource} =`));
+    assert.match(browserAdapterSource, new RegExp(`export const ${resource} =`));
   }
-  assert.match(clientSource, /`\$\{SHOPPER_API\}\/deals\/feed/);
-  assert.match(clientSource, /`\$\{SHOPPER_API\}\/bookmarks/);
-  assert.match(clientSource, /'\/api\/functions\/provider-status'/);
-  assert.match(clientSource, /`\/api\/editorial\/\$\{asin\}`/);
-  assert.match(clientSource, /'\/api\/ai\/analyze-deal'/);
+  assert.match(clientCoreSource, /`\$\{SHOPPER_API\}\/deals\/feed/);
+  assert.match(clientCoreSource, /`\$\{SHOPPER_API\}\/bookmarks/);
+  assert.match(clientCoreSource, /'\/api\/functions\/provider-status'/);
+  assert.match(clientCoreSource, /`\/api\/editorial\/\$\{encodeURIComponent\(asin\)\}`/);
+  assert.match(clientCoreSource, /'\/api\/ai\/analyze-deal'/);
+  assert.match(browserAdapterSource, /createDealScoutClient/);
 });
