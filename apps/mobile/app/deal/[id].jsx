@@ -5,6 +5,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { bookmarks, deals } from '../../src/api';
+import { addCategoryInterest } from '../../src/personalization';
 
 function field(deal, camel, snake) {
   return deal?.[camel] ?? deal?.[snake];
@@ -47,7 +48,9 @@ export default function DealDetailScreen() {
     setSaved(!previous);
     try {
       const result = await bookmarks.toggle(id);
-      setSaved(Boolean(result?.isSaved));
+      const nextSaved = Boolean(result?.isSaved);
+      setSaved(nextSaved);
+      if (nextSaved && deal?.category) await addCategoryInterest(deal.category, 4);
     } catch {
       setSaved(previous);
     }
@@ -56,7 +59,10 @@ export default function DealDetailScreen() {
   async function openAmazon() {
     const url = field(deal, 'productUrl', 'product_url');
     if (!url || !/^https:\/\//i.test(url)) return;
+    const supported = await Linking.canOpenURL(url);
+    if (!supported) return;
     await Linking.openURL(url);
+    if (deal?.category) await addCategoryInterest(deal.category, 3);
   }
 
   if (loading) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /></SafeAreaView>;
