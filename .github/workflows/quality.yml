@@ -18,3 +18,5 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - name: Build production container
+        run: docker build --tag dealscout-ci .
