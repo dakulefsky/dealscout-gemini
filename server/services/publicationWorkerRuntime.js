@@ -2,7 +2,10 @@ const dealQueries = require('../repositories/dealQueryRepository');
 const publication = require('./publicationService');
 const worker = require('./publicationWorker');
 const publicationMetrics = require('../repositories/publicationMetricsRepository');
+const postgres = require('../storage/postgres');
 const { CHANNEL_POLICY } = require('./distributionPolicy');
+
+const WHATSAPP_STATUS_PUBLICATION_LOCK = 620031;
 
 function sleep(ms, signal) {
   if (signal?.aborted) return Promise.resolve();
@@ -16,7 +19,7 @@ function sleep(ms, signal) {
   });
 }
 
-async function runPublicationCycle(config, adapter, dependencies = {}) {
+async function runPublicationCycleUnlocked(config, adapter, dependencies = {}) {
   const queries = dependencies.dealQueries || dealQueries;
   const publicationService = dependencies.publication || publication;
   const publicationWorker = dependencies.worker || worker;
@@ -76,6 +79,29 @@ async function runPublicationCycle(config, adapter, dependencies = {}) {
   };
 }
 
+async function runPublicationCycle(config, adapter, dependencies = {}) {
+  if (config.channel !== 'whatsapp_status') return runPublicationCycleUnlocked(config, adapter, dependencies);
+  const storage = dependencies.postgres || postgres;
+  const lock = await storage.withAdvisoryLock(
+    WHATSAPP_STATUS_PUBLICATION_LOCK,
+    () => runPublicationCycleUnlocked(config, adapter, dependencies),
+  );
+  if (lock.acquired) return lock.result;
+  return {
+    channel: config.channel,
+    candidates: 0,
+    selected: 0,
+    enqueued: 0,
+    attempts: [],
+    published: 0,
+    retriesScheduled: 0,
+    failed: 0,
+    cadenceDeferred: true,
+    coordinationDeferred: true,
+    nextPublishEligibleAt: null,
+  };
+}
+
 async function runPublicationLoop(config, adapter, { signal, onCycle, onError } = {}) {
   while (!signal?.aborted) {
     try {
@@ -89,4 +115,4 @@ async function runPublicationLoop(config, adapter, { signal, onCycle, onError } 
   }
 }
 
-module.exports = { runPublicationCycle, runPublicationLoop, sleep };
+module.exports = { WHATSAPP_STATUS_PUBLICATION_LOCK, runPublicationCycle, runPublicationCycleUnlocked, runPublicationLoop, sleep };
