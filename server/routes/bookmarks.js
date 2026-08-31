@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const users = require('../repositories/userRepository');
 const deals = require('../repositories/dealRepository');
 const bookmarks = require('../repositories/bookmarkRepository');
+const bookmarkQueries = require('../repositories/bookmarkQueryRepository');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const GUEST_ID_RE = /^guest_[a-z0-9]{9,64}$/i;
@@ -58,14 +59,13 @@ router.use(async (req, res, next) => {
 
 router.get('/', async (req, res) => {
   try {
-    const userBookmarks = await bookmarks.listBookmarks(req.clientIdentity.id);
-    const savedDeals = [];
-    for (const bookmark of userBookmarks) {
-      const deal = await deals.findByIdOrAsin(bookmark.dealId);
-      if (!publicDeal(deal)) continue;
-      savedDeals.push({ ...rowToPublicDeal(deal), savedAt: bookmark.createdAt || null, targetPrice: bookmark.targetPrice || null });
-    }
-    res.json({ deals: savedDeals, bookmarkIds: savedDeals.map((d) => d.id) });
+    const rows = await bookmarkQueries.listPublicSavedDeals(req.clientIdentity.id);
+    const savedDeals = rows.map((row) => ({
+      ...rowToPublicDeal(row),
+      savedAt: row.bookmark_created_at == null ? null : Number(row.bookmark_created_at),
+      targetPrice: row.bookmark_target_price == null ? null : Number(row.bookmark_target_price),
+    }));
+    res.json({ deals: savedDeals, bookmarkIds: savedDeals.map((deal) => deal.id) });
   } catch (err) {
     console.error('[bookmarks] list failed:', err.message);
     res.status(503).json({ error: 'Bookmark service is temporarily unavailable' });
