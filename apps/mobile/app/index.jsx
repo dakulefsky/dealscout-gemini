@@ -46,8 +46,7 @@ export default function HomeScreen() {
   const loadSaved = useCallback(async () => {
     try {
       const result = await bookmarks.list();
-      const rows = Array.isArray(result) ? result : result?.items || result?.bookmarks || [];
-      setSavedIds(new Set(rows.map((row) => String(row?.dealId || row?.deal_id || row?.deal?.id || row?.deal?.asin || '')).filter(Boolean)));
+      setSavedIds(new Set((result?.bookmarkIds || []).map(String).filter(Boolean)));
     } catch {
       setSavedIds(new Set());
     }
@@ -108,7 +107,12 @@ export default function HomeScreen() {
       return next;
     });
     try {
-      await bookmarks.toggle(id);
+      const result = await bookmarks.toggle(id);
+      setSavedIds((current) => {
+        const next = new Set(current);
+        if (result?.isSaved) next.add(id); else next.delete(id);
+        return next;
+      });
     } catch {
       setSavedIds((current) => {
         const next = new Set(current);
@@ -131,15 +135,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.searchWrap}>
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search deals"
-          placeholderTextColor="#94a3b8"
-          returnKeyType="search"
-          style={styles.search}
-          accessibilityLabel="Search deals"
-        />
+        <TextInput value={query} onChangeText={setQuery} placeholder="Search deals" placeholderTextColor="#94a3b8" returnKeyType="search" style={styles.search} accessibilityLabel="Search deals" />
       </View>
 
       {featured.length > 0 && (
@@ -147,11 +143,7 @@ export default function HomeScreen() {
           <Text style={styles.eyebrow}>DEAL DROP</Text>
           <Text style={styles.sectionTitle}>Today’s best finds</Text>
           <View style={styles.featuredGrid}>
-            {featured.map((deal) => (
-              <View key={idOf(deal)} style={styles.featuredCell}>
-                <DealCard deal={deal} saved={savedIds.has(idOf(deal))} onSave={toggleSave} />
-              </View>
-            ))}
+            {featured.map((deal) => <View key={idOf(deal)} style={styles.featuredCell}><DealCard deal={deal} saved={savedIds.has(idOf(deal))} onSave={toggleSave} /></View>)}
           </View>
         </View>
       )}
@@ -160,9 +152,7 @@ export default function HomeScreen() {
     </View>
   );
 
-  if (loading && !items.length) {
-    return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /><Text style={styles.loadingText}>Finding good deals…</Text></SafeAreaView>;
-  }
+  if (loading && !items.length) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /><Text style={styles.loadingText}>Finding good deals…</Text></SafeAreaView>;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -173,11 +163,7 @@ export default function HomeScreen() {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.content}
         ListHeaderComponent={header}
-        renderItem={({ item }) => (
-          <View style={styles.cell}>
-            <DealCard deal={item} saved={savedIds.has(idOf(item))} onSave={toggleSave} />
-          </View>
-        )}
+        renderItem={({ item }) => <View style={styles.cell}><DealCard deal={item} saved={savedIds.has(idOf(item))} onSave={toggleSave} /></View>}
         onEndReached={loadMore}
         onEndReachedThreshold={0.7}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadFirstPage({ showSpinner: false }); loadSaved(); }} />}
