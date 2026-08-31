@@ -30,9 +30,9 @@ test('Home preserves previous visit during the session and checkpoints on pagehi
   assert.doesNotMatch(home, /localStorage\.setItem\(LAST_VISIT_KEY, String\(Date\.now\(\)\)\)/);
 });
 
-test('return cue describes refreshed deals rather than falsely calling every re-check new', () => {
+test('return cue stays freshness-based without claiming every re-check is a new deal', () => {
   assert.match(home, /dealFreshnessTimestampMs\(deal\) > lastVisit/);
-  assert.match(home, /refreshed since your last visit/);
+  assert.match(home, /Freshly refreshed deals are waiting/);
   assert.doesNotMatch(home, /new .*since your last visit/);
 });
 
