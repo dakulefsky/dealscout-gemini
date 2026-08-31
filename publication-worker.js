@@ -14,6 +14,10 @@ async function startPublicationWorker() {
   const config = resolvePublicationWorkerConfig(process.env, { isProduction });
   await runtimeBootstrap.initializeRuntime({ isProduction, role: RUNTIME_ROLES.PUBLICATION_WORKER });
   const adapter = createPublicationAdapter(config);
+  if (typeof adapter.preflight === 'function') {
+    const preflight = await adapter.preflight();
+    console.log(`[DealScout publisher] transport preflight ok transport=${config.transport} status=${preflight?.status || 'ok'} session=${preflight?.session || 'n/a'}`);
+  }
   const controller = new AbortController();
   let shuttingDown = false;
 
