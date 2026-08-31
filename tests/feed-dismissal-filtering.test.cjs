@@ -45,18 +45,18 @@ test('dismissal helpers broadcast same-tab changes immediately', async () => {
 test('Home removes dismissed inventory before ranking, Deal Drop, chapters and progressive counts', () => {
   assert.match(home, /const \[dismissals, setDismissals\] = useState\(\(\) => loadDismissedDeals\(\)\)/);
   assert.match(home, /const availableDeals = useMemo\(\(\) => deals\.filter\(\(deal\) => !dismissals\[dealIdentity\(deal\)\]\)/);
-  assert.match(home, /let list = \[\.\.\.availableDeals\]/);
+  assert.match(home, /const list = \[\.\.\.availableDeals\]/);
   assert.match(home, /freshDealDrop\(visibleDeals/);
   assert.match(home, /buildFeedChapters\(visibleDeals/);
 });
 
-test('Home reacts to dismissals immediately and keeps navigation counts based on available unfiltered inventory', () => {
+test('Home reacts to dismissals immediately while server paging owns global filter scope', () => {
   assert.match(home, /addEventListener\(DISMISSALS_CHANGED_EVENT, refresh\)/);
-  assert.match(home, /All \(\{availableDeals\.length\}\)/);
-  assert.match(home, /const count = availableDeals\.filter/);
+  assert.match(home, /dealsApi\.page\(feedParams/);
   assert.match(home, /filteredPicks/);
+  assert.match(home, /availableDeals\.length} loaded/);
 });
 
-test('refreshed-since-last-visit count excludes deals the shopper dismissed', () => {
+test('refreshed-since-last-visit cue excludes loaded deals the shopper dismissed', () => {
   assert.match(home, /availableDeals\.filter\(\(deal\) => dealFreshnessTimestampMs\(deal\) > lastVisit\)/);
 });
