@@ -1,4 +1,23 @@
+const crypto = require('crypto');
+
 const buckets = new Map();
+
+function contentSecurityPolicy(nonce) {
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    `script-src 'self' 'nonce-${nonce}'`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self'",
+    "manifest-src 'self'",
+    'upgrade-insecure-requests',
+  ].join('; ');
+}
 
 function securityHeaders(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -7,6 +26,9 @@ function securityHeaders(req, res, next) {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   if (process.env.NODE_ENV === 'production') {
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.locals.cspNonce = nonce;
+    res.setHeader('Content-Security-Policy', contentSecurityPolicy(nonce));
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
   next();
@@ -38,4 +60,4 @@ function apiRateLimit({ windowMs = 15 * 60 * 1000, max = 300 } = {}) {
   };
 }
 
-module.exports = { securityHeaders, apiRateLimit };
+module.exports = { securityHeaders, apiRateLimit, contentSecurityPolicy };

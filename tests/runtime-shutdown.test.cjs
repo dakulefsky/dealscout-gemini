@@ -10,7 +10,7 @@ test('production HTML shell is read once instead of synchronously per request', 
   const reads = serverSource.match(/readFileSync\(indexPath/g) || [];
   assert.equal(reads.length, 1);
   assert.match(serverSource, /const indexTemplate = fs\.readFileSync\(indexPath, 'utf8'\)/);
-  assert.match(serverSource, /seo\.replaceMeta\(indexTemplate, meta\)/);
+  assert.match(serverSource, /seo\.replaceMeta\(indexTemplate, \{ \.\.\.meta, nonce: res\.locals\.cspNonce \}\)/);
 });
 
 test('server owns an explicit graceful shutdown path', () => {
