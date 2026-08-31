@@ -6,9 +6,10 @@ const path = require('path');
 const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
 const api = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'api.js'), 'utf8');
 
-test('Home uses the cursor feed instead of fetching a fixed catalog batch', () => {
+test('Home uses the versioned cursor feed instead of fetching a fixed catalog batch', () => {
+  assert.match(api, /const SHOPPER_API = '\/api\/v1'/);
   assert.match(api, /page: \(params = \{\}, options\) =>/);
-  assert.match(api, /\/api\/deals\/feed/);
+  assert.match(api, /`\$\{SHOPPER_API\}\/deals\/feed/);
   assert.match(home, /dealsApi\.page\(feedParams/);
   assert.doesNotMatch(home, /dealsApi\.list\(\{ status: 'APPROVED', limit: 100 \}\)/);
 });
