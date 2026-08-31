@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const deals = require('../repositories/dealRepository');
 const dealQueries = require('../repositories/dealQueryRepository');
+const dealFeed = require('../repositories/dealFeedRepository');
 const categories = require('../repositories/categoryRepository');
 const { optionalAuth, requireAdmin } = require('../middleware/auth');
 
@@ -73,6 +74,17 @@ router.get('/stats', optionalAuth, async (req, res) => {
   } catch (err) {
     console.error('[deals] stats failed:', err.message);
     res.status(503).json({ error: 'Deal statistics are temporarily unavailable' });
+  }
+});
+
+router.get('/feed', async (req, res) => {
+  try {
+    const result = await dealFeed.page(req.query);
+    res.json({ items: result.items.map((deal) => rowToDeal(deal)), nextCursor: result.nextCursor });
+  } catch (err) {
+    if (err.message === 'Invalid cursor') return res.status(400).json({ error: 'Invalid feed cursor' });
+    console.error('[deals] feed failed:', err.message);
+    return res.status(503).json({ error: 'Deal feed is temporarily unavailable' });
   }
 });
 
