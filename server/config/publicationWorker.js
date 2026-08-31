@@ -13,38 +13,34 @@ function boundedInteger(value, fallback, { min, max, name }) {
   return parsed;
 }
 
+function parseHttpUrl(value, name, { isProduction, allowLocalHttp = false } = {}) {
+  let parsed;
+  try { parsed = new URL(clean(value)); }
+  catch { throw new Error(`${name} must be a valid absolute URL`); }
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error(`${name} must use http or https`);
+  const local = ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+  if (isProduction && parsed.protocol !== 'https:' && !(allowLocalHttp && local)) {
+    throw new Error(`${name} must use https in production`);
+  }
+  return parsed.toString();
+}
+
 function resolvePublicationWorkerConfig(env = process.env, { isProduction = env.NODE_ENV === 'production' } = {}) {
   const channel = clean(env.PUBLICATION_CHANNEL).toLowerCase();
   if (!CHANNEL_POLICY[channel]) throw new Error('PUBLICATION_CHANNEL must be one of: web, app, whatsapp_status');
 
   const transport = clean(env.PUBLICATION_TRANSPORT).toLowerCase();
-  if (transport !== 'webhook') throw new Error('PUBLICATION_TRANSPORT must be webhook');
+  if (!['webhook', 'waha'].includes(transport)) throw new Error('PUBLICATION_TRANSPORT must be webhook or waha');
+  if (transport === 'waha' && channel !== 'whatsapp_status') throw new Error('PUBLICATION_TRANSPORT=waha only supports PUBLICATION_CHANNEL=whatsapp_status');
 
   const runMode = (clean(env.PUBLICATION_RUN_MODE) || 'continuous').toLowerCase();
   if (!['continuous', 'once'].includes(runMode)) throw new Error('PUBLICATION_RUN_MODE must be continuous or once');
 
-  const webhookUrl = clean(env.PUBLICATION_WEBHOOK_URL);
-  let parsedWebhook;
-  try {
-    parsedWebhook = new URL(webhookUrl);
-  } catch {
-    throw new Error('PUBLICATION_WEBHOOK_URL must be a valid absolute URL');
-  }
-  if (!['http:', 'https:'].includes(parsedWebhook.protocol)) throw new Error('PUBLICATION_WEBHOOK_URL must use http or https');
-  if (isProduction && parsedWebhook.protocol !== 'https:') throw new Error('PUBLICATION_WEBHOOK_URL must use https in production');
-
-  const webhookToken = clean(env.PUBLICATION_WEBHOOK_TOKEN);
-  if (isProduction && webhookToken.length < 16) {
-    throw new Error('PUBLICATION_WEBHOOK_TOKEN must contain at least 16 characters in production');
-  }
-
   const isWhatsAppStatus = channel === 'whatsapp_status';
-  return {
+  const config = {
     channel,
     transport,
     runMode,
-    webhookUrl: parsedWebhook.toString(),
-    webhookToken,
     pollMs: boundedInteger(env.PUBLICATION_POLL_MS, isWhatsAppStatus ? 30 * 60_000 : 30_000, {
       min: 1_000,
       max: isWhatsAppStatus ? 6 * 60 * 60_000 : 300_000,
@@ -58,8 +54,25 @@ function resolvePublicationWorkerConfig(env = process.env, { isProduction = env.
     queueBatch: boundedInteger(env.PUBLICATION_QUEUE_BATCH, isWhatsAppStatus ? 2 : 5, { min: 1, max: 50, name: 'PUBLICATION_QUEUE_BATCH' }),
     candidateLimit: boundedInteger(env.PUBLICATION_CANDIDATE_LIMIT, 100, { min: 10, max: 100, name: 'PUBLICATION_CANDIDATE_LIMIT' }),
     maxPublishesPerCycle: boundedInteger(env.PUBLICATION_MAX_PER_CYCLE, isWhatsAppStatus ? 1 : 5, { min: 1, max: 50, name: 'PUBLICATION_MAX_PER_CYCLE' }),
-    webhookTimeoutMs: boundedInteger(env.PUBLICATION_WEBHOOK_TIMEOUT_MS, 15_000, { min: 1_000, max: 60_000, name: 'PUBLICATION_WEBHOOK_TIMEOUT_MS' }),
   };
+
+  if (transport === 'webhook') {
+    config.webhookUrl = parseHttpUrl(env.PUBLICATION_WEBHOOK_URL, 'PUBLICATION_WEBHOOK_URL', { isProduction });
+    config.webhookToken = clean(env.PUBLICATION_WEBHOOK_TOKEN);
+    if (isProduction && config.webhookToken.length < 16) {
+      throw new Error('PUBLICATION_WEBHOOK_TOKEN must contain at least 16 characters in production');
+    }
+    config.webhookTimeoutMs = boundedInteger(env.PUBLICATION_WEBHOOK_TIMEOUT_MS, 15_000, { min: 1_000, max: 60_000, name: 'PUBLICATION_WEBHOOK_TIMEOUT_MS' });
+    return config;
+  }
+
+  config.wahaBaseUrl = parseHttpUrl(env.WAHA_BASE_URL, 'WAHA_BASE_URL', { isProduction, allowLocalHttp: false });
+  config.wahaApiKey = clean(env.WAHA_API_KEY);
+  if (isProduction && config.wahaApiKey.length < 16) throw new Error('WAHA_API_KEY must contain at least 16 characters in production');
+  config.wahaSession = clean(env.WAHA_SESSION);
+  if (!/^[A-Za-z0-9._-]{1,64}$/.test(config.wahaSession)) throw new Error('WAHA_SESSION must contain 1-64 safe session-name characters');
+  config.wahaTimeoutMs = boundedInteger(env.WAHA_TIMEOUT_MS, 20_000, { min: 1_000, max: 60_000, name: 'WAHA_TIMEOUT_MS' });
+  return config;
 }
 
-module.exports = { resolvePublicationWorkerConfig, boundedInteger };
+module.exports = { resolvePublicationWorkerConfig, boundedInteger, parseHttpUrl };
