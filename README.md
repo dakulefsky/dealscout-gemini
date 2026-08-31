@@ -17,10 +17,10 @@ The production server serves the built frontend and API from the same Node proce
 
 ## Requirements
 
-Use Node.js 24 to match the repository Quality workflow. Install dependencies from the repository root:
+Use Node.js 24 to match the repository Quality workflow. Install dependencies from the committed npm lockfile at the repository root:
 
 ```bash
-npm install
+npm ci
 ```
 
 ## Local development
@@ -42,19 +42,21 @@ npm test
 npm run build
 ```
 
-GitHub's **Quality** workflow runs install, lint, tests, and build on pull requests.
+GitHub's **Quality** workflow runs locked install, lint, tests, and build on pull requests.
 
 ## Production deployment
 
 Build first, then start the Node server:
 
 ```bash
-npm install --no-audit --no-fund
+npm ci --no-audit --no-fund
 npm run build
 NODE_ENV=production npm start
 ```
 
 Production requires a `JWT_SECRET` of at least 32 characters. Set `FRONTEND_URL` to the public site origin so CORS, canonical URLs, sitemap URLs, and password-reset links use the correct host.
+
+`TRUST_PROXY` controls how many reverse-proxy hops Express trusts when deriving `req.ip`, which is also the key for the baseline API rate limiter. Production defaults to one hop for backward compatibility. Set it to `0`/`off` when the Node process is directly exposed, or to the exact integer hop count (1-5) for the deployment topology. DealScout intentionally does not accept a trust-all boolean.
 
 ### Core environment variables
 
@@ -63,6 +65,7 @@ Production requires a `JWT_SECRET` of at least 32 characters. Set `FRONTEND_URL`
 | `NODE_ENV` | Use `production` in production. |
 | `PORT` | HTTP port; defaults to `3000`. |
 | `FRONTEND_URL` | Public origin, e.g. `https://example.com`. |
+| `TRUST_PROXY` | Trusted reverse-proxy hop count (`0`-`5`); production defaults to `1`. |
 | `JWT_SECRET` | JWT signing secret; minimum 32 characters in production. |
 | `DATABASE_URL` | PostgreSQL connection string. Strongly recommended for production. |
 | `PGSSL` | Set to `disable` only when the database explicitly does not use SSL. |
