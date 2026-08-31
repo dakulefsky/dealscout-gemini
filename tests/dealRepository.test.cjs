@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 const deals = require('../server/repositories/dealRepository');
+
+const repositorySource = fs.readFileSync(path.join(__dirname, '..', 'server', 'repositories', 'dealRepository.js'), 'utf8');
 
 function withEnv(values, fn) {
   const previous = {};
@@ -42,6 +46,28 @@ test('verified production deals preserve approval', () => {
     assert.equal(result.source_sufficient, 1);
     assert.equal(result.status, 'APPROVED');
   });
+});
+
+test('canonical identity accepts raw ASINs and common Amazon URLs', () => {
+  assert.equal(deals.canonicalIdentity('b000000003'), 'B000000003');
+  assert.equal(deals.canonicalIdentity('https://www.amazon.com/dp/B000000004/ref=something'), 'B000000004');
+  assert.equal(deals.canonicalIdentity('https://amazon.com/gp/product/b000000005?tag=x'), 'B000000005');
+});
+
+test('valid ASIN becomes both repository id and asin', () => {
+  const normalized = deals.normalizeRecord({
+    id: 'legacy-row-id',
+    asin: 'https://www.amazon.com/dp/B000000006/ref=abc',
+    title: 'Canonical',
+  });
+  assert.equal(normalized.asin, 'B000000006');
+  assert.equal(normalized.id, 'B000000006');
+});
+
+test('PostgreSQL upsert converges conflicts on ASIN and canonicalizes the primary id', () => {
+  assert.match(repositorySource, /ON CONFLICT \(asin\) DO UPDATE SET/);
+  assert.match(repositorySource, /id=EXCLUDED\.id/);
+  assert.doesNotMatch(repositorySource, /ON CONFLICT \(id\) DO UPDATE SET/);
 });
 
 test('production bootstrap never imports legacy seed, even if demo flag is set', () => {
