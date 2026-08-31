@@ -1,3 +1,5 @@
+const { resolvePublicWebUrl, resolveCorsOrigins } = require('./publicSurface');
+
 function clean(value) {
   return String(value ?? '').trim();
 }
@@ -9,14 +11,16 @@ function validateProductionRuntime(env = process.env, { postgresConfigured = fal
   if (!clean(env.AMAZON_ASSOCIATE_TAG)) errors.push('AMAZON_ASSOCIATE_TAG must be configured');
   if (!postgresConfigured) errors.push('PostgreSQL must be configured for production shared state');
 
-  const frontendUrl = clean(env.FRONTEND_URL);
-  if (frontendUrl) {
-    try {
-      const parsed = new URL(frontendUrl);
-      if (parsed.protocol !== 'https:') errors.push('FRONTEND_URL must use https in production');
-    } catch {
-      errors.push('FRONTEND_URL must be a valid absolute URL');
-    }
+  try {
+    resolvePublicWebUrl(env, { isProduction: true });
+  } catch (error) {
+    errors.push(`PUBLIC_WEB_URL/FRONTEND_URL is invalid: ${error.message}`);
+  }
+
+  try {
+    resolveCorsOrigins(env, { isProduction: true });
+  } catch (error) {
+    errors.push(`CORS_ORIGINS is invalid: ${error.message}`);
   }
 
   const port = Number(env.PORT || 3000);
