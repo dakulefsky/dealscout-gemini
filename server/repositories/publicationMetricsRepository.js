@@ -29,6 +29,29 @@ function fallbackHealth(now) {
   return { total: jobs.length, counts, overdue, retryWaiting, oldestQueuedAt, lastPublishedAt };
 }
 
+async function latestPublishedAt(channel) {
+  const key = String(channel || '').trim();
+  if (!key) return null;
+  if (!postgres.isConfigured()) {
+    let latest = null;
+    for (const raw of db.tables.publication_jobs || []) {
+      const job = queue.normalizeJob ? queue.normalizeJob(raw) : raw;
+      if (job.channel !== key || job.state !== 'published' || !job.published_at) continue;
+      const timestamp = Number(job.published_at);
+      if (Number.isFinite(timestamp) && (latest === null || timestamp > latest)) latest = timestamp;
+    }
+    return latest;
+  }
+  await queue.ensureSchema();
+  const result = await postgres.query(`
+    SELECT MAX(published_at) AS last_published_at
+      FROM publication_jobs
+     WHERE channel = $1 AND state = 'published'
+  `, [key]);
+  const value = result.rows[0]?.last_published_at;
+  return value == null ? null : Number(value);
+}
+
 async function health(options = {}) {
   const now = asUnix(options.nowUnix);
   if (!postgres.isConfigured()) return fallbackHealth(now);
@@ -65,4 +88,4 @@ async function health(options = {}) {
   };
 }
 
-module.exports = { health, fallbackHealth };
+module.exports = { health, fallbackHealth, latestPublishedAt };

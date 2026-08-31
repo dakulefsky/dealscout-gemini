@@ -38,16 +38,26 @@ function resolvePublicationWorkerConfig(env = process.env, { isProduction = env.
     throw new Error('PUBLICATION_WEBHOOK_TOKEN must contain at least 16 characters in production');
   }
 
+  const isWhatsAppStatus = channel === 'whatsapp_status';
   return {
     channel,
     transport,
     runMode,
     webhookUrl: parsedWebhook.toString(),
     webhookToken,
-    pollMs: boundedInteger(env.PUBLICATION_POLL_MS, 30_000, { min: 1_000, max: 300_000, name: 'PUBLICATION_POLL_MS' }),
-    queueBatch: boundedInteger(env.PUBLICATION_QUEUE_BATCH, 5, { min: 1, max: 50, name: 'PUBLICATION_QUEUE_BATCH' }),
+    pollMs: boundedInteger(env.PUBLICATION_POLL_MS, isWhatsAppStatus ? 30 * 60_000 : 30_000, {
+      min: 1_000,
+      max: isWhatsAppStatus ? 6 * 60 * 60_000 : 300_000,
+      name: 'PUBLICATION_POLL_MS',
+    }),
+    minPublishSpacingSeconds: boundedInteger(env.PUBLICATION_MIN_SPACING_SECONDS, isWhatsAppStatus ? 30 * 60 : 0, {
+      min: isWhatsAppStatus ? 5 * 60 : 0,
+      max: isWhatsAppStatus ? 6 * 60 * 60 : 24 * 60 * 60,
+      name: 'PUBLICATION_MIN_SPACING_SECONDS',
+    }),
+    queueBatch: boundedInteger(env.PUBLICATION_QUEUE_BATCH, isWhatsAppStatus ? 2 : 5, { min: 1, max: 50, name: 'PUBLICATION_QUEUE_BATCH' }),
     candidateLimit: boundedInteger(env.PUBLICATION_CANDIDATE_LIMIT, 100, { min: 10, max: 100, name: 'PUBLICATION_CANDIDATE_LIMIT' }),
-    maxPublishesPerCycle: boundedInteger(env.PUBLICATION_MAX_PER_CYCLE, 5, { min: 1, max: 50, name: 'PUBLICATION_MAX_PER_CYCLE' }),
+    maxPublishesPerCycle: boundedInteger(env.PUBLICATION_MAX_PER_CYCLE, isWhatsAppStatus ? 1 : 5, { min: 1, max: 50, name: 'PUBLICATION_MAX_PER_CYCLE' }),
     webhookTimeoutMs: boundedInteger(env.PUBLICATION_WEBHOOK_TIMEOUT_MS, 15_000, { min: 1_000, max: 60_000, name: 'PUBLICATION_WEBHOOK_TIMEOUT_MS' }),
   };
 }
