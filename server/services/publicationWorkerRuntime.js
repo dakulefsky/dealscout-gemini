@@ -58,8 +58,10 @@ async function runPublicationCycleUnlocked(config, adapter, dependencies = {}) {
     };
   }
 
+  const configuredAttempts = Math.max(1, Number(config.maxPublishesPerCycle) || 1);
+  const maxAttempts = config.channel === 'whatsapp_status' ? 1 : configuredAttempts;
   const attempts = [];
-  for (let index = 0; index < config.maxPublishesPerCycle; index += 1) {
+  for (let index = 0; index < maxAttempts; index += 1) {
     const result = await publicationWorker.runPublicationOnce(config.channel, adapter);
     attempts.push(result);
     if (result.status === 'idle') break;
