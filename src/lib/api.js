@@ -182,6 +182,7 @@ export const functions = {
   verifyPrices:      (limit = 15) => api.post('/api/functions/verify-prices', { limit }),
   imageHealth:       () => api.get('/api/functions/image-health'),
   integrityHealth:   () => api.get('/api/functions/integrity-health'),
+  publicationHealth: () => api.get('/api/functions/publication-health'),
   legacyEnrichmentPreview: () => api.get('/api/functions/legacy-enrichment-cleanup'),
   cleanupLegacyEnrichment: () => api.post('/api/functions/legacy-enrichment-cleanup'),
   adminActivity:     (limit = 12) => api.get(`/api/functions/admin-activity?limit=${encodeURIComponent(limit)}`),

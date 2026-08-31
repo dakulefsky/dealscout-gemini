@@ -91,6 +91,7 @@ async function startServer() {
   app.use('/api/functions', require('./server/middleware/integrityHealthEndpoint.js').integrityHealthEndpoint);
   app.use('/api/functions', require('./server/middleware/legacyEnrichmentCleanupEndpoint.js').legacyEnrichmentCleanupEndpoint);
   app.use('/api/functions', require('./server/middleware/adminActivityEndpoint.js').adminActivityEndpoint);
+  app.use('/api/functions', require('./server/middleware/publicationHealthEndpoint.js').publicationHealthEndpoint);
   app.use('/api/functions', require('./server/routes/functions.js'));
   app.use('/api/ai', require('./server/routes/ai.js'));
   app.use('/api/bookmarks', require('./server/routes/bookmarks.js'));
@@ -181,8 +182,11 @@ async function startServer() {
     }
   }
 
-  process.once('SIGTERM', () => { shutdown('SIGTERM'); });
-  process.once('SIGINT', () => { shutdown('SIGINT'); });
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
 
-startServer().catch((err) => { console.error('[DealScout] Failed to start server:', err); process.exit(1); });
+startServer().catch((err) => {
+  console.error('[DealScout] Fatal startup error:', err);
+  process.exit(1);
+});
