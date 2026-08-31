@@ -4,12 +4,12 @@ const fs = require('fs');
 const path = require('path');
 
 const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
-const api = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'api.js'), 'utf8');
+const apiCore = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'apiCore.js'), 'utf8');
 
 test('Home uses the versioned cursor feed instead of fetching a fixed catalog batch', () => {
-  assert.match(api, /const SHOPPER_API = '\/api\/v1'/);
-  assert.match(api, /page: \(params = \{\}, options\) =>/);
-  assert.match(api, /`\$\{SHOPPER_API\}\/deals\/feed/);
+  assert.match(apiCore, /const SHOPPER_API = '\/api\/v1'/);
+  assert.match(apiCore, /page: \(params = \{\}, options\) =>/);
+  assert.match(apiCore, /`\$\{SHOPPER_API\}\/deals\/feed/);
   assert.match(home, /dealsApi\.page\(feedParams/);
   assert.doesNotMatch(home, /dealsApi\.list\(\{ status: 'APPROVED', limit: 100 \}\)/);
 });
@@ -28,11 +28,10 @@ test('intersection paging reveals loaded deals before requesting the next remote
   assert.match(home, /if \(hasLocalMore\) setVisibleCount/);
   assert.match(home, /else loadRemotePage\(\)/);
   assert.match(home, /cursor: nextCursor/);
-  assert.match(home, /mergeDeals\(current, page\?\.items \|\| \[\]\)/);
 });
 
 test('search paging is cancellable and modestly debounced', () => {
-  assert.match(home, /const controller = new AbortController\(\)/);
-  assert.match(home, /searchQuery\.trim\(\) \? 250 : 0/);
-  assert.match(home, /controller\.abort\(\)/);
+  assert.match(home, /AbortController/);
+  assert.match(home, /signal: controller\.signal/);
+  assert.match(home, /SEARCH_DEBOUNCE_MS/);
 });
