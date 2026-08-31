@@ -5,6 +5,7 @@ const path = require('path');
 
 const dealsRoute = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'deals.js'), 'utf8');
 const dealQueries = fs.readFileSync(path.join(__dirname, '..', 'server', 'repositories', 'dealQueryRepository.js'), 'utf8');
+const dealFeed = fs.readFileSync(path.join(__dirname, '..', 'server', 'repositories', 'dealFeedRepository.js'), 'utf8');
 const functionsRoute = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'functions.js'), 'utf8');
 const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
 
@@ -32,10 +33,15 @@ test('public search and sorting do not use legacy ratings or enrichment', () => 
   assert.match(dealQueries, /if \(isAdmin && opts\.minRating !== null\)/);
   assert.match(dealQueries, /if \(isAdmin && sort === 'rating_desc'\)/);
   assert.doesNotMatch(dealQueries, /const searchable =[^;]*rating|const searchable =[^;]*reviews/);
+
+  // Home search now pages through the public feed, so the feed repository owns
+  // the shopper search truth boundary. Keep it limited to title/ASIN/category.
+  assert.match(home, /q: searchQuery\.trim\(\)/);
+  assert.match(dealFeed, /COALESCE\(title, ''\) ILIKE/);
+  assert.match(dealFeed, /COALESCE\(asin, ''\) ILIKE/);
+  assert.match(dealFeed, /COALESCE\(category, ''\) ILIKE/);
+  assert.doesNotMatch(dealFeed, /short_bio[^\n]*ILIKE|full_summary[^\n]*ILIKE|rating[^\n]*ILIKE|reviews[^\n]*ILIKE/);
   assert.doesNotMatch(home, /d\.shortBio|d\.short_bio|d\.fullSummary|d\.full_summary/);
-  assert.match(home, /d\.title\?\.toLowerCase\(\)\.includes\(term\)/);
-  assert.match(home, /d\.category\?\.toLowerCase\(\)\.includes\(term\)/);
-  assert.match(home, /d\.asin\?\.toLowerCase\(\)\.includes\(term\)/);
 });
 
 test('dead review sync routes and review imports are removed', () => {
