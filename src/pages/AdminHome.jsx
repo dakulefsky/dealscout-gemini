@@ -21,6 +21,7 @@ function activityLabel(action = '') {
 }
 
 function relativeTime(unix) {
+  if (!unix) return 'never';
   const seconds = Math.max(0, Math.floor(Date.now() / 1000) - Number(unix || 0));
   if (seconds < 60) return 'just now';
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
@@ -36,6 +37,7 @@ export default function AdminHome() {
   const [stats, setStats] = useState({});
   const [provider, setProvider] = useState({});
   const [integrity, setIntegrity] = useState({});
+  const [publication, setPublication] = useState({});
   const [legacyCleanup, setLegacyCleanup] = useState({});
   const [recentActivity, setRecentActivity] = useState([]);
   const [loadFailures, setLoadFailures] = useState([]);
@@ -47,6 +49,7 @@ export default function AdminHome() {
       ['deal stats', dealsApi.getStats()],
       ['provider status', functions.providerStatus()],
       ['integrity health', functions.integrityHealth()],
+      ['publication health', functions.publicationHealth()],
       ['legacy cleanup preview', functions.legacyEnrichmentPreview()],
       ['admin activity', functions.adminActivity(8)],
     ];
@@ -57,8 +60,9 @@ export default function AdminHome() {
       setStats(value(0));
       setProvider(value(1));
       setIntegrity(value(2));
-      setLegacyCleanup(value(3));
-      setRecentActivity(value(4, EMPTY_ACTIVITY)?.activity || []);
+      setPublication(value(3));
+      setLegacyCleanup(value(4));
+      setRecentActivity(value(5, EMPTY_ACTIVITY)?.activity || []);
       setLoadFailures(results.flatMap((result, index) => result.status === 'rejected' ? [requests[index][0]] : []));
     } finally {
       setLoading(false);
@@ -84,6 +88,9 @@ export default function AdminHome() {
 
   const lifecycle = stats.lifecycle || {};
   const integrityIssues = Number(integrity.unverifiedApproved || 0) + Number(integrity.missingImages || 0) + Number(integrity.stalePrices || 0);
+  const publicationUnavailable = loadFailures.includes('publication health');
+  const publicationCounts = publication.counts || {};
+  const publicationIssues = Number(publication.overdue || 0) + Number(publicationCounts.failed || 0);
   const cleanupCandidates = Number(legacyCleanup.candidates || 0);
   const effectiveProvider = provider.effectiveProvider || provider.configuredProvider || 'none';
 
@@ -101,11 +108,12 @@ export default function AdminHome() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <Stat label="Live deals" value={stats.approvedCount ?? lifecycle.activeCount} />
         <Stat label="Needs review" value={stats.pendingCount} />
         <Stat label="Ended" value={lifecycle.expiredCount} />
         <Stat label="Integrity issues" value={loadFailures.includes('integrity health') ? null : integrityIssues} hint={loadFailures.includes('integrity health') ? 'Health check unavailable' : integrityIssues ? 'Needs attention' : 'Core checks clean'} />
+        <Stat label="Publishing issues" value={publicationUnavailable ? null : publicationIssues} hint={publicationUnavailable ? 'Automation health unavailable' : publicationIssues ? 'Failed or overdue jobs' : 'Queue healthy'} />
         <Stat label="Average discount" value={stats.avgDiscount != null ? `${Number(stats.avgDiscount).toFixed(0)}%` : null} />
       </div>
 
@@ -126,6 +134,18 @@ export default function AdminHome() {
           </div>
         </div>
       </div>
+
+      <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6">
+        <div className="flex items-center justify-between gap-4 mb-4"><div className="flex items-center gap-2"><Activity className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">Publication automation</h2></div>{!publicationUnavailable && <span className={`text-xs font-bold ${publicationIssues ? 'text-amber-700' : 'text-emerald-700'}`}>{publicationIssues ? 'Needs attention' : 'Healthy'}</span>}</div>
+        {publicationUnavailable ? <p className="text-sm text-slate-500">Publication queue health is unavailable right now.</p> : (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <Stat label="Queued" value={publicationCounts.queued || 0} hint={publication.retryWaiting ? `${publication.retryWaiting} waiting to retry` : 'Ready or scheduled'} />
+            <Stat label="Overdue" value={publication.overdue || 0} hint={publication.oldestQueuedAt ? `Oldest ${relativeTime(publication.oldestQueuedAt)}` : 'No overdue backlog'} />
+            <Stat label="Failed" value={publicationCounts.failed || 0} hint="Terminal failures" />
+            <Stat label="Published" value={publicationCounts.published || 0} hint={`Last success ${relativeTime(publication.lastPublishedAt)}`} />
+          </div>
+        )}
+      </section>
 
       <section className="bg-white border border-slate-200 rounded-3xl p-6">
         <div className="flex items-center gap-2 mb-4"><ShieldCheck className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">Actions</h2></div>
