@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "DealScout",
+    "slug": "dealscout",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "dealscout",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dealscout.app"
+    },
+    "android": {
+      "package": "com.dealscout.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
