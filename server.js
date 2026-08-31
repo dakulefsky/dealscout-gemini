@@ -41,6 +41,7 @@ async function startServer() {
   const seo = require('./server/services/seoService.js');
   const dealCron = require('./server/services/cronService.js');
   const imageRepair = require('./server/services/imageRepairService.js');
+  const { resolveTrustProxy } = require('./server/config/trustProxy.js');
   if (isProduction) hardenJsonUsers(db);
 
   await Promise.all([
@@ -51,7 +52,8 @@ async function startServer() {
   if (isProduction) await dealRepository.hardenProduction();
 
   app.disable('x-powered-by');
-  if (isProduction) app.set('trust proxy', 1);
+  const trustProxy = resolveTrustProxy(process.env.TRUST_PROXY, { isProduction });
+  if (trustProxy !== false) app.set('trust proxy', trustProxy);
   const { securityHeaders, apiRateLimit } = require('./server/middleware/securityBaseline.js');
   app.use(securityHeaders);
   app.use(cors({ origin: isProduction ? (configuredOrigin || false) : true, credentials: true }));
