@@ -25,6 +25,6 @@ test('home exposes Deal Drop freshness and avoids immediate Explore duplicates',
 test('home creates a local freshness return loop and a finite caught-up state', () => {
   assert.match(returnLoop, /dealscout-feed-last-visit-v1/);
   assert.match(home, /refreshedSinceLastVisit/);
-  assert.match(home, /refreshed since your last visit/);
+  assert.match(home, /Freshly refreshed deals are waiting/);
   assert.match(home, /You’ve seen today’s best deals/);
 });
