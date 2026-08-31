@@ -20,6 +20,9 @@ function resolvePublicationWorkerConfig(env = process.env, { isProduction = env.
   const transport = clean(env.PUBLICATION_TRANSPORT).toLowerCase();
   if (transport !== 'webhook') throw new Error('PUBLICATION_TRANSPORT must be webhook');
 
+  const runMode = (clean(env.PUBLICATION_RUN_MODE) || 'continuous').toLowerCase();
+  if (!['continuous', 'once'].includes(runMode)) throw new Error('PUBLICATION_RUN_MODE must be continuous or once');
+
   const webhookUrl = clean(env.PUBLICATION_WEBHOOK_URL);
   let parsedWebhook;
   try {
@@ -38,6 +41,7 @@ function resolvePublicationWorkerConfig(env = process.env, { isProduction = env.
   return {
     channel,
     transport,
+    runMode,
     webhookUrl: parsedWebhook.toString(),
     webhookToken,
     pollMs: boundedInteger(env.PUBLICATION_POLL_MS, 30_000, { min: 1_000, max: 300_000, name: 'PUBLICATION_POLL_MS' }),
