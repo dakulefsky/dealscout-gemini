@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DealCard from '../src/components/DealCard';
 import { bookmarks, categories as categoriesApi, deals } from '../src/api';
-import { addCategoryInterest, loadInterests, resetInterests } from '../src/personalization';
+import { addCategoryInterest, loadInterests, reduceCategoryInterest, resetInterests } from '../src/personalization';
+import { checkpointVisit, dealFreshnessTimestampMs, dismissDeal, loadDismissedIds, loadPreviousVisit } from '../src/engagement';
 import { rankDeals } from '../../../src/lib/dealRanking';
-import { personalizedRank } from '../../../src/lib/personalizationCore';
+import { dwellWeight, personalizedRank } from '../../../src/lib/personalizationCore';
 
 const PAGE_SIZE = 24;
 const SEARCH_DEBOUNCE_MS = 250;
@@ -78,6 +79,8 @@ export default function HomeScreen() {
   const [categories, setCategories] = useState([]);
   const [interests, setInterests] = useState({});
   const [savedIds, setSavedIds] = useState(new Set());
+  const [dismissedIds, setDismissedIds] = useState(new Set());
+  const [previousVisit, setPreviousVisit] = useState(0);
   const [nextCursor, setNextCursor] = useState(null);
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -89,6 +92,9 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const requestRef = useRef(null);
+  const viewedAtRef = useRef(new Map());
+  const dwellRecordedRef = useRef(new Set());
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 65 }).current;
 
   const selectedPriceTier = useMemo(() => PRICE_TIERS.find((tier) => tier.value === priceTier) || PRICE_TIERS[0], [priceTier]);
   const feedParams = useMemo(() => ({
@@ -103,10 +109,14 @@ export default function HomeScreen() {
 
   const hasActiveFilters = activeCategory !== 'all' || query.trim() !== '' || minDiscount > 0 || priceTier !== 'all' || sort !== 'best';
   const rankedItems = useMemo(() => sort === 'best' ? personalizedRank(rankDeals(items), interests) : items, [interests, items, sort]);
-  const featured = useMemo(() => hasActiveFilters ? [] : balancedFeatured(rankedItems, 4), [hasActiveFilters, rankedItems]);
+  const visibleRankedItems = useMemo(() => rankedItems.filter((deal) => !dismissedIds.has(idOf(deal))), [dismissedIds, rankedItems]);
+  const featured = useMemo(() => hasActiveFilters ? [] : balancedFeatured(visibleRankedItems, 4), [hasActiveFilters, visibleRankedItems]);
   const featuredIds = useMemo(() => new Set(featured.map(idOf)), [featured]);
-  const feedItems = useMemo(() => rankedItems.filter((deal) => !featuredIds.has(idOf(deal))), [rankedItems, featuredIds]);
+  const feedItems = useMemo(() => visibleRankedItems.filter((deal) => !featuredIds.has(idOf(deal))), [visibleRankedItems, featuredIds]);
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
+  const refreshedSinceLastVisit = useMemo(() => previousVisit > 0
+    ? visibleRankedItems.filter((deal) => dealFreshnessTimestampMs(deal) > previousVisit).length
+    : 0, [previousVisit, visibleRankedItems]);
 
   const loadSaved = useCallback(async () => {
     try {
@@ -127,7 +137,19 @@ export default function HomeScreen() {
       .catch(() => setCategories([]));
     loadPersonalization();
     loadSaved();
+    loadDismissedIds().then(setDismissedIds).catch(() => setDismissedIds(new Set()));
+    loadPreviousVisit().then(setPreviousVisit).catch(() => setPreviousVisit(0));
   }, [loadPersonalization, loadSaved]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') checkpointVisit().catch(() => {});
+    });
+    return () => {
+      subscription.remove();
+      checkpointVisit().catch(() => {});
+    };
+  }, []);
 
   const loadFirstPage = useCallback(async ({ showSpinner = true } = {}) => {
     requestRef.current?.abort();
@@ -140,6 +162,8 @@ export default function HomeScreen() {
       if (controller.signal.aborted) return;
       setItems(page?.items || []);
       setNextCursor(page?.nextCursor || null);
+      viewedAtRef.current.clear();
+      dwellRecordedRef.current.clear();
     } catch (err) {
       if (err?.name !== 'AbortError') setError(err?.message || 'Could not load deals');
     } finally {
@@ -198,6 +222,44 @@ export default function HomeScreen() {
     }
   }, [savedIds]);
 
+  const openDeal = useCallback(async (deal) => {
+    if (!deal?.category) return;
+    try { setInterests(await addCategoryInterest(deal.category, 2)); } catch { /* personalization is optional */ }
+  }, []);
+
+  const dismiss = useCallback(async (deal) => {
+    const id = idOf(deal);
+    if (!id) return;
+    setDismissedIds((current) => new Set([...current, id]));
+    try {
+      const [nextDismissed, nextInterests] = await Promise.all([
+        dismissDeal(id),
+        deal?.category ? reduceCategoryInterest(deal.category, 3) : Promise.resolve(interests),
+      ]);
+      setDismissedIds(nextDismissed);
+      setInterests(nextInterests);
+    } catch { /* exact deal remains hidden for this session */ }
+  }, [interests]);
+
+  const onViewableItemsChanged = useRef(({ changed }) => {
+    for (const token of changed || []) {
+      const deal = token.item;
+      const id = idOf(deal);
+      if (!id || dwellRecordedRef.current.has(id)) continue;
+      if (token.isViewable) {
+        if (!viewedAtRef.current.has(id)) viewedAtRef.current.set(id, Date.now());
+        continue;
+      }
+      const startedAt = viewedAtRef.current.get(id);
+      viewedAtRef.current.delete(id);
+      if (!startedAt) continue;
+      const weight = dwellWeight(Date.now() - startedAt);
+      if (!weight || !deal?.category) continue;
+      dwellRecordedRef.current.add(id);
+      addCategoryInterest(deal.category, weight).then(setInterests).catch(() => {});
+    }
+  }).current;
+
   const resetFilters = useCallback(() => {
     setActiveCategory('all');
     setQuery('');
@@ -217,11 +279,24 @@ export default function HomeScreen() {
     loadPersonalization();
   }, [loadFirstPage, loadPersonalization, loadSaved]);
 
+  const card = (deal) => (
+    <DealCard
+      deal={deal}
+      saved={savedIds.has(idOf(deal))}
+      onSave={toggleSave}
+      onOpen={openDeal}
+      onDismiss={dismiss}
+    />
+  );
+
   const header = (
     <View>
       <View style={styles.hero}>
         <View style={styles.trustChip}><Text style={styles.trustText}>Freshly checked</Text></View>
         <Text style={styles.heroTitle}>Good deals. No digging.</Text>
+        {!hasActiveFilters && refreshedSinceLastVisit > 0 && (
+          <Text style={styles.returnCue}>{refreshedSinceLastVisit} {refreshedSinceLastVisit === 1 ? 'deal refreshed' : 'deals refreshed'} since your last visit</Text>
+        )}
         <View style={styles.heroActions}>
           <Pressable onPress={() => router.push('/saved')} accessibilityRole="button" accessibilityLabel="Open saved deals" style={styles.savedButton}>
             <Text style={styles.savedButtonText}>Saved{savedIds.size ? ` ${savedIds.size}` : ''}</Text>
@@ -269,7 +344,7 @@ export default function HomeScreen() {
           <Text style={styles.eyebrow}>DEAL DROP</Text>
           <Text style={styles.sectionTitle}>Today’s best finds</Text>
           <View style={styles.featuredGrid}>
-            {featured.map((deal) => <View key={idOf(deal)} style={styles.featuredCell}><DealCard deal={deal} saved={savedIds.has(idOf(deal))} onSave={toggleSave} /></View>)}
+            {featured.map((deal) => <View key={idOf(deal)} style={styles.featuredCell}>{card(deal)}</View>)}
           </View>
         </View>
       )}
@@ -289,7 +364,9 @@ export default function HomeScreen() {
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.content}
         ListHeaderComponent={header}
-        renderItem={({ item }) => <View style={styles.cell}><DealCard deal={item} saved={savedIds.has(idOf(item))} onSave={toggleSave} /></View>}
+        renderItem={({ item }) => <View style={styles.cell}>{card(item)}</View>}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
         onEndReached={loadMore}
         onEndReachedThreshold={0.7}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} />}
@@ -309,6 +386,7 @@ const styles = StyleSheet.create({
   trustChip: { alignSelf: 'flex-start', backgroundColor: '#ecfdf5', borderColor: '#a7f3d0', borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   trustText: { color: '#065f46', fontWeight: '800', fontSize: 11 },
   heroTitle: { marginTop: 12, fontSize: 34, lineHeight: 38, letterSpacing: -1, fontWeight: '900', color: '#020617' },
+  returnCue: { marginTop: 9, color: '#047857', fontSize: 12, lineHeight: 18, fontWeight: '800' },
   heroActions: { flexDirection: 'row', marginTop: 14 },
   savedButton: { borderRadius: 999, backgroundColor: '#0f172a', paddingHorizontal: 14, paddingVertical: 9 },
   savedButtonText: { color: '#fff', fontSize: 12, fontWeight: '800' },
