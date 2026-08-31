@@ -217,23 +217,47 @@ async function restore(value) {
 }
 
 async function bulkStatus(ids, status) {
-  const set = new Set((ids || []).map(String));
-  const all = await listAll();
-  let updatedCount = 0;
-  for (const d of all) {
-    if (!set.has(d.id) && !set.has(d.asin)) continue;
-    if (status === 'APPROVED' && !isVerified(d)) continue;
-    const changes = { status };
-    if (status === 'EXPIRED') { changes.is_expired = 1; changes.expired_at = nowUnix(); }
-    else if (status === 'APPROVED') { changes.is_expired = 0; changes.expired_at = null; }
-    await update(d.id, changes); updatedCount += 1;
+  const keys = [...new Set((ids || []).map((value) => String(value || '').trim()).filter(Boolean))];
+  if (!keys.length) return 0;
+  if (!postgres.isConfigured()) {
+    const set = new Set(keys);
+    const all = await listAll();
+    let updatedCount = 0;
+    for (const d of all) {
+      if (!set.has(d.id) && !set.has(d.asin)) continue;
+      if (status === 'APPROVED' && !isVerified(d)) continue;
+      const changes = { status };
+      if (status === 'EXPIRED') { changes.is_expired = 1; changes.expired_at = nowUnix(); }
+      else if (status === 'APPROVED') { changes.is_expired = 0; changes.expired_at = null; }
+      await update(d.id, changes); updatedCount += 1;
+    }
+    return updatedCount;
   }
-  return updatedCount;
+  await ensureSchema();
+  const expiredAt = status === 'EXPIRED' ? nowUnix() : null;
+  const result = await postgres.query(`
+    UPDATE deals
+       SET status = $2,
+           is_expired = CASE WHEN $2 = 'EXPIRED' THEN 1 WHEN $2 = 'APPROVED' THEN 0 ELSE is_expired END,
+           expired_at = CASE WHEN $2 = 'EXPIRED' THEN $3::bigint WHEN $2 = 'APPROVED' THEN NULL ELSE expired_at END
+     WHERE (id = ANY($1::text[]) OR asin = ANY($1::text[]))
+       AND ($2 <> 'APPROVED' OR source_verified = 1)
+  `, [keys, status, expiredAt]);
+  return result.rowCount;
 }
 
 async function approveAllVerified() {
-  const all = await listAll();
-  return bulkStatus(all.filter((d) => d.status === 'PENDING_REVIEW' && isVerified(d)).map((d) => d.id), 'APPROVED');
+  if (!postgres.isConfigured()) {
+    const all = await listAll();
+    return bulkStatus(all.filter((d) => d.status === 'PENDING_REVIEW' && isVerified(d)).map((d) => d.id), 'APPROVED');
+  }
+  await ensureSchema();
+  const result = await postgres.query(`
+    UPDATE deals
+       SET status = 'APPROVED', is_expired = 0, expired_at = NULL
+     WHERE status = 'PENDING_REVIEW' AND source_verified = 1
+  `);
+  return result.rowCount;
 }
 
 async function purgeExpired(maxAgeSeconds = 86400) {
@@ -261,8 +285,19 @@ async function lifecycleStats() {
 
 async function hardenProduction() {
   if (process.env.NODE_ENV !== 'production') return;
-  const all = await listAll();
-  for (const d of all) if (!isVerified(d) && (d.source_sufficient !== 0 || d.status === 'APPROVED')) await update(d.id, { source_sufficient: 0, status: d.status === 'APPROVED' ? 'PENDING_REVIEW' : d.status });
+  if (!postgres.isConfigured()) {
+    const all = await listAll();
+    for (const d of all) if (!isVerified(d) && (d.source_sufficient !== 0 || d.status === 'APPROVED')) await update(d.id, { source_sufficient: 0, status: d.status === 'APPROVED' ? 'PENDING_REVIEW' : d.status });
+    return;
+  }
+  await ensureSchema();
+  await postgres.query(`
+    UPDATE deals
+       SET source_sufficient = 0,
+           status = CASE WHEN status = 'APPROVED' THEN 'PENDING_REVIEW' ELSE status END
+     WHERE source_verified <> 1
+       AND (source_sufficient <> 0 OR status = 'APPROVED')
+  `);
 }
 
 module.exports = { ensureSchema, listAll, findByIdOrAsin, upsert, update, remove, expire, restore, bulkStatus, approveAllVerified, purgeExpired, lifecycleStats, hardenProduction, normalizeRecord, isVerified, shouldBootstrapDeal };
