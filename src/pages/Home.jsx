@@ -29,6 +29,12 @@ function dealIdentity(deal) {
   return String(deal?.id || deal?.asin || '').trim();
 }
 
+function balancedFeatured(items, maxItems = 8) {
+  const bounded = (items || []).slice(0, maxItems);
+  const evenLength = bounded.length - (bounded.length % 2);
+  return evenLength >= 2 ? bounded.slice(0, evenLength) : [];
+}
+
 function mergeDeals(current, incoming) {
   const seen = new Set(current.map(dealIdentity));
   return [...current, ...incoming.filter((deal) => {
@@ -133,9 +139,9 @@ export default function Home() {
     return list.sort((a, b) => dealCreatedTimestampMs(b) - dealCreatedTimestampMs(a));
   }, [availableDeals, sort, interests]);
 
-  const filteredPicks = useMemo(() => picks.filter((pick) => !dismissals[dealIdentity(pick.deal) || String(pick.asin || '')]), [picks, dismissals]);
+  const filteredPicks = useMemo(() => balancedFeatured(picks.filter((pick) => !dismissals[dealIdentity(pick.deal) || String(pick.asin || '')]), 4), [picks, dismissals]);
   const hasActiveFilters = activeCat !== 'all' || searchQuery.trim() !== '' || minDiscount > 0 || priceTier !== 'all' || sort !== 'best';
-  const dropDeals = useMemo(() => hasActiveFilters ? [] : freshDealDrop(visibleDeals, initialSeenDrop, 8), [visibleDeals, initialSeenDrop, hasActiveFilters]);
+  const dropDeals = useMemo(() => hasActiveFilters ? [] : balancedFeatured(freshDealDrop(visibleDeals, initialSeenDrop, 8), 8), [visibleDeals, initialSeenDrop, hasActiveFilters]);
   const dropIds = useMemo(() => new Set(dropDeals.map((deal) => deal.id || deal.asin)), [dropDeals]);
   const chapters = useMemo(() => hasActiveFilters ? [] : buildFeedChapters(visibleDeals, interests, dropIds), [visibleDeals, interests, dropIds, hasActiveFilters]);
   const chapterIds = useMemo(() => chapterDealIds(chapters), [chapters]);
@@ -206,8 +212,8 @@ export default function Home() {
   };
 
   return <div className="space-y-5 sm:space-y-6">
-    <section className="bg-gradient-to-b from-white to-slate-50 border-b border-slate-200/80"><div className="max-w-7xl mx-auto px-4 py-7 sm:py-10"><div className="max-w-3xl"><div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 mb-3"><ShieldCheck className="w-3.5 h-3.5" /> Prices checked regularly</div><h1 className="font-heading text-3xl sm:text-5xl font-black text-slate-950 tracking-tight leading-[1.05]">Great Amazon deals, without the clutter.</h1><p className="text-sm sm:text-base text-slate-600 mt-3 max-w-2xl">The feed quietly learns which categories you spend time with, open, and save, while still keeping deal quality first.</p>{refreshedSinceLastVisit > 0 && <div className="inline-flex items-center gap-1.5 mt-4 text-sm font-bold text-violet-800 bg-violet-50 border border-violet-200 rounded-full px-3 py-1.5"><Sparkles className="w-4 h-4" /> Freshly refreshed deals are waiting</div>}</div></div></section>
-    {dropDeals.length > 0 && <section className="max-w-7xl mx-auto px-4"><div ref={dropSeenMarker} className="h-px" aria-hidden="true" /><div className="rounded-2xl sm:rounded-3xl border border-orange-200 bg-orange-50/60 p-4 sm:p-5"><div className="mb-4"><div className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-orange-700"><Flame className="w-3.5 h-3.5" /> Deal Drop</div><h2 className="font-heading text-xl sm:text-2xl font-black text-slate-900 mt-1">{dropDeals.length} {dropDeals.length === 1 ? 'deal' : 'deals'} worth seeing right now</h2><p className="text-xs sm:text-sm text-slate-600 mt-1">A quick hit of the strongest verified deals in your feed.</p></div>{feedGrid(dropDeals)}</div></section>}
+    <section className="bg-gradient-to-b from-white to-slate-50 border-b border-slate-200/80"><div className="max-w-7xl mx-auto px-4 py-7 sm:py-10"><div className="max-w-3xl"><div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 mb-3"><ShieldCheck className="w-3.5 h-3.5" /> Freshly checked</div><h1 className="font-heading text-3xl sm:text-5xl font-black text-slate-950 tracking-tight leading-[1.05]">Good deals. No digging.</h1>{refreshedSinceLastVisit > 0 && <div className="inline-flex items-center gap-1.5 mt-4 text-sm font-bold text-violet-800 bg-violet-50 border border-violet-200 rounded-full px-3 py-1.5"><Sparkles className="w-4 h-4" /> Freshly refreshed deals are waiting</div>}</div></div></section>
+    {dropDeals.length > 0 && <section className="max-w-7xl mx-auto px-4"><div ref={dropSeenMarker} className="h-px" aria-hidden="true" /><div className="rounded-2xl sm:rounded-3xl border border-orange-200 bg-orange-50/60 p-4 sm:p-5"><div className="mb-4"><div className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-orange-700"><Flame className="w-3.5 h-3.5" /> Deal Drop</div><h2 className="font-heading text-xl sm:text-2xl font-black text-slate-900 mt-1">Today’s best finds</h2></div>{feedGrid(dropDeals)}</div></section>}
     {filteredPicks.length > 0 && <section className="max-w-7xl mx-auto px-4"><div className="rounded-2xl sm:rounded-3xl border border-emerald-200 bg-emerald-50/50 p-4 sm:p-5"><div className="mb-4"><div className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-emerald-700"><Star className="w-3.5 h-3.5 fill-emerald-600 text-emerald-600" /> Standout finds</div><h2 className="font-heading text-xl sm:text-2xl font-black text-slate-900 mt-1">DealScout Picks</h2></div><div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">{filteredPicks.map((pick) => <div key={pick.asin} className="flex flex-col gap-2 min-w-0"><DealCard deal={pick.deal} viewMode="grid" />{pick.editorialNote && <div className="hidden sm:block rounded-xl bg-white border border-emerald-200 px-3 py-2 text-xs text-slate-700 leading-relaxed"><span className="font-bold text-emerald-800">Why we picked it: </span>{pick.editorialNote}</div>}</div>)}</div></div></section>}
     <section className="max-w-7xl mx-auto px-4 pb-16">
       <div className="flex items-center gap-2 overflow-x-auto pb-3 scrollbar-none mb-2"><button onClick={() => { setActiveCat('all'); setSearchParams(searchQuery ? { q: searchQuery } : {}); }} className={`px-3.5 py-2 rounded-xl text-sm font-semibold whitespace-nowrap ${activeCat === 'all' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>All</button>{categories.map((c) => <button key={c.id} onClick={() => { setActiveCat(c.name); setSearchParams({ category: c.name, ...(searchQuery ? { q: searchQuery } : {}) }); }} className={`px-3.5 py-2 rounded-xl text-sm font-semibold whitespace-nowrap ${activeCat?.toLowerCase() === c.name.toLowerCase() ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}>{c.name}</button>)}</div>
