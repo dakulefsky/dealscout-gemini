@@ -82,9 +82,10 @@ test('Deal Drop seen memory expires after seven days', async () => {
   }
 });
 
-test('Home only marks Deal Drop as seen after its marker enters the viewport and keeps the current session stable', () => {
+test('Home only marks the balanced Deal Drop as seen after its marker enters the viewport', () => {
   assert.match(homeSource, /const \[initialSeenDrop\] = useState\(\(\) => loadSeenDealDrop\(\)\)/);
+  assert.match(homeSource, /balancedFeatured\(freshDealDrop\(visibleDeals, initialSeenDrop, 8\), 8\)/);
   assert.match(homeSource, /markDealDropSeen\(dropDeals\)/);
   assert.match(homeSource, /dealDropMarked\.current = true/);
-  assert.match(homeSource, /\{dropDeals\.length\} \{dropDeals\.length === 1 \? 'deal' : 'deals'\} worth seeing right now/);
+  assert.match(homeSource, /Today’s best finds/);
 });
