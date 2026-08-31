@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const users = require('../repositories/userRepository');
 const mailer = require('../services/mailService');
+const { hashSecret, matchesHashedOrLegacySecret } = require('../services/authSecretService');
 const { requireAuth } = require('../middleware/auth');
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -26,7 +27,6 @@ function normalizeEmail(email) { return String(email || '').trim().toLowerCase()
 function validEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 function validPassword(password) { return typeof password === 'string' && password.length >= 8 && password.length <= 200; }
 function randomOtp() { return crypto.randomInt(100000, 1000000).toString(); }
-function hashToken(value) { return crypto.createHash('sha256').update(value).digest('hex'); }
 function isDevelopment() { return process.env.NODE_ENV !== 'production'; }
 
 function pruneRateBuckets(now) {
@@ -105,7 +105,7 @@ router.post('/register', limiter('register', 5, 15 * 60 * 1000), async (req, res
       password: passwordHash,
       role: 'user',
       verified: 0,
-      otp_code: otp,
+      otp_code: hashSecret(otp),
       otp_expires: Date.now() + OTP_TTL,
       reset_token: null,
       reset_expires: null,
@@ -132,9 +132,10 @@ router.post('/register', limiter('register', 5, 15 * 60 * 1000), async (req, res
 router.post('/verify-otp', limiter('verify', 10, 15 * 60 * 1000), async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const otpCode = String(req.body?.otpCode || '').trim();
+  if (!/^\d{6}$/.test(otpCode)) return res.status(400).json({ error: 'Invalid or expired verification code' });
   try {
     const user = await users.findByEmail(email);
-    if (!user || user.otp_code !== otpCode || !user.otp_expires || Date.now() > Number(user.otp_expires)) {
+    if (!user || !matchesHashedOrLegacySecret(user.otp_code, otpCode) || !user.otp_expires || Date.now() > Number(user.otp_expires)) {
       return res.status(400).json({ error: 'Invalid or expired verification code' });
     }
     const updated = await users.updateFields(user.id, { verified: 1, otp_code: null, otp_expires: null });
@@ -153,7 +154,7 @@ router.post('/resend-otp', limiter('resend', 5, 15 * 60 * 1000), async (req, res
     const user = await users.findByEmail(email);
     if (user && !user.verified) {
       const otp = randomOtp();
-      await users.updateFields(user.id, { otp_code: otp, otp_expires: Date.now() + OTP_TTL });
+      await users.updateFields(user.id, { otp_code: hashSecret(otp), otp_expires: Date.now() + OTP_TTL });
       devOtp = otp;
       if (mailer.isConfigured()) {
         try { await mailer.sendVerificationCode(email, otp); }
@@ -175,7 +176,7 @@ router.post('/forgot-password', limiter('forgot', 5, 15 * 60 * 1000), async (req
     const user = await users.findByEmail(email);
     if (user) {
       const rawToken = crypto.randomBytes(32).toString('hex');
-      await users.updateFields(user.id, { reset_token: hashToken(rawToken), reset_expires: Date.now() + 60 * 60 * 1000 });
+      await users.updateFields(user.id, { reset_token: hashSecret(rawToken), reset_expires: Date.now() + 60 * 60 * 1000 });
       devToken = rawToken;
       if (mailer.isConfigured()) {
         try { await mailer.sendPasswordReset(email, rawToken); }
@@ -194,7 +195,7 @@ router.post('/reset-password', limiter('reset', 10, 15 * 60 * 1000), async (req,
   const { resetToken, newPassword } = req.body || {};
   if (!resetToken || !validPassword(newPassword)) return res.status(400).json({ error: 'Valid token and password (8-200 characters) required' });
   try {
-    const tokenHash = hashToken(String(resetToken));
+    const tokenHash = hashSecret(String(resetToken));
     const user = await users.findByResetToken(tokenHash);
     if (!user || !user.reset_expires || Date.now() > Number(user.reset_expires)) return res.status(400).json({ error: 'Reset link is invalid or has expired' });
     await users.updateFields(user.id, {
