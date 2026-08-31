@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/lib/AuthContext';
 import { BookmarksProvider } from '@/lib/BookmarksContext';
 import Layout from '@/components/Layout';
+import AppErrorBoundary from '@/components/AppErrorBoundary';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { Toaster } from '@/components/ui/toaster';
 import Home from '@/pages/Home';
@@ -31,35 +32,37 @@ function RouteFallback() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BookmarksProvider>
-        <BrowserRouter>
-          <Layout>
-            <Suspense fallback={<RouteFallback />}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/category/:slug" element={<CategoryPage />} />
-                <Route path="/deal/:id" element={<DealDetail />} />
-                <Route path="/saved" element={<SavedDeals />} />
-                <Route path="/disclosure" element={<Disclosure />} />
+    <AppErrorBoundary>
+      <AuthProvider>
+        <BookmarksProvider>
+          <BrowserRouter>
+            <Layout>
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/category/:slug" element={<CategoryPage />} />
+                  <Route path="/deal/:id" element={<DealDetail />} />
+                  <Route path="/saved" element={<SavedDeals />} />
+                  <Route path="/disclosure" element={<Disclosure />} />
 
-                <Route path="/admin/access" element={<Login />} />
-                <Route path="/admin/reset-password" element={<ResetPassword />} />
-                <Route path="/admin" element={<ProtectedRoute adminOnly><AdminHome /></ProtectedRoute>} />
-                <Route path="/admin/editorial" element={<ProtectedRoute adminOnly><EditorialReview /></ProtectedRoute>} />
-                <Route path="/admin/operations" element={<Navigate to="/admin" replace />} />
+                  <Route path="/admin/access" element={<Login />} />
+                  <Route path="/admin/reset-password" element={<ResetPassword />} />
+                  <Route path="/admin" element={<ProtectedRoute adminOnly><AdminHome /></ProtectedRoute>} />
+                  <Route path="/admin/editorial" element={<ProtectedRoute adminOnly><EditorialReview /></ProtectedRoute>} />
+                  <Route path="/admin/operations" element={<Navigate to="/admin" replace />} />
 
-                <Route path="/login" element={<Navigate to="/" replace />} />
-                <Route path="/register" element={<Navigate to="/" replace />} />
-                <Route path="/forgot-password" element={<Navigate to="/admin/access" replace />} />
-                <Route path="/reset-password" element={<Navigate to="/admin/reset-password" replace />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
-          </Layout>
-          <Toaster />
-        </BrowserRouter>
-      </BookmarksProvider>
-    </AuthProvider>
+                  <Route path="/login" element={<Navigate to="/" replace />} />
+                  <Route path="/register" element={<Navigate to="/" replace />} />
+                  <Route path="/forgot-password" element={<Navigate to="/admin/access" replace />} />
+                  <Route path="/reset-password" element={<Navigate to="/admin/reset-password" replace />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </Layout>
+            <Toaster />
+          </BrowserRouter>
+        </BookmarksProvider>
+      </AuthProvider>
+    </AppErrorBoundary>
   );
 }
