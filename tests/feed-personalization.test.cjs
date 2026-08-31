@@ -4,12 +4,13 @@ const fs = require('fs');
 const path = require('path');
 
 test('personalization is category based and locally stored', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'feedPersonalization.js'), 'utf8');
-  assert.match(source, /localStorage/);
-  assert.match(source, /category/);
-  assert.match(source, /MAX_SCORE = 24/);
-  assert.match(source, /ms >= 12000/);
-  assert.match(source, /ms >= 5000/);
+  const adapter = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'feedPersonalization.js'), 'utf8');
+  const core = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'personalizationCore.js'), 'utf8');
+  assert.match(adapter, /localStorage/);
+  assert.match(core, /category/);
+  assert.match(core, /MAX_SCORE = 24/);
+  assert.match(core, /ms >= 12000/);
+  assert.match(core, /ms >= 5000/);
 });
 
 test('deal cards give saves stronger weight than passive dwell', () => {
