@@ -8,17 +8,11 @@ DealScout is designed as one shared deal-intelligence backend with multiple prod
 
 ## Required production shape
 
-Production must use PostgreSQL. The JSON database is intentionally development-only and is not a supported production fallback. Every web/API replica and every future publication worker must point at the same PostgreSQL database.
+Production must use PostgreSQL. The JSON database is intentionally development-only and is not a supported production fallback. Every web/API replica and every publication worker must point at the same PostgreSQL database.
 
-At startup the web/API process:
+At startup each process validates only the configuration its role needs, verifies PostgreSQL connectivity, initializes shared operational schemas, and applies production deal hardening. The web role additionally validates JWT, affiliate, public-origin, and HTTP configuration; the publication-worker role does not need website-only secrets.
 
-1. validates required production configuration;
-2. verifies PostgreSQL connectivity;
-3. initializes deal, account, category, bookmark, editorial, activity, refresh-state, price-history, and publication-queue schemas;
-4. applies production deal hardening;
-5. only then starts accepting traffic.
-
-`GET /api/health` is a process liveness check and does not depend on PostgreSQL. `GET /api/ready` is a readiness check and returns HTTP 503 when shared storage is unavailable.
+`GET /api/health` is a web-process liveness check and does not depend on PostgreSQL. `GET /api/ready` is a web-process readiness check and returns HTTP 503 when shared storage is unavailable.
 
 ## Product origins and API clients
 
@@ -34,13 +28,20 @@ CORS is a browser boundary. Native mobile clients, publication workers, CLI jobs
 
 ## Container
 
-Build from the repository root:
+Build one production image from the repository root:
 
 ```bash
 docker build -t dealscout .
 ```
 
-Run locally against a production-like database:
+The same image contains both process entrypoints:
+
+```text
+node server.js             # website + API
+node publication-worker.js # publication worker
+```
+
+Run the web/API role locally against a production-like database:
 
 ```bash
 docker run --rm -p 8080:8080 \
@@ -53,7 +54,7 @@ docker run --rm -p 8080:8080 \
   dealscout
 ```
 
-The runtime image uses Node 24, installs from the committed npm lock with `npm ci`, runs as the non-root `node` user, and exposes port 8080 by default.
+The runtime image uses Node 24, installs from the committed npm lock with `npm ci`, runs as the non-root `node` user, and exposes port 8080 for the web role.
 
 ## Cloud Run + Cloud SQL
 
@@ -65,49 +66,74 @@ For Cloud Run, prefer the native Cloud SQL Unix socket configuration rather than
 - `DB_NAME`
 - `PG_POOL_MAX`
 
-Attach the Cloud SQL instance to the Cloud Run service and grant the runtime service account Cloud SQL Client access. The application uses `/cloudsql/<connection-name>` when all native Cloud SQL settings are present.
+Attach the Cloud SQL instance to every web or worker deployment that uses the shared database and grant each runtime service account Cloud SQL Client access. The application uses `/cloudsql/<connection-name>` when all native Cloud SQL settings are present.
 
-Suggested health probes:
+Suggested web health probes:
 
 - liveness: `/api/health`
 - startup/readiness: `/api/ready`
 
-Do not send traffic to a revision whose readiness endpoint is returning 503.
+Do not send traffic to a web revision whose readiness endpoint is returning 503.
 
 ## Secrets and configuration
 
-Keep secrets outside the image and source tree. At minimum, production needs:
+Keep secrets outside the image and source tree. The web role needs:
 
 - a 32+ character `JWT_SECRET`;
 - an `AMAZON_ASSOCIATE_TAG`;
 - PostgreSQL or complete Cloud SQL configuration;
 - credentials for the selected verified deal-data provider.
 
+The publication worker needs shared PostgreSQL plus its publication transport configuration. It intentionally does not require the JWT signing secret, browser origins, or website canonical URL.
+
 `PUBLIC_WEB_URL`, when supplied in production, must be an absolute HTTPS origin. `CORS_ORIGINS` entries must also use HTTPS in production. Use multiple CORS origins when separate website/admin browser products need the same API; do not widen CORS to `*` when credentialed requests are enabled.
 
-SMTP credentials, provider credentials, admin bootstrap password, and any future publication transport secret should be mounted from the deployment secret store rather than committed to GitHub.
+SMTP credentials, provider credentials, admin bootstrap password, and publication transport secrets should be mounted from the deployment secret store rather than committed to GitHub.
 
 ## Scaling
 
-The HTTP service is safe to run with multiple replicas because scheduled provider work uses PostgreSQL advisory locks and publication jobs use database leases. Do not deploy separate copies with separate databases: website, app, and publishing must share one source of truth.
+The HTTP service is safe to run with multiple replicas because scheduled provider work uses PostgreSQL advisory locks. Publication workers are independently safe to scale because queue insertion is idempotent and jobs are claimed with database leases. Do not deploy product surfaces against separate databases: website, app, and publishing must share one source of truth.
 
-The default PostgreSQL pool is intentionally small (`PG_POOL_MAX=5`). Size the Cloud Run maximum instance count and database connection limit together before increasing either value.
+The default PostgreSQL pool is intentionally small (`PG_POOL_MAX=5`). Size total web + worker replica counts and database connection limits together before increasing either value.
 
-## Publishing channel deployment
+## Publication worker
 
-The publication queue and worker domain are production-ready independently of any specific transport. A channel transport must implement the publication adapter contract and return an external publication identifier when possible.
+Run the worker from the same production image with:
 
-Do **not** make a transport adapter responsible for verifying prices, deciding deal eligibility, or updating deal lifecycle state. Those remain in the shared DealScout backend. A failed channel publish should only affect publication job state and retry scheduling.
+```bash
+npm run publisher
+```
 
-Until a real WhatsApp Status transport is configured and tested, the web/API deployment should remain healthy without one. Do not substitute a mock transport in production merely to make the queue appear active.
+Required worker settings:
+
+- `PUBLICATION_CHANNEL` — `web`, `app`, or `whatsapp_status`.
+- `PUBLICATION_TRANSPORT=webhook`.
+- `PUBLICATION_WEBHOOK_URL` — HTTPS endpoint of the channel transport bridge in production.
+- `PUBLICATION_WEBHOOK_TOKEN` — bearer secret with at least 16 characters in production.
+
+Operational controls are bounded by configuration:
+
+- `PUBLICATION_RUN_MODE=continuous` polls until SIGTERM/SIGINT.
+- `PUBLICATION_RUN_MODE=once` performs one bounded candidate/queue/publish cycle and exits, which is suitable for a scheduled job runner.
+- `PUBLICATION_POLL_MS` controls continuous polling (1s–5m).
+- `PUBLICATION_QUEUE_BATCH`, `PUBLICATION_CANDIDATE_LIMIT`, and `PUBLICATION_MAX_PER_CYCLE` bound work per cycle.
+- `PUBLICATION_WEBHOOK_TIMEOUT_MS` bounds transport latency.
+
+Each cycle selects already-public verified candidates, applies the channel's stricter distribution policy, suppresses recently published ASINs, enqueues idempotently, leases due jobs, revalidates the current deal and verification snapshot, composes factual content, and only then calls the transport. The webhook receives a versioned payload plus an `Idempotency-Key` header. A transport failure changes only publication retry/job state; it never changes deal truth.
+
+The webhook is a transport boundary, not a way around DealScout's trust model. A WhatsApp bridge may translate the prepared image/caption into a provider-specific API call, but it must not verify prices, invent claims, select deals, or mutate lifecycle state.
+
+Until a real WhatsApp Status bridge/provider is configured and tested, the web/API deployment remains healthy without the worker. Do not point production at a mock webhook merely to make queue metrics look active.
 
 ## Release gate
 
-Every release should pass the repository Quality workflow (`npm ci`, lint, tests, production build). For a production rollout, additionally verify:
+Every release should pass the repository Quality workflow (`npm ci`, lint, tests, production build). For a production web rollout, additionally verify:
 
 ```text
 /api/health -> 200 {"status":"ok"}
 /api/ready  -> 200 {"status":"ready"}
 ```
 
-Then validate one `/api/v1` public feed request, one admin sign-in, and one provider diagnostic before shifting all traffic to the new revision.
+Then validate one `/api/v1` public feed request, one admin sign-in, and one provider diagnostic before shifting all web traffic.
+
+For a publication-worker rollout, first use `PUBLICATION_RUN_MODE=once` against the real transport in a controlled environment and confirm one known eligible job reaches the external channel with its external publication identity recorded. Only then switch to continuous or scheduled production execution.
