@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { resolvePublicWebUrl } = require('../config/publicSurface');
 
 function getConfig() {
   const host = process.env.SMTP_HOST;
@@ -37,8 +38,8 @@ async function sendVerificationCode(email, code) {
 
 async function sendPasswordReset(email, rawToken) {
   const config = getConfig();
-  const baseUrl = String(process.env.FRONTEND_URL || '').replace(/\/$/, '');
-  if (!baseUrl) throw new Error('FRONTEND_URL is required for password reset email delivery');
+  const baseUrl = resolvePublicWebUrl(process.env, { isProduction: process.env.NODE_ENV === 'production' });
+  if (!baseUrl) throw new Error('PUBLIC_WEB_URL is required for password reset email delivery');
   const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
   await getTransport().sendMail({
     from: config.from,
