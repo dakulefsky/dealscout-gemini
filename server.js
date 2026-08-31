@@ -24,6 +24,7 @@ async function startServer() {
   const dealCron = require('./server/services/cronService.js');
   const imageRepair = require('./server/services/imageRepairService.js');
   const { resolveTrustProxy } = require('./server/config/trustProxy.js');
+  const { buildShopperApi } = require('./server/routes/shopperApi.js');
 
   await runtimeBootstrap.initializeRuntime({ isProduction });
 
@@ -55,16 +56,15 @@ async function startServer() {
     }
   });
 
-  app.use('/api/auth/register', (req, res, next) => {
-    if (process.env.ALLOW_PUBLIC_REGISTRATION === 'true') return next();
-    return res.status(404).json({ error: 'Not found' });
-  });
-  app.use('/api/auth', require('./server/routes/auth.js'));
-  app.use('/api/deals', require('./server/routes/priceHistory.js'));
-  app.use('/api/deals', require('./server/middleware/verifiedAiIngestGuard.js').verifiedAiIngestGuard);
-  app.use('/api/deals', require('./server/routes/deals.js'));
+  // v1 is the stable contract for shopper-facing web/mobile clients. The
+  // unversioned mount remains a compatibility alias while existing clients
+  // transition; both use the exact same route implementation and trust rules.
+  app.use('/api/v1', buildShopperApi({ version: 1 }));
+  app.use('/api', buildShopperApi());
+
+  // Administrative and internal automation APIs are intentionally kept outside
+  // the shopper compatibility contract and can evolve with the admin console.
   app.use('/api/editorial', require('./server/routes/editorial.js'));
-  app.use('/api/categories', require('./server/routes/categories.js'));
   app.use('/api/functions', require('./server/middleware/imageRepairEndpoint.js').imageRepairEndpoint);
   app.use('/api/functions', require('./server/middleware/integrityHealthEndpoint.js').integrityHealthEndpoint);
   app.use('/api/functions', require('./server/middleware/legacyEnrichmentCleanupEndpoint.js').legacyEnrichmentCleanupEndpoint);
@@ -72,7 +72,6 @@ async function startServer() {
   app.use('/api/functions', require('./server/middleware/publicationHealthEndpoint.js').publicationHealthEndpoint);
   app.use('/api/functions', require('./server/routes/functions.js'));
   app.use('/api/ai', require('./server/routes/ai.js'));
-  app.use('/api/bookmarks', require('./server/routes/bookmarks.js'));
 
   try {
     dealCron.start();

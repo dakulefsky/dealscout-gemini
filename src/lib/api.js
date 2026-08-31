@@ -7,6 +7,7 @@
  * - normalizes API and network failures into Error objects
  */
 const BASE_URL = import.meta.env.VITE_API_URL || '';
+const SHOPPER_API = '/api/v1';
 const DEFAULT_TIMEOUT_MS = 15000;
 
 function getToken() {
@@ -106,13 +107,13 @@ export const api = {
 };
 
 export const auth = {
-  me:             () => api.get('/api/auth/me'),
-  login:          (email, password) => api.post('/api/auth/login', { email, password }),
-  register:       (email, password) => api.post('/api/auth/register', { email, password }),
-  verifyOtp:      (email, otpCode) => api.post('/api/auth/verify-otp', { email, otpCode }),
-  resendOtp:      (email) => api.post('/api/auth/resend-otp', { email }),
-  forgotPassword: (email) => api.post('/api/auth/forgot-password', { email }),
-  resetPassword:  (resetToken, newPassword) => api.post('/api/auth/reset-password', { resetToken, newPassword }),
+  me:             () => api.get(`${SHOPPER_API}/auth/me`),
+  login:          (email, password) => api.post(`${SHOPPER_API}/auth/login`, { email, password }),
+  register:       (email, password) => api.post(`${SHOPPER_API}/auth/register`, { email, password }),
+  verifyOtp:      (email, otpCode) => api.post(`${SHOPPER_API}/auth/verify-otp`, { email, otpCode }),
+  resendOtp:      (email) => api.post(`${SHOPPER_API}/auth/resend-otp`, { email }),
+  forgotPassword: (email) => api.post(`${SHOPPER_API}/auth/forgot-password`, { email }),
+  resetPassword:  (resetToken, newPassword) => api.post(`${SHOPPER_API}/auth/reset-password`, { resetToken, newPassword }),
   logout:         () => setToken(null),
 };
 
@@ -125,22 +126,22 @@ function queryString(params = {}) {
 export const deals = {
   list: (params = {}, options) => {
     const qs = queryString(params);
-    return api.get(`/api/deals${qs ? `?${qs}` : ''}`, options);
+    return api.get(`${SHOPPER_API}/deals${qs ? `?${qs}` : ''}`, options);
   },
   page: (params = {}, options) => {
     const qs = queryString(params);
-    return api.get(`/api/deals/feed${qs ? `?${qs}` : ''}`, options);
+    return api.get(`${SHOPPER_API}/deals/feed${qs ? `?${qs}` : ''}`, options);
   },
-  get:    (id, options) => api.get(`/api/deals/${id}`, options),
-  create: (data) => api.post('/api/deals', data),
-  update: (id, data) => api.patch(`/api/deals/${id}`, data),
-  delete: (id) => api.delete(`/api/deals/${id}`),
-  expire: (id) => api.post(`/api/deals/${id}/expire`),
-  restore: (id) => api.post(`/api/deals/${id}/restore`),
-  approveAll: () => api.post('/api/deals/approve-all'),
-  bulkStatus: (ids, status) => api.post('/api/deals/bulk-status', { ids, status }),
-  getPriceHistory: (id, options) => api.get(`/api/deals/${id}/price-history`, options),
-  getStats: () => api.get('/api/deals/stats'),
+  get:    (id, options) => api.get(`${SHOPPER_API}/deals/${id}`, options),
+  create: (data) => api.post(`${SHOPPER_API}/deals`, data),
+  update: (id, data) => api.patch(`${SHOPPER_API}/deals/${id}`, data),
+  delete: (id) => api.delete(`${SHOPPER_API}/deals/${id}`),
+  expire: (id) => api.post(`${SHOPPER_API}/deals/${id}/expire`),
+  restore: (id) => api.post(`${SHOPPER_API}/deals/${id}/restore`),
+  approveAll: () => api.post(`${SHOPPER_API}/deals/approve-all`),
+  bulkStatus: (ids, status) => api.post(`${SHOPPER_API}/deals/bulk-status`, { ids, status }),
+  getPriceHistory: (id, options) => api.get(`${SHOPPER_API}/deals/${id}/price-history`, options),
+  getStats: () => api.get(`${SHOPPER_API}/deals/stats`),
 };
 
 export const editorial = {
@@ -154,12 +155,12 @@ export const editorial = {
 export const categories = {
   list: (params = {}) => {
     const qs = queryString(params);
-    return api.get(`/api/categories${qs ? `?${qs}` : ''}`);
+    return api.get(`${SHOPPER_API}/categories${qs ? `?${qs}` : ''}`);
   },
-  get:    (id) => api.get(`/api/categories/${id}`),
-  create: (data) => api.post('/api/categories', data),
-  update: (id, data) => api.patch(`/api/categories/${id}`, data),
-  delete: (id) => api.delete(`/api/categories/${id}`),
+  get:    (id) => api.get(`${SHOPPER_API}/categories/${id}`),
+  create: (data) => api.post(`${SHOPPER_API}/categories`, data),
+  update: (id, data) => api.patch(`${SHOPPER_API}/categories/${id}`, data),
+  delete: (id) => api.delete(`${SHOPPER_API}/categories/${id}`),
 };
 
 export const ai = {
@@ -168,9 +169,9 @@ export const ai = {
 };
 
 export const bookmarks = {
-  list: () => api.get('/api/bookmarks'),
-  toggle: (dealId, targetPrice) => api.post('/api/bookmarks/toggle', { dealId, targetPrice }),
-  setPriceAlert: (dealId, targetPrice, email) => api.post('/api/bookmarks/price-alert', { dealId, targetPrice, email }),
+  list: () => api.get(`${SHOPPER_API}/bookmarks`),
+  toggle: (dealId, targetPrice) => api.post(`${SHOPPER_API}/bookmarks/toggle`, { dealId, targetPrice }),
+  setPriceAlert: (dealId, targetPrice, email) => api.post(`${SHOPPER_API}/bookmarks/price-alert`, { dealId, targetPrice, email }),
 };
 
 export const functions = {
