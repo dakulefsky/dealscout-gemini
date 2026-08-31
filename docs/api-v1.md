@@ -11,9 +11,27 @@ The current v1 resources are:
 - `/api/v1/bookmarks`
 - `/api/v1/meta`
 
-Successful v1 responses include `X-DealScout-API-Version: 1`. `GET /api/v1/meta` returns the active major version.
+All v1 responses include `X-DealScout-API-Version: 1`, including errors generated before a resource route runs, such as global rate limiting. `GET /api/v1/meta` returns the active major version.
 
-The old unversioned auth/deal/category/bookmark paths remain mounted as compatibility aliases to the same route implementation. They should not receive new client integrations.
+All API responses include `X-Request-ID`. Surface this identifier in client diagnostics/support reports so server logs can be correlated without exposing internal implementation details.
+
+## Error contract
+
+Existing human-readable `error` messages are preserved. v1 error responses add a stable machine category and request identifier:
+
+```json
+{
+  "error": "Too many requests. Please try again later.",
+  "code": "RATE_LIMITED",
+  "requestId": "<request-id>"
+}
+```
+
+Clients should branch on HTTP status and `code`, not on the English `error` text. The message may improve over time without being a breaking API change. Current broad categories include `BAD_REQUEST`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED`, `INTERNAL_ERROR`, and `SERVICE_UNAVAILABLE`; unknown 4xx/5xx statuses fall back to `REQUEST_FAILED` or `SERVER_ERROR`.
+
+Successful response bodies are not wrapped or otherwise changed by the tracing/error middleware.
+
+The old unversioned auth/deal/category/bookmark paths remain mounted as compatibility aliases to the same route implementation. They should not receive new client integrations. They receive request IDs for operations/debugging, but their historical error-body shape remains unchanged.
 
 Admin automation endpoints such as `/api/functions`, `/api/editorial`, and `/api/ai` are intentionally outside the mobile compatibility contract. They are private operational surfaces and may evolve with the admin application.
 
