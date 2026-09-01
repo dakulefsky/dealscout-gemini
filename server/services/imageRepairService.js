@@ -3,11 +3,7 @@ const postgres = require('../storage/postgres');
 const { fetchProductByAsin } = require('./providerRouter');
 
 const IMAGE_REPAIR_LOCK_ID = 44004;
-const INITIAL_REPAIR_DELAY_MS = 2 * 60 * 1000;
-const REPAIR_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
-let intervalId = null;
-let initialTimeoutId = null;
 let lastRun = null;
 let lastResult = null;
 let running = false;
@@ -50,8 +46,9 @@ async function repairMissingImages(limit = 20) {
         try {
           const live = await fetchProductByAsin(deal.asin);
           if (live?.sourceVerified && /^https?:\/\//i.test(String(live.imageUrl || ''))) {
-            // Image repair is not a lifecycle/price verification pass. Updating
-            // price_check_at here would make a stored price appear fresher than it is.
+            // Image repair is deliberately manual. Normal discovery and price
+            // verification already refresh provider metadata, so a background
+            // image-only poll would duplicate paid provider requests.
             await deals.update(deal.id, { image_url: live.imageUrl });
             repaired += 1;
             details.push({ asin: deal.asin, repaired: true });
@@ -81,29 +78,4 @@ async function repairMissingImages(limit = 20) {
   return locked.result;
 }
 
-function startImageRepairScheduler() {
-  if (intervalId || initialTimeoutId) return;
-  const run = async () => {
-    try {
-      const health = await imageHealth();
-      if (health.missingImages > 0) await repairMissingImages(10);
-    } catch (error) {
-      console.warn('[ImageRepair] Scheduled repair skipped:', error.message);
-    }
-  };
-
-  initialTimeoutId = setTimeout(async () => {
-    initialTimeoutId = null;
-    await run();
-  }, INITIAL_REPAIR_DELAY_MS);
-  intervalId = setInterval(run, REPAIR_INTERVAL_MS);
-}
-
-function stopImageRepairScheduler() {
-  if (initialTimeoutId) clearTimeout(initialTimeoutId);
-  if (intervalId) clearInterval(intervalId);
-  initialTimeoutId = null;
-  intervalId = null;
-}
-
-module.exports = { repairMissingImages, needsImageRepair, imageHealth, startImageRepairScheduler, stopImageRepairScheduler };
+module.exports = { repairMissingImages, needsImageRepair, imageHealth };
