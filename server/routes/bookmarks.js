@@ -16,7 +16,11 @@ async function getClientIdentity(req) {
     try {
       const decoded = jwt.verify(authHeader.slice(7), JWT_SECRET);
       const user = await users.findById(decoded.id);
-      if (user) return { id: user.id, email: user.email, authenticated: true, verified: user.verified === 1 || user.verified === true };
+      const tokenVersion = Number(decoded.authVersion || 0);
+      const currentVersion = Number(user?.token_version || 0);
+      if (user && tokenVersion === currentVersion) {
+        return { id: user.id, email: user.email, authenticated: true, verified: user.verified === 1 || user.verified === true };
+      }
     } catch {}
   }
   const guestId = normalizeGuestId(req.headers['x-guest-id']);
