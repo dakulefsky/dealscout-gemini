@@ -26,6 +26,8 @@ function productionEnv() {
     SMTP_PASS: 'secret',
     MAIL_FROM: 'deals@dealscout.example',
     EXPO_PUBLIC_API_URL: 'https://dealscout.example',
+    EXPO_PUBLIC_PRIVACY_URL: 'https://dealscout.example/privacy',
+    EXPO_PUBLIC_SUPPORT_URL: 'https://dealscout.example/support',
     PUBLICATION_CHANNEL: 'whatsapp_status',
     PUBLICATION_TRANSPORT: 'waha',
     WAHA_BASE_URL: 'https://waha.internal.example',
@@ -68,9 +70,22 @@ test('launch preflight fails closed on missing production infrastructure and mob
   });
   assert.equal(result.ready, false);
   const blockerIds = new Set(result.blockers.map((item) => item.id));
-  for (const id of ['web-url', 'jwt', 'database', 'provider', 'mobile-api', 'eas-project', 'app-icon', 'adaptive-icon', 'status-transport', 'waha-session']) {
+  for (const id of ['web-url', 'jwt', 'database', 'provider', 'mobile-api', 'eas-project', 'privacy-url', 'support-url', 'app-icon', 'adaptive-icon', 'status-transport', 'waha-session']) {
     assert.equal(blockerIds.has(id), true, `expected blocker ${id}`);
   }
+});
+
+test('EAS project and store-policy URLs can be supplied by release environment', async () => {
+  const { evaluateLaunch } = await moduleUnderTest();
+  const env = productionEnv();
+  env.EAS_PROJECT_ID = '11111111-1111-1111-1111-111111111111';
+  const config = productionAppConfig();
+  delete config.expo.extra;
+  const result = evaluateLaunch({ env, appConfig: config, fileExists: () => true });
+  const byId = new Map(result.checks.map((item) => [item.id, item]));
+  assert.equal(byId.get('eas-project').ok, true);
+  assert.equal(byId.get('privacy-url').ok, true);
+  assert.equal(byId.get('support-url').ok, true);
 });
 
 test('SMTP absence is visible but does not make the three-surface runtime itself fail preflight', async () => {

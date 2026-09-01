@@ -30,19 +30,41 @@ EXPO_PUBLIC_API_URL=https://staging-api.example.com npm run export
 
 ## EAS builds
 
+`app.json` keeps stable app identity such as bundle/package identifiers in source control. `app.config.js` layers release-account metadata from the build environment so linking a real Expo account does not require committing one developer's account/project identifiers.
+
+Production release variables:
+
+- `EAS_PROJECT_ID` — the linked Expo/EAS project UUID. Required by the root launch preflight for production release readiness unless a project ID is explicitly checked into the Expo config.
+- `EXPO_OWNER` — optional Expo account/organization owner.
+- `EXPO_PUBLIC_API_URL` — deployed HTTPS DealScout API origin used by the app.
+- `EXPO_PUBLIC_PRIVACY_URL` — public HTTPS privacy-policy URL used for release/store metadata.
+- `EXPO_PUBLIC_SUPPORT_URL` — public HTTPS support URL used for release/store metadata.
+
+Only public, client-safe values belong in `EXPO_PUBLIC_*`. Apple/Google signing credentials and store API credentials must remain in EAS or another secret store.
+
 `eas.json` defines development, preview, and production profiles. Before the first real store build:
 
-1. Create/link the real Expo/EAS project.
+1. Create/link the real Expo/EAS project and set `EAS_PROJECT_ID` in the EAS build environment.
 2. Verify that `ios.bundleIdentifier` and `android.package` are the identifiers owned for DealScout. Do not change identifiers after store records are created without understanding the migration impact.
 3. Configure `EXPO_PUBLIC_API_URL` for the build profile/environment to the deployed HTTPS DealScout API origin.
-4. Configure Apple/Google signing through EAS or the chosen CI secret store; never commit signing credentials.
-5. Supply final app icon, adaptive icon, splash/store artwork, privacy-policy URL, support URL, screenshots, descriptions, and store metadata before submission.
-6. Run the backend release smoke against the exact API origin used by the build before creating the production binary.
+4. Configure real HTTPS privacy/support URLs and make sure they are reachable without authentication.
+5. Configure Apple/Google signing through EAS or the chosen CI secret store; never commit signing credentials.
+6. Supply final app icon, adaptive icon, splash/store artwork, screenshots, descriptions, and remaining store metadata before submission.
+7. Run the backend release smoke against the exact API origin used by the build before creating the production binary.
 
 Typical production commands once EAS project/store credentials exist:
 
 ```bash
+EAS_PROJECT_ID=<project-uuid> \
+EXPO_PUBLIC_API_URL=https://api.example.com \
+EXPO_PUBLIC_PRIVACY_URL=https://example.com/privacy \
+EXPO_PUBLIC_SUPPORT_URL=https://example.com/support \
 npx eas build --profile production --platform ios
+
+EAS_PROJECT_ID=<project-uuid> \
+EXPO_PUBLIC_API_URL=https://api.example.com \
+EXPO_PUBLIC_PRIVACY_URL=https://example.com/privacy \
+EXPO_PUBLIC_SUPPORT_URL=https://example.com/support \
 npx eas build --profile production --platform android
 ```
 
