@@ -5,6 +5,7 @@ const postgres = require('../storage/postgres');
 const { demoSeedAllowed, isLegacyDemoAdmin } = require('../services/demoSeedPolicy');
 
 let schemaReady = false;
+const ADMIN_BOOTSTRAP_LOCK_ID = 41001;
 
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
@@ -17,35 +18,43 @@ function validEmail(value) {
 async function bootstrapProductionAdmin() {
   if (process.env.NODE_ENV !== 'production' || !postgres.isConfigured()) return { created: false };
 
-  const existingAdmin = await postgres.query(`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
-  if (existingAdmin.rowCount > 0) return { created: false };
+  const lock = await postgres.withAdvisoryLock(ADMIN_BOOTSTRAP_LOCK_ID, async () => {
+    const existingAdmin = await postgres.query(`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
+    if (existingAdmin.rowCount > 0) return { created: false };
 
-  const email = normalizeEmail(process.env.ADMIN_EMAIL);
-  const password = process.env.ADMIN_PASSWORD;
-  if (!email && !password) return { created: false };
-  if (!validEmail(email)) throw new Error('ADMIN_EMAIL must be a valid email address when bootstrapping the first admin');
-  if (typeof password !== 'string' || password.length < 12 || password.length > 200) {
-    throw new Error('ADMIN_PASSWORD must be 12-200 characters when bootstrapping the first admin');
-  }
+    const email = normalizeEmail(process.env.ADMIN_EMAIL);
+    const password = process.env.ADMIN_PASSWORD;
+    if (!email && !password) return { created: false };
+    if (!validEmail(email)) throw new Error('ADMIN_EMAIL must be a valid email address when bootstrapping the first admin');
+    if (typeof password !== 'string' || password.length < 12 || password.length > 200) {
+      throw new Error('ADMIN_PASSWORD must be 12-200 characters when bootstrapping the first admin');
+    }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-  const existingUser = await postgres.query('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
-  if (existingUser.rowCount > 0) {
+    const passwordHash = await bcrypt.hash(password, 12);
+    const existingUser = await postgres.query('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
+    if (existingUser.rowCount > 0) {
+      await postgres.query(
+        `UPDATE users SET password = $1, role = 'admin', verified = 1,
+          otp_code = NULL, otp_expires = NULL, reset_token = NULL, reset_expires = NULL
+         WHERE id = $2`,
+        [passwordHash, existingUser.rows[0].id]
+      );
+      return { created: true, promoted: true, email };
+    }
+
     await postgres.query(
-      `UPDATE users SET password = $1, role = 'admin', verified = 1,
-        otp_code = NULL, otp_expires = NULL, reset_token = NULL, reset_expires = NULL
-       WHERE id = $2`,
-      [passwordHash, existingUser.rows[0].id]
+      `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, created_at)
+       VALUES ($1,$2,$3,'admin',1,NULL,NULL,NULL,NULL,$4)`,
+      [uuidv4(), email, passwordHash, Math.floor(Date.now() / 1000)]
     );
-    return { created: true, promoted: true, email };
-  }
+    return { created: true, promoted: false, email };
+  });
 
-  await postgres.query(
-    `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, created_at)
-     VALUES ($1,$2,$3,'admin',1,NULL,NULL,NULL,NULL,$4)`,
-    [uuidv4(), email, passwordHash, Math.floor(Date.now() / 1000)]
-  );
-  return { created: true, promoted: false, email };
+  // Another replica may be performing the same one-time bootstrap. It owns the
+  // decision while holding the session lock; this replica can continue startup
+  // and will observe the resulting admin through the shared database.
+  if (!lock.acquired) return { created: false, deferred: true };
+  return lock.result;
 }
 
 async function ensureSchema() {
