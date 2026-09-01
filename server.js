@@ -21,7 +21,6 @@ async function startServer() {
   const categoryRepository = require('./server/repositories/categoryRepository.js');
   const seo = require('./server/services/seoService.js');
   const dealCron = require('./server/services/cronService.js');
-  const imageRepair = require('./server/services/imageRepairService.js');
   const { resolveTrustProxy } = require('./server/config/trustProxy.js');
   const { resolvePublicWebUrl, resolveCorsOrigins, createCorsOriginPolicy } = require('./server/config/publicSurface.js');
   const { buildShopperApi } = require('./server/routes/shopperApi.js');
@@ -78,7 +77,6 @@ async function startServer() {
 
   try {
     dealCron.start();
-    imageRepair.startImageRepairScheduler();
   } catch (cronErr) { console.warn('[DealScout] Scheduler initialization warning:', cronErr.message); }
 
   app.get('/api/health', (_req, res) => {
@@ -146,7 +144,6 @@ async function startServer() {
     forceExit.unref?.();
 
     dealCron.stop();
-    imageRepair.stopImageRepairScheduler();
 
     try {
       await new Promise((resolve, reject) => {
