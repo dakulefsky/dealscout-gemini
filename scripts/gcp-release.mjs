@@ -16,18 +16,50 @@ function cleanCsv(value) {
   return String(value || '').split(',').map((item) => item.trim()).filter(Boolean).join(',');
 }
 
-function assertSecretMappings(value, requiredKeys, sourceName) {
-  const mappings = new Map(cleanCsv(value).split(',').filter(Boolean).map((entry) => {
+function parseSecretMappings(value, sourceName) {
+  const mappings = new Map();
+  for (const entry of cleanCsv(value).split(',').filter(Boolean)) {
     const separator = entry.indexOf('=');
-    if (separator <= 0 || !entry.slice(separator + 1).includes(':')) {
+    const key = separator > 0 ? entry.slice(0, separator) : '';
+    const secret = separator > 0 ? entry.slice(separator + 1) : '';
+    if (!key || !secret.includes(':')) {
       throw new Error(`${sourceName} must use ENV_VAR=SECRET_NAME:VERSION mappings`);
     }
-    return [entry.slice(0, separator), entry.slice(separator + 1)];
-  }));
+    mappings.set(key, secret);
+  }
+  return mappings;
+}
+
+function requireSecretMappings(value, requiredKeys, sourceName) {
+  const mappings = parseSecretMappings(value, sourceName);
   for (const key of requiredKeys) {
     if (!mappings.has(key)) throw new Error(`${sourceName} must map ${key}`);
   }
-  return [...mappings.entries()].map(([key, secret]) => `${key}=${secret}`).join(',');
+  return mappings;
+}
+
+function serializeSecretMappings(...maps) {
+  const merged = new Map();
+  for (const map of maps) {
+    for (const [key, secret] of map) merged.set(key, secret);
+  }
+  return [...merged.entries()].map(([key, secret]) => `${key}=${secret}`).join(',');
+}
+
+function validateProviderSecrets(provider, webSecrets) {
+  const hasRainforest = webSecrets.has('RAINFOREST_API_KEY');
+  const paapiKeys = ['AMAZON_PAAPI_ACCESS_KEY', 'AMAZON_PAAPI_SECRET_KEY', 'AMAZON_PAAPI_PARTNER_TAG'];
+  const hasPaapi = paapiKeys.every((key) => webSecrets.has(key));
+
+  if (provider === 'rainforest' && !hasRainforest) {
+    throw new Error('GCP_WEB_SECRETS must map RAINFOREST_API_KEY for DEAL_DATA_PROVIDER=rainforest');
+  }
+  if (provider === 'amazon_paapi' && !hasPaapi) {
+    throw new Error(`GCP_WEB_SECRETS must map ${paapiKeys.join(', ')} for DEAL_DATA_PROVIDER=amazon_paapi`);
+  }
+  if (provider === 'auto' && !hasRainforest && !hasPaapi) {
+    throw new Error('GCP_WEB_SECRETS must configure Rainforest or complete Amazon PA-API credentials for DEAL_DATA_PROVIDER=auto');
+  }
 }
 
 function encodeEnvVars(entries) {
@@ -55,19 +87,25 @@ export function buildReleasePlan(env = process.env) {
   const publisherPool = text(env, 'GCP_PUBLISHER_POOL', 'dealscout-publisher');
   const serviceAccount = text(env, 'GCP_RUNTIME_SERVICE_ACCOUNT');
 
-  const sharedSecrets = assertSecretMappings(
-    requireValue(env, 'GCP_SHARED_SECRETS'),
-    ['JWT_SECRET', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'],
-    'GCP_SHARED_SECRETS'
+  const dbSecrets = requireSecretMappings(
+    requireValue(env, 'GCP_DB_SECRETS'),
+    ['DB_USER', 'DB_PASSWORD', 'DB_NAME'],
+    'GCP_DB_SECRETS'
   );
-  const webSecrets = cleanCsv(text(env, 'GCP_WEB_SECRETS'));
-  const publisherSecrets = assertSecretMappings(
+  const webSecrets = requireSecretMappings(
+    requireValue(env, 'GCP_WEB_SECRETS'),
+    ['JWT_SECRET'],
+    'GCP_WEB_SECRETS'
+  );
+  validateProviderSecrets(dealProvider, webSecrets);
+  const publisherSecrets = requireSecretMappings(
     requireValue(env, 'GCP_PUBLISHER_SECRETS'),
     ['WAHA_API_KEY'],
     'GCP_PUBLISHER_SECRETS'
   );
-  const combinedWebSecrets = cleanCsv([sharedSecrets, webSecrets].filter(Boolean).join(','));
-  const combinedPublisherSecrets = cleanCsv([sharedSecrets, publisherSecrets].filter(Boolean).join(','));
+
+  const combinedWebSecrets = serializeSecretMappings(dbSecrets, webSecrets);
+  const combinedPublisherSecrets = serializeSecretMappings(dbSecrets, publisherSecrets);
 
   const webEnv = encodeEnvVars([
     ['NODE_ENV', 'production'],
@@ -81,10 +119,7 @@ export function buildReleasePlan(env = process.env) {
 
   const publisherEnv = encodeEnvVars([
     ['NODE_ENV', 'production'],
-    ['PUBLIC_WEB_URL', publicWebUrl],
     ['CLOUD_SQL_CONNECTION_NAME', cloudSql],
-    ['AMAZON_ASSOCIATE_TAG', affiliateTag],
-    ['DEAL_DATA_PROVIDER', dealProvider],
     ['PUBLICATION_CHANNEL', 'whatsapp_status'],
     ['PUBLICATION_TRANSPORT', 'waha'],
     ['PUBLICATION_RUN_MODE', 'continuous'],
@@ -94,7 +129,6 @@ export function buildReleasePlan(env = process.env) {
     ['PUBLICATION_MIN_QUALITY', text(env, 'PUBLICATION_MIN_QUALITY')],
     ['PUBLICATION_MIN_INTERVAL_MS', text(env, 'PUBLICATION_MIN_INTERVAL_MS')],
     ['PUBLICATION_POLL_MS', text(env, 'PUBLICATION_POLL_MS')],
-    ['RAINFOREST_DOMAIN', text(env, 'RAINFOREST_DOMAIN')],
   ]);
 
   const web = ['run', 'deploy', webService,
