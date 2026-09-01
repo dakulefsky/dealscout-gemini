@@ -1,4 +1,5 @@
 const deals = require('../repositories/dealRepository');
+const { isPriceFresh, PUBLIC_PRICE_MAX_AGE_SECONDS } = require('./publicDealPolicy');
 
 function hasLegacyEnrichment(deal) {
   return Boolean(
@@ -14,10 +15,9 @@ function isMissingImage(deal) {
   return deal?.source_verified === 1 && deal?.is_expired !== 1 && !/^https?:\/\//i.test(String(deal?.image_url || '').trim());
 }
 
-function isStalePrice(deal, now = Math.floor(Date.now() / 1000), maxAgeSeconds = 24 * 3600) {
+function isStalePrice(deal, now = Math.floor(Date.now() / 1000), maxAgeSeconds = PUBLIC_PRICE_MAX_AGE_SECONDS) {
   if (deal?.source_verified !== 1 || deal?.is_expired === 1 || deal?.status !== 'APPROVED') return false;
-  const checkedAt = Number(deal?.price_check_at || 0);
-  return !checkedAt || now - checkedAt > maxAgeSeconds;
+  return !isPriceFresh(deal, now, maxAgeSeconds);
 }
 
 async function getIntegrityHealth() {
