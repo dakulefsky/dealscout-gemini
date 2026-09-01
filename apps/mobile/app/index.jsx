@@ -92,6 +92,8 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const requestRef = useRef(null);
+  const paginationRequestRef = useRef(null);
+  const feedGenerationRef = useRef(0);
   const viewedAtRef = useRef(new Map());
   const dwellRecordedRef = useRef(new Set());
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 65 }).current;
@@ -153,21 +155,26 @@ export default function HomeScreen() {
 
   const loadFirstPage = useCallback(async ({ showSpinner = true } = {}) => {
     requestRef.current?.abort();
+    paginationRequestRef.current?.abort();
+    paginationRequestRef.current = null;
+    setLoadingMore(false);
+    const generation = feedGenerationRef.current + 1;
+    feedGenerationRef.current = generation;
     const controller = new AbortController();
     requestRef.current = controller;
     if (showSpinner) setLoading(true);
     setError(null);
     try {
       const page = await deals.page(feedParams, { signal: controller.signal });
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || generation !== feedGenerationRef.current) return;
       setItems(page?.items || []);
       setNextCursor(page?.nextCursor || null);
       viewedAtRef.current.clear();
       dwellRecordedRef.current.clear();
     } catch (err) {
-      if (err?.name !== 'AbortError') setError(err?.message || 'Could not load deals');
+      if (err?.name !== 'AbortError' && generation === feedGenerationRef.current) setError(err?.message || 'Could not load deals');
     } finally {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted && generation === feedGenerationRef.current) {
         setLoading(false);
         setRefreshing(false);
       }
@@ -179,20 +186,27 @@ export default function HomeScreen() {
     return () => {
       clearTimeout(timer);
       requestRef.current?.abort();
+      paginationRequestRef.current?.abort();
     };
   }, [loadFirstPage, query]);
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore || loading) return;
+    const generation = feedGenerationRef.current;
+    paginationRequestRef.current?.abort();
+    const controller = new AbortController();
+    paginationRequestRef.current = controller;
     setLoadingMore(true);
     try {
-      const page = await deals.page({ ...feedParams, cursor: nextCursor });
+      const page = await deals.page({ ...feedParams, cursor: nextCursor }, { signal: controller.signal });
+      if (controller.signal.aborted || generation !== feedGenerationRef.current) return;
       setItems((current) => mergeDeals(current, page?.items || []));
       setNextCursor(page?.nextCursor || null);
     } catch (err) {
-      setError(err?.message || 'Could not load more deals');
+      if (err?.name !== 'AbortError' && generation === feedGenerationRef.current) setError(err?.message || 'Could not load more deals');
     } finally {
-      setLoadingMore(false);
+      if (paginationRequestRef.current === controller) paginationRequestRef.current = null;
+      if (generation === feedGenerationRef.current) setLoadingMore(false);
     }
   }, [feedParams, loading, loadingMore, nextCursor]);
 
