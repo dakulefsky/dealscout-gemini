@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, ShieldCheck, Star, Save, ArrowLeft, CheckCircle2, Clock } from 'lucide-react';
+import { Loader2, ShieldCheck, Star, Save, ArrowLeft, CheckCircle2, Clock, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Image } from '@/components/ui/image';
@@ -59,8 +59,8 @@ export default function EditorialReview() {
       setEditorialByAsin((prev) => ({ ...prev, [deal.asin]: saved }));
       setDeals((prev) => prev.map((d) => d.asin === deal.asin ? { ...d, status: publish ? 'APPROVED' : d.status } : d));
       toast({
-        title: publish ? 'Reviewed and published' : saved.isHumanPick ? 'DealScout Pick saved' : 'Review saved',
-        description: publish ? 'The deal is now live.' : saved.isHumanPick ? 'This deal is now featured as a DealScout Pick.' : 'Review saved without changing publication status.',
+        title: publish ? (saved.isHumanPick ? 'Published as DealScout Pick' : 'Published normally') : saved.isHumanPick ? 'DealScout Pick saved' : 'Review saved',
+        description: publish ? (saved.isHumanPick ? 'The deal is live and featured as a Pick.' : 'The deal is live in the regular deal feed.') : saved.isHumanPick ? 'This deal is now featured as a DealScout Pick.' : 'Review saved without changing publication status.',
       });
     } catch (error) {
       toast({ title: 'Review save failed', description: error.message, variant: 'destructive' });
@@ -75,7 +75,7 @@ export default function EditorialReview() {
         <div>
           <Link to="/admin" className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 mb-2"><ArrowLeft className="w-3.5 h-3.5" /> Back to Admin</Link>
           <h1 className="text-3xl font-black text-slate-900">Review Queue</h1>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Review held or unreviewed deals, publish the ones you want, and optionally feature standout offers as DealScout Picks.</p>
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Review held or unreviewed deals, publish them normally, or reserve DealScout Pick for the few offers worth featuring.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {[
@@ -105,7 +105,7 @@ export default function EditorialReview() {
             const busy = busyAsin === deal.asin;
             const held = deal.status === 'PENDING_REVIEW';
             return (
-              <div key={deal.asin} className={`bg-white border rounded-3xl p-5 shadow-xs grid lg:grid-cols-[240px_1fr_210px] gap-5 ${held ? 'border-amber-300' : 'border-slate-200'}`}>
+              <div key={deal.asin} className={`bg-white border rounded-3xl p-5 shadow-xs grid lg:grid-cols-[240px_1fr_230px] gap-5 ${held ? 'border-amber-300' : 'border-slate-200'}`}>
                 <div className="flex gap-3 min-w-0">
                   <div className="w-20 h-20 rounded-2xl bg-slate-50 border border-slate-100 p-1 shrink-0 overflow-hidden"><Image src={deal.imageUrl} alt={deal.title} fittingType="contain" className="w-full h-full" /></div>
                   <div className="min-w-0">
@@ -124,10 +124,15 @@ export default function EditorialReview() {
                 </div>
 
                 <div className="flex lg:flex-col gap-2 justify-center">
+                  {held && (
+                    <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, true)} className="rounded-xl font-bold gap-1.5 bg-slate-900 hover:bg-slate-800">
+                      {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Publish Normally
+                    </Button>
+                  )}
                   <Button disabled={busy} onClick={() => save(deal, { isHumanPick: true }, held)} className={`rounded-xl font-bold gap-1.5 ${e.isHumanPick ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
                     {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}{held ? 'Publish as Pick' : e.isHumanPick ? 'Update Pick' : 'Make DealScout Pick'}
                   </Button>
-                  <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, false)} variant="outline" className="rounded-xl font-bold gap-1.5"><Save className="w-4 h-4" /> Save Review</Button>
+                  <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, false)} variant="outline" className="rounded-xl font-bold gap-1.5"><Save className="w-4 h-4" /> Save for Later</Button>
                 </div>
               </div>
             );
