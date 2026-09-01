@@ -21,7 +21,7 @@ function assertJwtSecret() {
 }
 function makeToken(user) {
   assertJwtSecret();
-  return jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+  return jwt.sign({ id: user.id, email: user.email, role: user.role, authVersion: Number(user.token_version || 0) }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
 }
 function normalizeEmail(email) { return String(email || '').trim().toLowerCase(); }
 function validEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
@@ -105,6 +105,7 @@ router.post('/register', limiter('register', 5, 15 * 60 * 1000), async (req, res
       password: passwordHash,
       role: 'user',
       verified: 0,
+      token_version: 0,
       otp_code: hashSecret(otp),
       otp_expires: Date.now() + OTP_TTL,
       reset_token: null,
@@ -202,6 +203,7 @@ router.post('/reset-password', limiter('reset', 10, 15 * 60 * 1000), async (req,
       password: await bcrypt.hash(newPassword, 12),
       reset_token: null,
       reset_expires: null,
+      token_version: Number(user.token_version || 0) + 1,
     });
     res.json({ message: 'Password reset successfully' });
   } catch (err) {
