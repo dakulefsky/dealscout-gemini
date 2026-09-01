@@ -18,12 +18,23 @@ async function processPriceAlerts({ asin, salePrice }) {
         currentPrice: sale,
         targetPrice: alert.targetPrice,
       });
-      await alerts.markTriggered(alert.id);
-      delivered += 1;
     } catch (error) {
       failed += 1;
       await alerts.releaseClaim(alert.id).catch(() => {});
       console.warn(`[PriceAlerts] Delivery failed for ${alert.id}:`, error.message);
+      continue;
+    }
+
+    try {
+      const marked = await alerts.markTriggered(alert.id);
+      if (!marked) throw new Error('delivery claim was no longer active');
+      delivered += 1;
+    } catch (error) {
+      // The email has already been sent. Do not reopen the claim here or an
+      // immediate retry could knowingly duplicate the notification. A stale
+      // DELIVERING lease is recoverable if the process cannot persist success.
+      failed += 1;
+      console.warn(`[PriceAlerts] Delivered email but could not mark ${alert.id} triggered:`, error.message);
     }
   }
 
