@@ -15,8 +15,9 @@ test('authentication hot paths do not use synchronous bcrypt and admin role is r
   assert.doesNotMatch(userRepository, /bcrypt\.hashSync/);
   assert.match(authRoutes, /await bcrypt\.compare/);
   assert.match(authRoutes, /await bcrypt\.hash/);
-  assert.match(authMiddleware, /await users\.findById\(req\.user\.id\)/);
-  assert.match(authMiddleware, /currentUser\.role !== 'admin'/);
+  assert.match(authMiddleware, /const currentUser = await users\.findById\(tokenUser\.id\)/);
+  assert.match(authMiddleware, /req\.user\.role !== 'admin'/);
+  assert.match(authMiddleware, /requireAuth\(req, res, \(\) => \{/);
 });
 
 test('PA-API normalization never invents commercial facts', () => {
