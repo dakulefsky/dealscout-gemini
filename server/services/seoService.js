@@ -1,3 +1,7 @@
+const { PUBLIC_PRICE_MAX_AGE_SECONDS } = require('./publicDealPolicy');
+
+const PUBLIC_PRICE_MAX_AGE_HOURS = PUBLIC_PRICE_MAX_AGE_SECONDS / 3600;
+
 function xmlEscape(value = '') {
   return String(value).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[ch]));
 }
@@ -19,7 +23,7 @@ function priceCheckAgeHours(deal, nowMs = Date.now()) {
   return Math.max(0, (nowMs - checkedAt * 1000) / 3600000);
 }
 
-function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now(), maxDealAgeHours = 168 }) {
+function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now(), maxDealAgeHours = PUBLIC_PRICE_MAX_AGE_HOURS }) {
   const freshDeals = deals.filter((deal) => priceCheckAgeHours(deal, nowMs) <= maxDealAgeHours);
   const urls = [
     { loc: `${baseUrl}/`, priority: '1.0', changefreq: 'hourly' },
@@ -69,9 +73,10 @@ function dealMeta(baseUrl, deal, nowMs = Date.now()) {
   const sale = Number(deal.sale_price || 0).toFixed(2);
   const title = `${deal.title} — $${sale} | DealScout`;
   const ageHours = priceCheckAgeHours(deal, nowMs);
-  const freshnessText = ageHours <= 72
-    ? 'Price checked recently on DealScout; confirm final price and availability on Amazon.'
-    : 'Last observed price may be stale; confirm the current price and availability on Amazon.';
+  const fresh = ageHours <= PUBLIC_PRICE_MAX_AGE_HOURS;
+  const freshnessText = fresh
+    ? 'Price checked recently within DealScout’s 24-hour public freshness window; confirm final price and availability on Amazon.'
+    : 'Last observed price may be stale because it is outside DealScout’s 24-hour public freshness window; confirm the current price and availability on Amazon.';
   const description = `${deal.discount_percent || 0}% off${savings > 0 ? `, save $${savings.toFixed(2)}` : ''}. ${freshnessText}`;
   const canonical = `${baseUrl}/deal/${encodeURIComponent(deal.id || deal.asin)}`;
   const offer = {
@@ -80,7 +85,7 @@ function dealMeta(baseUrl, deal, nowMs = Date.now()) {
     priceCurrency: 'USD',
     price: Number(deal.sale_price || 0).toFixed(2),
   };
-  if (ageHours <= 24) offer.availability = 'https://schema.org/InStock';
+  if (fresh) offer.availability = 'https://schema.org/InStock';
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -89,7 +94,7 @@ function dealMeta(baseUrl, deal, nowMs = Date.now()) {
     image: deal.image_url || undefined,
     offers: offer,
   };
-  return { title, description, canonical, image: deal.image_url || undefined, jsonLd };
+  return { title, description, canonical, image: deal.image_url || undefined, jsonLd, robots: fresh ? 'index,follow' : 'noindex,follow' };
 }
 
 module.exports = { siteBase, priceCheckAgeHours, buildSitemap, buildRobots, replaceMeta, homeMeta, categoryMeta, dealMeta };

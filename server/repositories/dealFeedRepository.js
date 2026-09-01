@@ -1,6 +1,7 @@
 const deals = require('./dealRepository');
 const postgres = require('../storage/postgres');
 const { encodeCursor, decodeCursor } = require('../services/dealCursor');
+const { isPublicDeal, freshPriceThreshold } = require('../services/publicDealPolicy');
 
 function normalizeSort(value) {
   if (value === 'discount_desc' || value === '-discount_percent') return 'discount_desc';
@@ -102,7 +103,7 @@ async function page(options = {}) {
   if (options.cursor && !cursor) throw new Error('Invalid cursor');
 
   if (!postgres.isConfigured()) {
-    let rows = (await deals.listAll()).filter((d) => d.status === 'APPROVED' && d.is_expired !== 1 && d.source_verified === 1);
+    let rows = (await deals.listAll()).filter((deal) => isPublicDeal(deal));
     rows = filterFallback(rows, filters);
     rows = fallbackSort(rows, sort).filter((row) => afterCursor(row, cursor, sort));
     const selected = rows.slice(0, limit + 1);
@@ -112,8 +113,11 @@ async function page(options = {}) {
   }
 
   await deals.ensureSchema();
-  const where = ["status = 'APPROVED'", 'is_expired <> 1', 'source_verified = 1'];
+  const nowSeconds = Math.floor(Date.now() / 1000);
   const params = [];
+  const freshness = `$${params.push(freshPriceThreshold(nowSeconds))}`;
+  const now = `$${params.push(nowSeconds)}`;
+  const where = ["status = 'APPROVED'", 'is_expired <> 1', 'source_verified = 1', `price_check_at IS NOT NULL AND price_check_at >= ${freshness} AND price_check_at <= ${now}`];
   if (filters.category) where.push(`LOWER(COALESCE(category, '')) = LOWER($${params.push(filters.category)})`);
   if (filters.q) {
     const pattern = `%${filters.q}%`;
