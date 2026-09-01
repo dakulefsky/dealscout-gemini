@@ -23,10 +23,12 @@ test('scheduled image repair is guarded by a separate distributed lock', () => {
   assert.match(source, /withAdvisoryLock\(IMAGE_REPAIR_LOCK_ID/);
 });
 
-test('scheduler stop methods clear both delayed startup and recurring work', () => {
+test('provider scheduler never spends API calls merely because the web process started', () => {
   const cron = read('server/services/cronService.js');
   const images = read('server/services/imageRepairService.js');
-  assert.match(cron, /clearTimeout\(this\.initialTimeoutId\)/);
+  assert.doesNotMatch(cron, /INITIAL_CYCLE_DELAY_MS/);
+  assert.doesNotMatch(cron, /initialTimeoutId/);
+  assert.match(cron, /TWELVE_HOURS_MS/);
   assert.match(images, /clearTimeout\(initialTimeoutId\)/);
 });
 
