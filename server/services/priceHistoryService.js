@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const postgres = require('../storage/postgres');
+const { processPriceAlerts } = require('./priceAlertService');
 
 const HISTORY_FILE = path.join(__dirname, '..', 'data', 'price-history.json');
 const MAX_POINTS_PER_ASIN = 365;
@@ -34,6 +35,14 @@ function normalizeAsin(value) {
   return /^[A-Z0-9]{10}$/.test(asin) ? asin : null;
 }
 
+async function safelyProcessPriceAlerts(observation) {
+  try { return await processPriceAlerts(observation); }
+  catch (err) {
+    console.warn('[PriceHistory] Price alert processing skipped:', err.message);
+    return null;
+  }
+}
+
 async function ensureSchema() {
   if (!postgres.isConfigured() || schemaReady) return;
   await postgres.query(`
@@ -57,6 +66,7 @@ async function recordObservation({ asin, salePrice, originalPrice, sourceProvide
   const original = Number(originalPrice);
   if (!cleanAsin || !Number.isFinite(sale) || sale <= 0 || !Number.isFinite(original) || original <= 0 || sale > original) return false;
 
+  let recorded = true;
   if (postgres.isConfigured()) {
     await ensureSchema();
     const recent = await postgres.query(
@@ -69,25 +79,36 @@ async function recordObservation({ asin, salePrice, originalPrice, sourceProvide
     );
     const last = recent.rows[0];
     const observedDate = new Date(Number(observedAt));
-    if (last && Number(last.sale_price) === sale && Number(last.original_price) === original && observedDate.getTime() - new Date(last.observed_at).getTime() < 3600000) {
-      return false;
+    const duplicate = last
+      && Number(last.sale_price) === sale
+      && Number(last.original_price) === original
+      && observedDate.getTime() - new Date(last.observed_at).getTime() < 3600000;
+    if (!duplicate) {
+      await postgres.query(
+        `INSERT INTO price_history (asin, sale_price, original_price, source_provider, observed_at)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [cleanAsin, sale, original, sourceProvider || null, observedDate]
+      );
+    } else {
+      recorded = false;
     }
-    await postgres.query(
-      `INSERT INTO price_history (asin, sale_price, original_price, source_provider, observed_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [cleanAsin, sale, original, sourceProvider || null, observedDate]
-    );
-    return true;
+    await safelyProcessPriceAlerts({ asin: cleanAsin, salePrice: sale });
+    return recorded;
   }
 
   const list = history[cleanAsin] || [];
   const timestamp = Math.floor(Number(observedAt) / 1000);
   const last = list[list.length - 1];
-  if (last && last.salePrice === sale && last.originalPrice === original && timestamp - last.observedAt < 3600) return false;
-  list.push({ observedAt: timestamp, salePrice: sale, originalPrice: original, sourceProvider: sourceProvider || null });
-  history[cleanAsin] = list.slice(-MAX_POINTS_PER_ASIN);
-  persistJsonFallback();
-  return true;
+  const duplicate = last && last.salePrice === sale && last.originalPrice === original && timestamp - last.observedAt < 3600;
+  if (!duplicate) {
+    list.push({ observedAt: timestamp, salePrice: sale, originalPrice: original, sourceProvider: sourceProvider || null });
+    history[cleanAsin] = list.slice(-MAX_POINTS_PER_ASIN);
+    persistJsonFallback();
+  } else {
+    recorded = false;
+  }
+  await safelyProcessPriceAlerts({ asin: cleanAsin, salePrice: sale });
+  return recorded;
 }
 
 async function getHistory(asin) {
