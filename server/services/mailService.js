@@ -40,7 +40,7 @@ async function sendPasswordReset(email, rawToken) {
   const config = getConfig();
   const baseUrl = resolvePublicWebUrl(process.env, { isProduction: process.env.NODE_ENV === 'production' });
   if (!baseUrl) throw new Error('PUBLIC_WEB_URL is required for password reset email delivery');
-  const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(rawToken)}`;
+  const resetUrl = `${baseUrl}/admin/reset-password?token=${encodeURIComponent(rawToken)}`;
   await getTransport().sendMail({
     from: config.from,
     to: email,
