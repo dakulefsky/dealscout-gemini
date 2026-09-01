@@ -18,14 +18,30 @@ function cleanBaseUrl(value) {
   return parsed.toString().replace(/\/$/, '');
 }
 
-async function requestJson(baseUrl, requestPath, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl = globalThis.fetch } = {}) {
+function cleanBrowserOrigin(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  let parsed;
+  try { parsed = new URL(raw); } catch { throw new Error('Browser smoke origin must be an absolute URL'); }
+  const local = ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+  if (parsed.protocol !== 'https:' && !(local && parsed.protocol === 'http:')) {
+    throw new Error('Browser smoke origin must use HTTPS outside localhost');
+  }
+  return parsed.origin;
+}
+
+async function requestJson(baseUrl, requestPath, {
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  fetchImpl = globalThis.fetch,
+  headers = {},
+} = {}) {
   if (typeof fetchImpl !== 'function') throw new Error('fetch is required');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
   try {
     const response = await fetchImpl(`${baseUrl}${requestPath}`, {
       method: 'GET',
-      headers: { Accept: 'application/json', 'User-Agent': 'DealScout-Release-Smoke/1' },
+      headers: { Accept: 'application/json', 'User-Agent': 'DealScout-Release-Smoke/1', ...headers },
       signal: controller.signal,
       redirect: 'error',
     });
@@ -59,6 +75,7 @@ function assertV1Headers(response, requestPath) {
 
 async function runReleaseSmoke(baseUrl, options = {}) {
   const target = cleanBaseUrl(baseUrl);
+  const browserOrigin = cleanBrowserOrigin(options.browserOrigin);
   const fetchOptions = { timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS, fetchImpl: options.fetchImpl };
   const checks = [];
 
@@ -74,6 +91,18 @@ async function runReleaseSmoke(baseUrl, options = {}) {
   assertV1Headers(meta.response, '/api/v1/meta');
   assert(String(meta.body?.apiVersion) === '1', '/api/v1/meta did not report apiVersion=1');
   checks.push('v1-meta');
+
+  if (browserOrigin) {
+    const cors = await requestJson(target, '/api/v1/meta', {
+      ...fetchOptions,
+      headers: { Origin: browserOrigin },
+    });
+    assert(cors.response.headers.get('access-control-allow-origin') === browserOrigin,
+      `/api/v1/meta did not allow configured browser origin ${browserOrigin}`);
+    assert(cors.response.headers.get('access-control-allow-credentials') === 'true',
+      '/api/v1/meta missing Access-Control-Allow-Credentials: true');
+    checks.push('browser-cors');
+  }
 
   const feed = await requestJson(target, '/api/v1/deals/feed?limit=2&sort=-created_date', fetchOptions);
   assertV1Headers(feed.response, '/api/v1/deals/feed');
@@ -91,14 +120,15 @@ async function runReleaseSmoke(baseUrl, options = {}) {
     checks.push('v1-deal-detail');
   }
 
-  return { target, checks, inventoryObserved: Boolean(firstDeal) };
+  return { target, browserOrigin, checks, inventoryObserved: Boolean(firstDeal) };
 }
 
 async function main() {
   const target = process.argv[2] || process.env.DEALSCOUT_SMOKE_URL;
-  const result = await runReleaseSmoke(target);
+  const result = await runReleaseSmoke(target, { browserOrigin: process.env.DEALSCOUT_SMOKE_ORIGIN });
   console.log(`DealScout release smoke passed for ${result.target}`);
   console.log(`Checks: ${result.checks.join(', ')}`);
+  if (result.browserOrigin) console.log(`Browser CORS verified for ${result.browserOrigin}`);
   if (!result.inventoryObserved) console.log('Feed is healthy but currently contains no public inventory; detail lookup skipped.');
 }
 
@@ -110,4 +140,4 @@ if (isDirect) {
   });
 }
 
-export { DEFAULT_TIMEOUT_MS, cleanBaseUrl, requestJson, assertV1Headers, runReleaseSmoke };
+export { DEFAULT_TIMEOUT_MS, cleanBaseUrl, cleanBrowserOrigin, requestJson, assertV1Headers, runReleaseSmoke };
