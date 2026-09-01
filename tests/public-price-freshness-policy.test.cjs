@@ -47,6 +47,7 @@ test('shopper side surfaces use the shared public deal policy', () => {
   const bookmarks = fs.readFileSync(path.join(root, 'server/routes/bookmarks.js'), 'utf8');
   const ai = fs.readFileSync(path.join(root, 'server/routes/ai.js'), 'utf8');
   const seo = fs.readFileSync(path.join(root, 'server/services/seoService.js'), 'utf8');
+  const sitemap = fs.readFileSync(path.join(root, 'server/repositories/sitemapRepository.js'), 'utf8');
   const integrity = fs.readFileSync(path.join(root, 'server/services/integrityHealthService.js'), 'utf8');
 
   assert.match(feed, /isPublicDeal/);
@@ -57,5 +58,7 @@ test('shopper side surfaces use the shared public deal policy', () => {
   assert.match(ai, /if \(!isPublicDeal\(deal\)\)/);
   assert.match(seo, /PUBLIC_PRICE_MAX_AGE_SECONDS/);
   assert.match(seo, /noindex,follow/);
+  assert.match(sitemap, /Math\.min\(requestedMaxAgeSeconds, PUBLIC_PRICE_MAX_AGE_SECONDS\)/);
+  assert.match(sitemap, /price_check_at <= \$2/);
   assert.match(integrity, /PUBLIC_PRICE_MAX_AGE_SECONDS/);
 });
