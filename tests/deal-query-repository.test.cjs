@@ -34,11 +34,12 @@ test('JSON fallback preserves public visibility, filters and sorting semantics',
   delete process.env.CLOUD_SQL_CONNECTION_NAME;
 
   const { filterFallback } = require('../server/repositories/dealQueryRepository');
+  const priceCheckAt = Math.floor(Date.now() / 1000) - 60;
   const rows = [
-    { id: 'a', asin: 'A000000001', title: 'Speaker', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 1, discount_percent: 30, sale_price: 40, created_at: 10 },
-    { id: 'b', asin: 'B000000002', title: 'Headphones', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 0, discount_percent: 60, sale_price: 20, created_at: 20 },
-    { id: 'c', asin: 'C000000003', title: 'Lamp', category: 'Home', status: 'PENDING_REVIEW', is_expired: 0, source_verified: 1, discount_percent: 50, sale_price: 10, created_at: 30 },
-    { id: 'd', asin: 'D000000004', title: 'Cable', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 1, discount_percent: 15, sale_price: 8, created_at: 40 },
+    { id: 'a', asin: 'A000000001', title: 'Speaker', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 1, price_check_at: priceCheckAt, discount_percent: 30, sale_price: 40, created_at: 10 },
+    { id: 'b', asin: 'B000000002', title: 'Headphones', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 0, price_check_at: priceCheckAt, discount_percent: 60, sale_price: 20, created_at: 20 },
+    { id: 'c', asin: 'C000000003', title: 'Lamp', category: 'Home', status: 'PENDING_REVIEW', is_expired: 0, source_verified: 1, price_check_at: priceCheckAt, discount_percent: 50, sale_price: 10, created_at: 30 },
+    { id: 'd', asin: 'D000000004', title: 'Cable', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 1, price_check_at: priceCheckAt, discount_percent: 15, sale_price: 8, created_at: 40 },
   ];
 
   const publicRows = filterFallback(rows, { category: 'Audio', minDiscount: 10, sort: 'price_asc', limit: 10 }, false);

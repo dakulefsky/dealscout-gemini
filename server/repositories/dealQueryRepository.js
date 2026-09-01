@@ -1,5 +1,6 @@
 const deals = require('./dealRepository');
 const postgres = require('../storage/postgres');
+const { isPublicDeal, freshPriceThreshold } = require('../services/publicDealPolicy');
 
 function numberOrNull(value) {
   if (value === undefined || value === null || value === '') return null;
@@ -24,7 +25,7 @@ function normalizeOptions(options = {}) {
 }
 
 function fallbackVisible(deal, isAdmin) {
-  return isAdmin || (deal.status === 'APPROVED' && deal.is_expired !== 1 && deal.source_verified === 1);
+  return isAdmin || isPublicDeal(deal);
 }
 
 function filterFallback(rows, options, isAdmin) {
@@ -83,9 +84,12 @@ async function list(options = {}, { isAdmin = false } = {}) {
   if (isAdmin) {
     if (opts.status) where.push(`status = ${addParam(params, opts.status)}`);
   } else {
+    const nowSeconds = Math.floor(Date.now() / 1000);
     where.push("status = 'APPROVED'");
     where.push('is_expired <> 1');
     where.push('source_verified = 1');
+    where.push(`price_check_at IS NOT NULL AND price_check_at >= ${addParam(params, freshPriceThreshold(nowSeconds))}`);
+    where.push(`price_check_at <= ${addParam(params, nowSeconds)}`);
   }
 
   if (opts.category && opts.category !== 'All' && opts.category !== 'All Deals') {
@@ -157,6 +161,7 @@ async function stats({ isAdmin = false } = {}) {
   await deals.ensureSchema();
 
   if (!isAdmin) {
+    const nowSeconds = Math.floor(Date.now() / 1000);
     const result = await postgres.query(`
       SELECT
         COUNT(*)::int AS total,
@@ -164,8 +169,13 @@ async function stats({ isAdmin = false } = {}) {
         COALESCE(ROUND(AVG(discount_percent)), 0)::int AS avg_discount,
         COUNT(DISTINCT category)::int AS categories_count
       FROM deals
-      WHERE status = 'APPROVED' AND is_expired <> 1 AND source_verified = 1
-    `);
+      WHERE status = 'APPROVED'
+        AND is_expired <> 1
+        AND source_verified = 1
+        AND price_check_at IS NOT NULL
+        AND price_check_at >= $1
+        AND price_check_at <= $2
+    `, [freshPriceThreshold(nowSeconds), nowSeconds]);
     const row = result.rows[0];
     return {
       total: row.total,
