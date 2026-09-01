@@ -6,6 +6,7 @@ const deals = require('../repositories/dealRepository');
 const bookmarks = require('../repositories/bookmarkRepository');
 const bookmarkQueries = require('../repositories/bookmarkQueryRepository');
 const { normalizeGuestId, isValidGuestId } = require('../services/clientIdentityService');
+const { isPublicDeal } = require('../services/publicDealPolicy');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -21,10 +22,6 @@ async function getClientIdentity(req) {
   const guestId = normalizeGuestId(req.headers['x-guest-id']);
   if (!isValidGuestId(guestId)) return null;
   return { id: guestId, email: null, authenticated: false, verified: false };
-}
-
-function publicDeal(deal) {
-  return deal && deal.status === 'APPROVED' && deal.is_expired !== 1 && deal.source_verified === 1;
 }
 
 function rowToPublicDeal(r) {
@@ -60,11 +57,13 @@ router.use(async (req, res, next) => {
 router.get('/', async (req, res) => {
   try {
     const rows = await bookmarkQueries.listPublicSavedDeals(req.clientIdentity.id);
-    const savedDeals = rows.map((row) => ({
-      ...rowToPublicDeal(row),
-      savedAt: row.bookmark_created_at == null ? null : Number(row.bookmark_created_at),
-      targetPrice: row.bookmark_target_price == null ? null : Number(row.bookmark_target_price),
-    }));
+    const savedDeals = rows
+      .filter((row) => isPublicDeal(row))
+      .map((row) => ({
+        ...rowToPublicDeal(row),
+        savedAt: row.bookmark_created_at == null ? null : Number(row.bookmark_created_at),
+        targetPrice: row.bookmark_target_price == null ? null : Number(row.bookmark_target_price),
+      }));
     res.json({ deals: savedDeals, bookmarkIds: savedDeals.map((deal) => deal.id) });
   } catch (err) {
     console.error('[bookmarks] list failed:', err.message);
@@ -78,7 +77,7 @@ router.post('/toggle', async (req, res) => {
   if (!dealId) return res.status(400).json({ error: 'dealId is required' });
   try {
     const deal = await deals.findByIdOrAsin(dealId);
-    if (!publicDeal(deal)) return res.status(404).json({ error: 'Deal not found' });
+    if (!isPublicDeal(deal)) return res.status(404).json({ error: 'Deal not found' });
     const targetPrice = req.body?.targetPrice == null ? null : Number(req.body.targetPrice);
     if (targetPrice !== null && (!Number.isFinite(targetPrice) || targetPrice <= 0)) return res.status(400).json({ error: 'Invalid target price' });
     const result = await bookmarks.toggleBookmark(userId, deal.id, targetPrice);
@@ -99,7 +98,7 @@ router.post('/price-alert', async (req, res) => {
   }
   try {
     const deal = await deals.findByIdOrAsin(dealId);
-    if (!publicDeal(deal)) return res.status(404).json({ error: 'Deal not found' });
+    if (!isPublicDeal(deal)) return res.status(404).json({ error: 'Deal not found' });
 
     const email = String(identity.email).trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A valid verified email is required for price alerts' });
