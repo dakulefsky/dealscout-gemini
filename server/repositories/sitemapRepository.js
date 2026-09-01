@@ -3,7 +3,8 @@ const postgres = require('../storage/postgres');
 const { PUBLIC_PRICE_MAX_AGE_SECONDS, isPublicDeal, freshPriceThreshold } = require('../services/publicDealPolicy');
 
 async function listFreshPublicDeals({ maxAgeHours = PUBLIC_PRICE_MAX_AGE_SECONDS / 3600, nowUnix = Math.floor(Date.now() / 1000) } = {}) {
-  const maxAgeSeconds = Math.max(0, Number(maxAgeHours) || 0) * 3600;
+  const requestedMaxAgeSeconds = Math.max(0, Number(maxAgeHours) || 0) * 3600;
+  const maxAgeSeconds = Math.min(requestedMaxAgeSeconds, PUBLIC_PRICE_MAX_AGE_SECONDS);
   const threshold = freshPriceThreshold(nowUnix, maxAgeSeconds);
   if (!postgres.isConfigured()) {
     return (await dealRepository.listAll()).filter((deal) => isPublicDeal(deal, { nowSeconds: nowUnix, maxAgeSeconds }));
