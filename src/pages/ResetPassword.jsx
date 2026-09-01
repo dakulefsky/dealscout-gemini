@@ -20,7 +20,7 @@ export default function ResetPassword() {
     e.preventDefault();
     setError('');
     if (password !== confirm) { setError('Passwords do not match'); return; }
-    if (password.length < 6)  { setError('Password must be at least 6 characters'); return; }
+    if (password.length < 8)  { setError('Password must be at least 8 characters'); return; }
     setLoading(true);
     try {
       await auth.resetPassword(resetToken, password);
@@ -35,7 +35,7 @@ export default function ResetPassword() {
   if (!resetToken) {
     return (
       <AuthLayout icon={KeyRound} title="Invalid link" subtitle="This password reset link is missing or malformed.">
-        <Link to="/forgot-password" className="text-primary font-medium hover:underline text-sm block text-center">Request a new link</Link>
+        <Link to="/admin/access" className="text-primary font-medium hover:underline text-sm block text-center">Back to admin sign in</Link>
       </AuthLayout>
     );
   }
@@ -43,8 +43,8 @@ export default function ResetPassword() {
   if (done) {
     return (
       <AuthLayout icon={CheckCircle2} title="Password reset!" subtitle="Your password has been updated.">
-        <Link to="/login" className="block">
-          <Button className="w-full h-12">Log in</Button>
+        <Link to="/admin/access" className="block">
+          <Button className="w-full h-12">Sign in</Button>
         </Link>
       </AuthLayout>
     );
@@ -58,7 +58,7 @@ export default function ResetPassword() {
           <Label htmlFor="password">New password</Label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input id="password" type="password" autoFocus placeholder="At least 6 characters"
+            <Input id="password" type="password" autoComplete="new-password" autoFocus placeholder="At least 8 characters"
               value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 h-12" required />
           </div>
         </div>
@@ -66,7 +66,7 @@ export default function ResetPassword() {
           <Label htmlFor="confirm">Confirm new password</Label>
           <div className="relative">
             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input id="confirm" type="password" placeholder="Repeat your password"
+            <Input id="confirm" type="password" autoComplete="new-password" placeholder="Repeat your password"
               value={confirm} onChange={(e) => setConfirm(e.target.value)} className="pl-10 h-12" required />
           </div>
         </div>
