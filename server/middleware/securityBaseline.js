@@ -2,6 +2,7 @@ const crypto = require('crypto');
 
 const MAX_RATE_BUCKETS = 5000;
 const buckets = new Map();
+let limiterOps = 0;
 
 function contentSecurityPolicy(nonce) {
   return [
@@ -36,6 +37,9 @@ function securityHeaders(req, res, next) {
 }
 
 function pruneRateBuckets(now, windowMs) {
+  limiterOps += 1;
+  if (limiterOps % 100 !== 0 && buckets.size < MAX_RATE_BUCKETS) return;
+
   for (const [bucketKey, value] of buckets) {
     if (now - value.startedAt >= windowMs) buckets.delete(bucketKey);
   }
@@ -50,10 +54,10 @@ function apiRateLimit({ windowMs = 15 * 60 * 1000, max = 300 } = {}) {
   return (req, res, next) => {
     if (!req.path?.startsWith('/api/')) return next();
     const now = Date.now();
+    pruneRateBuckets(now, windowMs);
     const key = req.ip || req.socket?.remoteAddress || 'unknown';
     let bucket = buckets.get(key);
     if (!bucket || now - bucket.startedAt >= windowMs) {
-      if (!bucket) pruneRateBuckets(now, windowMs);
       bucket = { startedAt: now, count: 0 };
       buckets.set(key, bucket);
     }
