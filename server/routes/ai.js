@@ -6,12 +6,30 @@ const { requireAdmin } = require('../middleware/auth');
 const { robustExtractAsin, resolveShortlink } = require('../services/siteStripeService');
 const { fetchProductByAsin } = require('../services/providerRouter');
 
+const ASSISTANT_WINDOW_MS = 10 * 60 * 1000;
+const MAX_ASSISTANT_BUCKETS = 5000;
 const assistantRate = new Map();
+let assistantRateOps = 0;
+
+function pruneAssistantRate(now) {
+  assistantRateOps += 1;
+  if (assistantRateOps % 100 !== 0 && assistantRate.size < MAX_ASSISTANT_BUCKETS) return;
+  for (const [key, bucket] of assistantRate) {
+    if (!bucket?.startedAt || now - bucket.startedAt > ASSISTANT_WINDOW_MS) assistantRate.delete(key);
+  }
+  while (assistantRate.size >= MAX_ASSISTANT_BUCKETS) {
+    const oldestKey = assistantRate.keys().next().value;
+    if (oldestKey === undefined) break;
+    assistantRate.delete(oldestKey);
+  }
+}
+
 function rateLimitAssistant(req, res, next) {
   const now = Date.now();
+  pruneAssistantRate(now);
   const key = req.ip || req.socket?.remoteAddress || 'unknown';
   const current = assistantRate.get(key);
-  if (!current || now - current.startedAt > 10 * 60 * 1000) {
+  if (!current || now - current.startedAt > ASSISTANT_WINDOW_MS) {
     assistantRate.set(key, { startedAt: now, count: 1 });
     return next();
   }
