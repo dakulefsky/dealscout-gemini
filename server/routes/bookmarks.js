@@ -15,12 +15,12 @@ async function getClientIdentity(req) {
     try {
       const decoded = jwt.verify(authHeader.slice(7), JWT_SECRET);
       const user = await users.findById(decoded.id);
-      if (user) return { id: user.id, email: user.email, authenticated: true };
+      if (user) return { id: user.id, email: user.email, authenticated: true, verified: user.verified === 1 || user.verified === true };
     } catch {}
   }
   const guestId = normalizeGuestId(req.headers['x-guest-id']);
   if (!isValidGuestId(guestId)) return null;
-  return { id: guestId, email: null, authenticated: false };
+  return { id: guestId, email: null, authenticated: false, verified: false };
 }
 
 function publicDeal(deal) {
@@ -94,13 +94,15 @@ router.post('/price-alert', async (req, res) => {
   const dealId = String(req.body?.dealId || '');
   const targetPrice = Number(req.body?.targetPrice);
   if (!dealId || !Number.isFinite(targetPrice) || targetPrice <= 0) return res.status(400).json({ error: 'dealId and a positive targetPrice are required' });
+  if (!identity.authenticated || !identity.verified || !identity.email) {
+    return res.status(403).json({ error: 'A verified account email is required for price alerts' });
+  }
   try {
     const deal = await deals.findByIdOrAsin(dealId);
     if (!publicDeal(deal)) return res.status(404).json({ error: 'Deal not found' });
 
-    const suppliedEmail = String(req.body?.email || '').trim().toLowerCase();
-    const email = identity.authenticated ? identity.email : suppliedEmail;
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A valid email is required for price alerts' });
+    const email = String(identity.email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'A valid verified email is required for price alerts' });
 
     const alert = await bookmarks.upsertAlert({ userId: identity.id, deal, targetPrice, email });
     await bookmarks.setBookmarkTarget(identity.id, deal.id, targetPrice);
