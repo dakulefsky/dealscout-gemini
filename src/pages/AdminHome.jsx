@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Eraser, History, Image, Loader2, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,7 @@ const EMPTY_ACTIVITY = { activity: [] };
 export default function AdminHome() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
+  const busyRef = useRef(false);
   const [stats, setStats] = useState({});
   const [provider, setProvider] = useState({});
   const [integrity, setIntegrity] = useState({});
@@ -72,6 +73,8 @@ export default function AdminHome() {
   useEffect(() => { load(); }, []);
 
   async function run(name, fn, success, describe) {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(name);
     try {
       const result = await fn();
@@ -80,6 +83,7 @@ export default function AdminHome() {
     } catch (error) {
       toast({ title: 'Action failed', description: error.message, variant: 'destructive' });
     } finally {
+      busyRef.current = false;
       setBusy(null);
     }
   }
@@ -93,12 +97,13 @@ export default function AdminHome() {
   const publicationIssues = Number(publication.overdue || 0) + Number(publicationCounts.failed || 0);
   const cleanupCandidates = Number(legacyCleanup.candidates || 0);
   const effectiveProvider = provider.effectiveProvider || provider.configuredProvider || 'none';
+  const actionInFlight = Boolean(busy);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-7">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div><div className="text-xs font-bold uppercase tracking-wider text-emerald-600">DealScout Operations</div><h1 className="text-3xl font-black text-slate-900 mt-1">Admin</h1><p className="text-sm text-slate-500 mt-1">Everything important in one place.</p></div>
-        <Button variant="outline" onClick={load} className="rounded-xl gap-2"><RefreshCw className="w-4 h-4" /> Refresh</Button>
+        <Button variant="outline" onClick={load} disabled={actionInFlight} className="rounded-xl gap-2"><RefreshCw className="w-4 h-4" /> Refresh</Button>
       </div>
 
       {loadFailures.length > 0 && (
@@ -150,10 +155,10 @@ export default function AdminHome() {
       <section className="bg-white border border-slate-200 rounded-3xl p-6">
         <div className="flex items-center gap-2 mb-4"><ShieldCheck className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">Actions</h2></div>
         <div className="grid sm:grid-cols-3 gap-2">
-          <Button disabled={busy === 'verify'} onClick={() => run('verify', () => functions.verifyPrices(25), 'Prices checked')} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'verify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check prices</Button>
-          <Button disabled={busy === 'sync'} onClick={() => run('sync', () => functions.fetchDeals(15), 'Deal discovery complete', (result) => `${result?.created || 0} new deals added.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Find deals</Button>
-          <Button disabled={busy === 'images'} onClick={() => run('images', () => functions.repairImages(30), 'Image repair complete', (result) => `${result?.repaired || 0} repaired.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'images' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />} Repair images</Button>
-          {cleanupCandidates > 0 && <Button disabled={busy === 'cleanup'} onClick={() => run('cleanup', () => functions.cleanupLegacyEnrichment(), 'Legacy copy cleaned', (result) => `${result?.cleaned || 0} rows cleaned.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-3 border-amber-200 text-amber-800 hover:bg-amber-50">{busy === 'cleanup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />} Clean {cleanupCandidates} known legacy {cleanupCandidates === 1 ? 'row' : 'rows'}</Button>}
+          <Button disabled={actionInFlight} onClick={() => run('verify', () => functions.verifyPrices(25), 'Prices checked')} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'verify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check prices</Button>
+          <Button disabled={actionInFlight} onClick={() => run('sync', () => functions.fetchDeals(15), 'Deal discovery complete', (result) => `${result?.created || 0} new deals added.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Find deals</Button>
+          <Button disabled={actionInFlight} onClick={() => run('images', () => functions.repairImages(30), 'Image repair complete', (result) => `${result?.repaired || 0} repaired.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'images' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />} Repair images</Button>
+          {cleanupCandidates > 0 && <Button disabled={actionInFlight} onClick={() => run('cleanup', () => functions.cleanupLegacyEnrichment(), 'Legacy copy cleaned', (result) => `${result?.cleaned || 0} rows cleaned.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-3 border-amber-200 text-amber-800 hover:bg-amber-50">{busy === 'cleanup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />} Clean {cleanupCandidates} known legacy {cleanupCandidates === 1 ? 'row' : 'rows'}</Button>}
         </div>
       </section>
 
