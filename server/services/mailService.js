@@ -49,4 +49,23 @@ async function sendPasswordReset(email, rawToken) {
   });
 }
 
-module.exports = { isConfigured, sendVerificationCode, sendPasswordReset };
+async function sendPriceAlert(email, { dealId, dealTitle, currentPrice, targetPrice }) {
+  const config = getConfig();
+  const baseUrl = resolvePublicWebUrl(process.env, { isProduction: process.env.NODE_ENV === 'production' });
+  if (!baseUrl) throw new Error('PUBLIC_WEB_URL is required for price alert email delivery');
+  const current = Number(currentPrice);
+  const target = Number(targetPrice);
+  if (!dealId || !Number.isFinite(current) || current <= 0 || !Number.isFinite(target) || target <= 0) {
+    throw new Error('Valid deal and price values are required for price alert email delivery');
+  }
+  const dealUrl = `${baseUrl}/deal/${encodeURIComponent(dealId)}`;
+  const title = String(dealTitle || 'A saved DealScout deal').trim();
+  await getTransport().sendMail({
+    from: config.from,
+    to: email,
+    subject: `DealScout price alert: $${current.toFixed(2)}`,
+    text: `${title} is now $${current.toFixed(2)}, at or below your $${target.toFixed(2)} target.\n\nView the verified deal: ${dealUrl}\n\nPrice and availability can change on Amazon.`,
+  });
+}
+
+module.exports = { isConfigured, sendVerificationCode, sendPasswordReset, sendPriceAlert };
