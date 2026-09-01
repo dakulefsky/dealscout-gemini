@@ -1,15 +1,12 @@
 const dealRepository = require('./dealRepository');
 const postgres = require('../storage/postgres');
+const { PUBLIC_PRICE_MAX_AGE_SECONDS, isPublicDeal, freshPriceThreshold } = require('../services/publicDealPolicy');
 
-async function listFreshPublicDeals({ maxAgeHours = 168, nowUnix = Math.floor(Date.now() / 1000) } = {}) {
-  const threshold = Number(nowUnix) - Math.max(0, Number(maxAgeHours) || 0) * 3600;
+async function listFreshPublicDeals({ maxAgeHours = PUBLIC_PRICE_MAX_AGE_SECONDS / 3600, nowUnix = Math.floor(Date.now() / 1000) } = {}) {
+  const maxAgeSeconds = Math.max(0, Number(maxAgeHours) || 0) * 3600;
+  const threshold = freshPriceThreshold(nowUnix, maxAgeSeconds);
   if (!postgres.isConfigured()) {
-    return (await dealRepository.listAll()).filter((deal) => (
-      deal.status === 'APPROVED'
-      && deal.source_verified === 1
-      && deal.is_expired !== 1
-      && Number(deal.price_check_at || 0) >= threshold
-    ));
+    return (await dealRepository.listAll()).filter((deal) => isPublicDeal(deal, { nowSeconds: nowUnix, maxAgeSeconds }));
   }
 
   await dealRepository.ensureSchema();
@@ -21,8 +18,9 @@ async function listFreshPublicDeals({ maxAgeHours = 168, nowUnix = Math.floor(Da
        AND is_expired <> 1
        AND price_check_at IS NOT NULL
        AND price_check_at >= $1
+       AND price_check_at <= $2
      ORDER BY price_check_at DESC, id DESC
-  `, [threshold]);
+  `, [threshold, Number(nowUnix)]);
   return result.rows;
 }
 
