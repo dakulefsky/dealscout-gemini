@@ -5,6 +5,7 @@ const deals = require('../repositories/dealRepository');
 const { requireAdmin } = require('../middleware/auth');
 const { robustExtractAsin, resolveShortlink } = require('../services/siteStripeService');
 const { fetchProductByAsin } = require('../services/providerRouter');
+const { isPublicDeal } = require('../services/publicDealPolicy');
 
 const ASSISTANT_WINDOW_MS = 10 * 60 * 1000;
 const MAX_ASSISTANT_BUCKETS = 5000;
@@ -98,7 +99,7 @@ router.post('/ask-deal-assistant', rateLimitAssistant, async (req, res) => {
     if (!dealId) return res.status(400).json({ error: 'Deal ID is required' });
 
     const deal = await deals.findByIdOrAsin(dealId);
-    if (!deal || deal.status !== 'APPROVED' || deal.is_expired === 1 || deal.source_verified !== 1) {
+    if (!isPublicDeal(deal)) {
       return res.status(404).json({ error: 'Deal context not found' });
     }
 
