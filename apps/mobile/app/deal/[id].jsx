@@ -5,6 +5,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { bookmarks, deals } from '../../src/api';
+import { isAmazonOwnedUrl } from '../../src/amazonUrl';
 import { addCategoryInterest } from '../../src/personalization';
 
 function field(deal, camel, snake) {
@@ -58,7 +59,7 @@ export default function DealDetailScreen() {
 
   async function openAmazon() {
     const url = field(deal, 'productUrl', 'product_url');
-    if (!url || !/^https:\/\//i.test(url)) return;
+    if (!isAmazonOwnedUrl(url)) return;
     const supported = await Linking.canOpenURL(url);
     if (!supported) return;
     await Linking.openURL(url);
