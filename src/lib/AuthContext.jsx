@@ -47,7 +47,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const navigateToLogin = () => {
-    window.location.href = '/login?returnTo=' + encodeURIComponent(window.location.pathname);
+    window.location.href = '/admin/access?returnTo=' + encodeURIComponent(window.location.pathname);
   };
 
   return (
