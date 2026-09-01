@@ -15,6 +15,7 @@
     "start": "node server.js",
     "publisher": "node publication-worker.js",
     "launch:check": "node scripts/launch-preflight.mjs",
+    "release:gcp": "node scripts/gcp-release.mjs",
     "smoke:release": "node scripts/release-smoke.mjs",
     "preview": "vite preview"
   },
