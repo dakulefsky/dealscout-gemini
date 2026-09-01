@@ -26,3 +26,10 @@ test('admin reset UI matches backend password rules and returns to admin sign in
   assert.match(page, /to="\/admin\/access"/);
   assert.doesNotMatch(page, /to="\/login"/);
 });
+
+test('admin sign in exposes a private password recovery action', () => {
+  const login = read('src/pages/Login.jsx');
+  assert.match(login, /auth\.forgotPassword\(email\)/);
+  assert.match(login, /Forgot password\?/);
+  assert.match(login, /If that admin email exists, a password reset link has been sent\./);
+});
