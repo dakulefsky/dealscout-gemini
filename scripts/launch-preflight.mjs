@@ -18,6 +18,16 @@ function httpsOrigin(input) {
   }
 }
 
+function httpsUrl(input) {
+  if (!input) return false;
+  try {
+    const url = new URL(input);
+    return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
 function completeCloudSql(env) {
   return ['CLOUD_SQL_CONNECTION_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'].every((key) => value(env, key));
 }
@@ -64,8 +74,8 @@ export function evaluateLaunch({ env = {}, appConfig = {}, fileExists = () => fa
     check('ios-id', 'mobile', Boolean(expo.ios?.bundleIdentifier), 'iOS bundle identifier is configured.'),
     check('android-id', 'mobile', Boolean(expo.android?.package), 'Android application package is configured.'),
     check('eas-project', 'mobile', Boolean(easProjectId), 'Expo/EAS project is linked by EAS_PROJECT_ID or app config.'),
-    check('privacy-url', 'mobile', httpsOrigin(privacyUrl), 'Mobile privacy-policy URL is configured as an HTTPS origin.'),
-    check('support-url', 'mobile', httpsOrigin(supportUrl), 'Mobile support URL is configured as an HTTPS origin.'),
+    check('privacy-url', 'mobile', httpsUrl(privacyUrl), 'Mobile privacy-policy URL is configured as a public HTTPS URL.'),
+    check('support-url', 'mobile', httpsUrl(supportUrl), 'Mobile support URL is configured as a public HTTPS URL.'),
     check('app-icon', 'mobile', Boolean(iconPath) && fileExists(iconPath), 'Final app icon exists and is wired into Expo config.'),
     check('adaptive-icon', 'mobile', Boolean(adaptivePath) && fileExists(adaptivePath), 'Android adaptive foreground icon exists and is wired into Expo config.'),
 
