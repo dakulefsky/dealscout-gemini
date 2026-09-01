@@ -113,9 +113,11 @@ async function page(options = {}) {
   }
 
   await deals.ensureSchema();
+  const nowSeconds = Math.floor(Date.now() / 1000);
   const params = [];
-  const freshness = `$${params.push(freshPriceThreshold())}`;
-  const where = ["status = 'APPROVED'", 'is_expired <> 1', 'source_verified = 1', `price_check_at IS NOT NULL AND price_check_at >= ${freshness}`];
+  const freshness = `$${params.push(freshPriceThreshold(nowSeconds))}`;
+  const now = `$${params.push(nowSeconds)}`;
+  const where = ["status = 'APPROVED'", 'is_expired <> 1', 'source_verified = 1', `price_check_at IS NOT NULL AND price_check_at >= ${freshness} AND price_check_at <= ${now}`];
   if (filters.category) where.push(`LOWER(COALESCE(category, '')) = LOWER($${params.push(filters.category)})`);
   if (filters.q) {
     const pattern = `%${filters.q}%`;
