@@ -33,7 +33,8 @@ export default {
       },
     },
   },
-  plugins: [
-    require('tailwindcss-animate'),
-  ],
+  // No Tailwind plugin is required by the active DealScout UI. Keeping the
+  // production build plugin-free prevents an unused optional UI dependency
+  // from becoming a clean-install build prerequisite.
+  plugins: [],
 };
