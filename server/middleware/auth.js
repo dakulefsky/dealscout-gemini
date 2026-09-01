@@ -16,9 +16,17 @@ function verifyBearer(req) {
   return jwt.verify(header.slice(7), JWT_SECRET);
 }
 
-function optionalAuth(req, _res, next) {
+async function optionalAuth(req, _res, next) {
   try {
-    req.user = verifyBearer(req) || null;
+    const tokenUser = verifyBearer(req);
+    if (!tokenUser) {
+      req.user = null;
+      return next();
+    }
+    const currentUser = await users.findById(tokenUser.id);
+    req.user = currentUser && currentUser.verified
+      ? { ...tokenUser, email: currentUser.email, role: currentUser.role }
+      : null;
   } catch {
     req.user = null;
   }
