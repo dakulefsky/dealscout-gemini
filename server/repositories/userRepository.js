@@ -35,7 +35,8 @@ async function bootstrapProductionAdmin() {
     if (existingUser.rowCount > 0) {
       await postgres.query(
         `UPDATE users SET password = $1, role = 'admin', verified = 1,
-          otp_code = NULL, otp_expires = NULL, reset_token = NULL, reset_expires = NULL
+          otp_code = NULL, otp_expires = NULL, reset_token = NULL, reset_expires = NULL,
+          token_version = COALESCE(token_version, 0) + 1
          WHERE id = $2`,
         [passwordHash, existingUser.rows[0].id]
       );
@@ -43,16 +44,13 @@ async function bootstrapProductionAdmin() {
     }
 
     await postgres.query(
-      `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, created_at)
-       VALUES ($1,$2,$3,'admin',1,NULL,NULL,NULL,NULL,$4)`,
+      `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, token_version, created_at)
+       VALUES ($1,$2,$3,'admin',1,NULL,NULL,NULL,NULL,0,$4)`,
       [uuidv4(), email, passwordHash, Math.floor(Date.now() / 1000)]
     );
     return { created: true, promoted: false, email };
   });
 
-  // Another replica may be performing the same one-time bootstrap. It owns the
-  // decision while holding the session lock; this replica can continue startup
-  // and will observe the resulting admin through the shared database.
   if (!lock.acquired) return { created: false, deferred: true };
   return lock.result;
 }
@@ -70,8 +68,10 @@ async function ensureSchema() {
       otp_expires BIGINT,
       reset_token TEXT,
       reset_expires BIGINT,
+      token_version INTEGER NOT NULL DEFAULT 0,
       created_at BIGINT NOT NULL
     );
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
     CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users (reset_token);
   `);
 
@@ -85,8 +85,8 @@ async function ensureSchema() {
     for (const user of db.tables.users) {
       if (isLegacyDemoAdmin(user) || process.env.NODE_ENV !== 'production') {
         await postgres.query(
-          `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, created_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, token_version, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
            ON CONFLICT (id) DO NOTHING`,
           [
             user.id,
@@ -98,6 +98,7 @@ async function ensureSchema() {
             user.otp_expires || null,
             user.reset_token || null,
             user.reset_expires || null,
+            Number.isInteger(Number(user.token_version)) ? Number(user.token_version) : 0,
             user.created_at || Math.floor(Date.now() / 1000),
           ]
         );
@@ -146,6 +147,7 @@ async function create(user) {
     email: normalizeEmail(user.email),
     role: user.role || 'user',
     verified: user.verified ? 1 : 0,
+    token_version: Number.isInteger(Number(user.token_version)) ? Number(user.token_version) : 0,
     created_at: user.created_at || Math.floor(Date.now() / 1000),
   };
   if (!postgres.isConfigured()) {
@@ -155,16 +157,16 @@ async function create(user) {
   }
   await ensureSchema();
   const result = await postgres.query(
-    `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, token_version, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
      RETURNING *`,
-    [record.id, record.email, record.password, record.role, record.verified, record.otp_code || null, record.otp_expires || null, record.reset_token || null, record.reset_expires || null, record.created_at]
+    [record.id, record.email, record.password, record.role, record.verified, record.otp_code || null, record.otp_expires || null, record.reset_token || null, record.reset_expires || null, record.token_version, record.created_at]
   );
   return result.rows[0];
 }
 
 async function updateFields(id, fields) {
-  const allowed = ['verified', 'otp_code', 'otp_expires', 'reset_token', 'reset_expires', 'password', 'role'];
+  const allowed = ['verified', 'otp_code', 'otp_expires', 'reset_token', 'reset_expires', 'password', 'role', 'token_version'];
   const entries = Object.entries(fields).filter(([key]) => allowed.includes(key));
   if (!entries.length) return findById(id);
 
