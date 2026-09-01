@@ -75,8 +75,8 @@ function dealMeta(baseUrl, deal, nowMs = Date.now()) {
   const ageHours = priceCheckAgeHours(deal, nowMs);
   const fresh = ageHours <= PUBLIC_PRICE_MAX_AGE_HOURS;
   const freshnessText = fresh
-    ? 'Price checked within the last 24 hours on DealScout; confirm final price and availability on Amazon.'
-    : 'Last observed price is outside DealScout’s public freshness window; confirm the current price and availability on Amazon.';
+    ? 'Price checked recently within DealScout’s 24-hour public freshness window; confirm final price and availability on Amazon.'
+    : 'Last observed price may be stale because it is outside DealScout’s 24-hour public freshness window; confirm the current price and availability on Amazon.';
   const description = `${deal.discount_percent || 0}% off${savings > 0 ? `, save $${savings.toFixed(2)}` : ''}. ${freshnessText}`;
   const canonical = `${baseUrl}/deal/${encodeURIComponent(deal.id || deal.asin)}`;
   const offer = {
