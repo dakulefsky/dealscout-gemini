@@ -7,6 +7,7 @@ const categories = require('../repositories/categoryRepository');
 const { optionalAuth, requireAdmin } = require('../middleware/auth');
 const { isPublicDeal } = require('../services/publicDealPolicy');
 const { isAmazonUrl } = require('../services/amazonUrlService');
+const { manualExpireChanges, manualRestoreChanges } = require('../services/manualDealLifecycle');
 
 function rowToDeal(r, { includeInternal = false } = {}) {
   if (!r) return null;
@@ -212,8 +213,10 @@ router.post('/bulk-status', requireAdmin, async (req, res) => {
 
 router.post('/:id/expire', requireAdmin, async (req, res) => {
   try {
-    const updated = await deals.expire(req.params.id, req.body?.reason || 'Manually marked as expired by Admin');
-    if (!updated) return res.status(404).json({ error: 'Deal not found' });
+    const current = await deals.findByIdOrAsin(req.params.id);
+    if (!current) return res.status(404).json({ error: 'Deal not found' });
+    const reason = req.body?.reason || 'Manually marked as expired by Admin';
+    const updated = await deals.update(current.id, manualExpireChanges(current, reason));
     res.json({ success: true, deal: rowToDeal(updated, { includeInternal: true }) });
   } catch (err) { res.status(503).json({ error: err.message }); }
 });
@@ -223,7 +226,7 @@ router.post('/:id/restore', requireAdmin, async (req, res) => {
     const current = await deals.findByIdOrAsin(req.params.id);
     if (!current) return res.status(404).json({ error: 'Deal not found' });
     if (current.source_verified !== 1) return res.status(409).json({ error: 'Unverified deals cannot be restored to approved status' });
-    const updated = await deals.restore(current.id);
+    const updated = await deals.update(current.id, manualRestoreChanges());
     res.json({ success: true, deal: rowToDeal(updated, { includeInternal: true }) });
   } catch (err) { res.status(503).json({ error: err.message }); }
 });
