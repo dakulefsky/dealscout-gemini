@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 
+const MAX_RATE_BUCKETS = 5000;
 const buckets = new Map();
+let limiterOps = 0;
 
 function contentSecurityPolicy(nonce) {
   return [
@@ -34,10 +36,25 @@ function securityHeaders(req, res, next) {
   next();
 }
 
+function pruneRateBuckets(now, windowMs) {
+  limiterOps += 1;
+  if (limiterOps % 100 !== 0 && buckets.size < MAX_RATE_BUCKETS) return;
+
+  for (const [bucketKey, value] of buckets) {
+    if (now - value.startedAt >= windowMs) buckets.delete(bucketKey);
+  }
+  while (buckets.size >= MAX_RATE_BUCKETS) {
+    const oldestKey = buckets.keys().next().value;
+    if (oldestKey === undefined) break;
+    buckets.delete(oldestKey);
+  }
+}
+
 function apiRateLimit({ windowMs = 15 * 60 * 1000, max = 300 } = {}) {
   return (req, res, next) => {
     if (!req.path?.startsWith('/api/')) return next();
     const now = Date.now();
+    pruneRateBuckets(now, windowMs);
     const key = req.ip || req.socket?.remoteAddress || 'unknown';
     let bucket = buckets.get(key);
     if (!bucket || now - bucket.startedAt >= windowMs) {
@@ -50,11 +67,6 @@ function apiRateLimit({ windowMs = 15 * 60 * 1000, max = 300 } = {}) {
     res.setHeader('RateLimit-Reset', String(Math.ceil((bucket.startedAt + windowMs) / 1000)));
     if (bucket.count > max) {
       return res.status(429).json({ error: 'Too many requests. Please try again later.' });
-    }
-    if (buckets.size > 5000) {
-      for (const [bucketKey, value] of buckets) {
-        if (now - value.startedAt >= windowMs) buckets.delete(bucketKey);
-      }
     }
     next();
   };
