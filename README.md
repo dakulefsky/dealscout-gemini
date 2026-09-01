@@ -6,14 +6,14 @@ DealScout is an Amazon affiliate deals application focused on verified price dro
 
 - **Frontend:** React 18, Vite, React Router, Tailwind CSS
 - **Backend:** Express 5 running from `server.js`
-- **Primary database:** PostgreSQL when `DATABASE_URL` is configured
+- **Primary database:** PostgreSQL in production
 - **Local fallback:** JSON-backed repositories for development
 - **Auth:** JWT + bcrypt; the shopper site does not expose a general login surface
 - **Deal sources:** Rainforest API and optional Amazon PA-API through a fail-closed provider router
 - **Price history:** real recorded observations, stored in PostgreSQL or the JSON fallback
 - **Email:** SMTP via Nodemailer for verification/reset delivery
 
-The production server serves the built frontend and API from the same Node process.
+The production container can serve the built frontend and API from the same Node process. A separately hosted frontend is also supported when `VITE_API_URL` is set at build time and the frontend origin is present in `CORS_ORIGINS`.
 
 ## Requirements
 
@@ -42,7 +42,7 @@ npm test
 npm run build
 ```
 
-GitHub's **Quality** workflow runs locked install, lint, tests, and build on pull requests.
+GitHub's **Quality** workflow runs locked install, lint, tests, frontend build, and a production Docker build on pull requests.
 
 ## Production deployment
 
@@ -54,7 +54,9 @@ npm run build
 NODE_ENV=production npm start
 ```
 
-Production requires a `JWT_SECRET` of at least 32 characters. Set `FRONTEND_URL` to the public site origin so CORS, canonical URLs, sitemap URLs, and password-reset links use the correct host.
+Production requires PostgreSQL, a `JWT_SECRET` of at least 32 characters, an Amazon Associate tag, and valid HTTPS public/browser origins. New deployments should set `PUBLIC_WEB_URL` to the canonical website origin and `CORS_ORIGINS` to the browser origins allowed to call the API. `FRONTEND_URL` remains a compatibility fallback for older deployments.
+
+When the frontend is hosted separately from the API, set `VITE_API_URL` in the frontend build environment to the deployed API origin. This is a build-time public URL, not a secret.
 
 `TRUST_PROXY` controls how many reverse-proxy hops Express trusts when deriving `req.ip`, which is also the key for the baseline API rate limiter. Production defaults to one hop for backward compatibility. Set it to `0`/`off` when the Node process is directly exposed, or to the exact integer hop count (1-5) for the deployment topology. DealScout intentionally does not accept a trust-all boolean.
 
@@ -63,12 +65,19 @@ Production requires a `JWT_SECRET` of at least 32 characters. Set `FRONTEND_URL`
 | Variable | Purpose |
 | --- | --- |
 | `NODE_ENV` | Use `production` in production. |
-| `PORT` | HTTP port; defaults to `3000`. |
-| `FRONTEND_URL` | Public origin, e.g. `https://example.com`. |
+| `PORT` | HTTP port; defaults to `3000`; the production Docker image sets `8080`. |
+| `PUBLIC_WEB_URL` | Canonical public website origin and password-reset destination. Use HTTPS in production. |
+| `CORS_ORIGINS` | Comma-separated browser origins allowed to call the API. Use HTTPS in production. |
+| `FRONTEND_URL` | Compatibility fallback for older deployments; prefer `PUBLIC_WEB_URL`. |
+| `VITE_API_URL` | Optional frontend build-time API origin when frontend and API are on different hosts. |
 | `TRUST_PROXY` | Trusted reverse-proxy hop count (`0`-`5`); production defaults to `1`. |
 | `JWT_SECRET` | JWT signing secret; minimum 32 characters in production. |
-| `DATABASE_URL` | PostgreSQL connection string. Strongly recommended for production. |
-| `PGSSL` | Set to `disable` only when the database explicitly does not use SSL. |
+| `CLOUD_SQL_CONNECTION_NAME` | Cloud SQL instance connection name for native Cloud Run Unix-socket access. |
+| `DB_USER` | PostgreSQL user when using native Cloud SQL configuration. |
+| `DB_PASSWORD` | PostgreSQL password; use Secret Manager or equivalent in production. |
+| `DB_NAME` | PostgreSQL database name when using native Cloud SQL configuration. |
+| `DATABASE_URL` | Alternative PostgreSQL connection string for non-Cloud-SQL deployments. |
+| `PGSSL` | TLS mode for `DATABASE_URL`; native Cloud SQL Unix sockets do not use nested TLS. |
 | `PG_POOL_MAX` | PostgreSQL pool size; defaults to `5`. |
 | `ADMIN_EMAIL` | Optional first-admin bootstrap email for a fresh production database. |
 | `ADMIN_PASSWORD` | Optional first-admin bootstrap password; 12-200 characters. Ignored once an admin exists. |
@@ -77,6 +86,8 @@ Production requires a `JWT_SECRET` of at least 32 characters. Set `FRONTEND_URL`
 | `RAINFOREST_API_KEY` | Rainforest API key for strict product lookup/discovery. |
 | `EDITORIAL_HOLDBACK_PERCENT` | Percentage of otherwise auto-approvable deals held for editorial review. |
 | `ALLOW_PUBLIC_REGISTRATION` | Leave unset/false for the current private-admin model. |
+
+For Cloud Run + Cloud SQL, prefer the native Cloud SQL settings (`CLOUD_SQL_CONNECTION_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`) and attach the Cloud SQL instance to the service. Every runtime service account that connects to the database needs Cloud SQL Client access.
 
 ### SMTP
 
@@ -89,7 +100,7 @@ Set all of these for email delivery:
 - `SMTP_PASS`
 - `MAIL_FROM`
 
-Password-reset emails also require `FRONTEND_URL`.
+Password-reset emails use the canonical public website origin from `PUBLIC_WEB_URL` (or the legacy `FRONTEND_URL` fallback).
 
 ### Optional Amazon PA-API
 
@@ -159,3 +170,5 @@ The shopper-facing disclosure includes the required statement:
 > As an Amazon Associate I earn from qualifying purchases.
 
 Final price and availability are determined on Amazon.
+
+For the full production topology, Cloud Run/Cloud SQL guidance, publication worker settings, mobile release requirements, and smoke checks, see `docs/deployment.md`.
