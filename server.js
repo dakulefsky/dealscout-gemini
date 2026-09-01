@@ -113,6 +113,10 @@ async function startServer() {
           if (rows[0]) meta = seo.categoryMeta(baseUrl, rows[0]);
         } else if (req.path === '/disclosure') {
           meta = { title: 'Affiliate Disclosure — DealScout', description: 'How DealScout uses Amazon affiliate links and how deal pricing is presented.', canonical: `${baseUrl}/disclosure` };
+        } else if (req.path === '/privacy') {
+          meta = { title: 'Privacy Policy — DealScout', description: 'How the DealScout website and mobile app use guest identity, saved-deal, personalization, and service data.', canonical: `${baseUrl}/privacy` };
+        } else if (req.path === '/support') {
+          meta = { title: 'Support — DealScout', description: 'Help with DealScout prices, saved deals, recommendations, links, and the mobile app.', canonical: `${baseUrl}/support` };
         } else if (req.path === '/saved') {
           meta = { ...seo.homeMeta(baseUrl), title: 'Saved Deals — DealScout', description: 'Your saved DealScout deals.', canonical: null, robots: 'noindex,follow' };
         }
