@@ -43,6 +43,9 @@ export function evaluateLaunch({ env = {}, appConfig = {}, fileExists = () => fa
   const expo = appConfig?.expo || {};
   const corsOrigins = value(env, 'CORS_ORIGINS').split(',').map((item) => item.trim()).filter(Boolean);
   const dbReady = Boolean(value(env, 'DATABASE_URL')) || completeCloudSql(env);
+  const easProjectId = value(env, 'EAS_PROJECT_ID') || String(expo.extra?.eas?.projectId || '').trim();
+  const privacyUrl = value(env, 'EXPO_PUBLIC_PRIVACY_URL') || String(expo.extra?.privacyUrl || '').trim();
+  const supportUrl = value(env, 'EXPO_PUBLIC_SUPPORT_URL') || String(expo.extra?.supportUrl || '').trim();
   const iconPath = expo.icon ? path.resolve(root, 'apps/mobile', expo.icon) : '';
   const adaptivePath = expo.android?.adaptiveIcon?.foregroundImage
     ? path.resolve(root, 'apps/mobile', expo.android.adaptiveIcon.foregroundImage)
@@ -60,7 +63,9 @@ export function evaluateLaunch({ env = {}, appConfig = {}, fileExists = () => fa
     check('mobile-api', 'mobile', httpsOrigin(value(env, 'EXPO_PUBLIC_API_URL')), 'EXPO_PUBLIC_API_URL points to the production HTTPS API origin.'),
     check('ios-id', 'mobile', Boolean(expo.ios?.bundleIdentifier), 'iOS bundle identifier is configured.'),
     check('android-id', 'mobile', Boolean(expo.android?.package), 'Android application package is configured.'),
-    check('eas-project', 'mobile', Boolean(expo.extra?.eas?.projectId), 'Expo/EAS project is linked in app config.'),
+    check('eas-project', 'mobile', Boolean(easProjectId), 'Expo/EAS project is linked by EAS_PROJECT_ID or app config.'),
+    check('privacy-url', 'mobile', httpsOrigin(privacyUrl), 'Mobile privacy-policy URL is configured as an HTTPS origin.'),
+    check('support-url', 'mobile', httpsOrigin(supportUrl), 'Mobile support URL is configured as an HTTPS origin.'),
     check('app-icon', 'mobile', Boolean(iconPath) && fileExists(iconPath), 'Final app icon exists and is wired into Expo config.'),
     check('adaptive-icon', 'mobile', Boolean(adaptivePath) && fileExists(adaptivePath), 'Android adaptive foreground icon exists and is wired into Expo config.'),
 
