@@ -156,4 +156,4 @@ async function health() {
 
 loadJsonFallback();
 
-module.exports = { recordObservation, getHistory, health };
+module.exports = { ensureSchema, recordObservation, getHistory, health };
