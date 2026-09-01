@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/lib/AuthContext';
 import { BookmarksProvider } from '@/lib/BookmarksContext';
 import Layout from '@/components/Layout';
@@ -30,6 +30,11 @@ function RouteFallback() {
   );
 }
 
+function LegacyResetRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/admin/reset-password${location.search}`} replace />;
+}
+
 export default function App() {
   return (
     <AppErrorBoundary>
@@ -54,7 +59,7 @@ export default function App() {
                   <Route path="/login" element={<Navigate to="/" replace />} />
                   <Route path="/register" element={<Navigate to="/" replace />} />
                   <Route path="/forgot-password" element={<Navigate to="/admin/access" replace />} />
-                  <Route path="/reset-password" element={<Navigate to="/admin/reset-password" replace />} />
+                  <Route path="/reset-password" element={<LegacyResetRedirect />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Suspense>
