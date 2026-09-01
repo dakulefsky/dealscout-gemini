@@ -5,6 +5,8 @@ const dealQueries = require('../repositories/dealQueryRepository');
 const dealFeed = require('../repositories/dealFeedRepository');
 const categories = require('../repositories/categoryRepository');
 const { optionalAuth, requireAdmin } = require('../middleware/auth');
+const { isPublicDeal } = require('../services/publicDealPolicy');
+const { isAmazonUrl } = require('../services/amazonUrlService');
 
 function rowToDeal(r, { includeInternal = false } = {}) {
   if (!r) return null;
@@ -50,7 +52,7 @@ function rowToDeal(r, { includeInternal = false } = {}) {
 }
 
 function canSeeDeal(req, deal) {
-  return req.user?.role === 'admin' || (deal.status === 'APPROVED' && deal.is_expired !== 1 && deal.source_verified === 1);
+  return req.user?.role === 'admin' || isPublicDeal(deal);
 }
 
 function validatePrices(original, sale) {
@@ -58,6 +60,14 @@ function validatePrices(original, sale) {
   const s = Number(sale);
   if (!Number.isFinite(o) || !Number.isFinite(s) || o <= 0 || s <= 0 || s > o) throw new Error('Invalid price values');
   return { original: o, sale: s, discount: Number((((o - s) / o) * 100).toFixed(1)) };
+}
+
+function validateProductUrl(value, asin) {
+  const url = String(value || `https://www.amazon.com/dp/${asin}`).trim();
+  if (!isAmazonUrl(url)) throw new Error('Product URL must use an Amazon-owned host');
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:') throw new Error('Product URL must use HTTPS');
+  return parsed.toString();
 }
 
 function validStatus(status) {
@@ -126,7 +136,7 @@ router.post('/', requireAdmin, async (req, res) => {
       id: asin,
       title: String(b.title).trim(), asin, category: String(b.category || 'Electronics').trim(),
       original_price: prices.original, sale_price: prices.sale, discount_percent: prices.discount,
-      image_url: b.imageUrl || '', product_url: b.productUrl || `https://www.amazon.com/dp/${asin}`,
+      image_url: b.imageUrl || '', product_url: validateProductUrl(b.productUrl, asin),
       rating: Number(b.rating) || 0, ratings_total: Number(b.ratingsTotal) || 0,
       short_bio: b.shortBio || '', full_summary: b.fullSummary || '',
       pros: Array.isArray(b.pros) ? b.pros.join('\n') : (b.pros || ''),
@@ -160,7 +170,8 @@ router.patch('/:id', requireAdmin, async (req, res) => {
       changes.original_price = p.original; changes.sale_price = p.sale; changes.discount_percent = p.discount;
     }
     if (b.imageUrl !== undefined) changes.image_url = b.imageUrl;
-    if (b.productUrl !== undefined) changes.product_url = b.productUrl;
+    if (b.productUrl !== undefined) changes.product_url = validateProductUrl(b.productUrl, changes.asin || deal.asin);
+    else if (changes.asin) changes.product_url = validateProductUrl(null, changes.asin);
     if (b.rating !== undefined) changes.rating = Number(b.rating) || 0;
     if (b.ratingsTotal !== undefined) changes.ratings_total = Number(b.ratingsTotal) || 0;
     if (b.shortBio !== undefined) changes.short_bio = b.shortBio;
