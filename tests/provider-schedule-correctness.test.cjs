@@ -11,9 +11,10 @@ test('manual discovery options are honored and bounded', () => {
   assert.match(cronSource, /fetchDealsList\(\{ amazonDomain: 'amazon\.com', maxResults, minDiscount \}\)/);
 });
 
-test('provider schedule uses a resettable one-shot timer', () => {
-  assert.match(cronSource, /scheduleNextCycle\(delayMs = TWELVE_HOURS_MS\)/);
+test('provider scheduler polls with a resettable one-shot timer while PostgreSQL owns cadence', () => {
+  assert.match(cronSource, /scheduleNextCycle\(delayMs = SCHEDULER_POLL_MS\)/);
   assert.match(cronSource, /setTimeout\(async \(\) =>/);
-  assert.match(cronSource, /if \(this\.intervalId\) this\.scheduleNextCycle\(\)/);
+  assert.match(cronSource, /runFullCycle\(\{ scheduled: true \}\)/);
+  assert.match(cronSource, /maintenanceCadence\.claim/);
   assert.doesNotMatch(cronSource, /this\.intervalId = setInterval/);
 });
