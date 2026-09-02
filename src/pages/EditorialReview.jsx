@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, ShieldCheck, Star, Save, ArrowLeft, CheckCircle2, Clock, Send } from 'lucide-react';
+import { Loader2, ShieldCheck, Star, Save, ArrowLeft, CheckCircle2, Clock, Send, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Image } from '@/components/ui/image';
@@ -37,8 +37,7 @@ export default function EditorialReview() {
 
   const visibleDeals = useMemo(() => deals.filter((deal) => {
     const e = editorialByAsin[deal.asin] || emptyEditorial;
-    if (filter === 'needs-review') return deal.status === 'PENDING_REVIEW' || !e.reviewedAt;
-    if (filter === 'holdback') return deal.status === 'PENDING_REVIEW' && String(deal.rawSourceData || '').includes('EDITORIAL_HOLDBACK');
+    if (filter === 'needs-review') return deal.status === 'PENDING_REVIEW';
     if (filter === 'picks') return e.isHumanPick;
     return true;
   }), [deals, editorialByAsin, filter]);
@@ -60,10 +59,26 @@ export default function EditorialReview() {
       setDeals((prev) => prev.map((d) => d.asin === deal.asin ? { ...d, status: publish ? 'APPROVED' : d.status } : d));
       toast({
         title: publish ? (saved.isHumanPick ? 'Published as DealScout Pick' : 'Published normally') : saved.isHumanPick ? 'DealScout Pick saved' : 'Review saved',
-        description: publish ? (saved.isHumanPick ? 'The deal is live and featured as a Pick.' : 'The deal is live in the regular deal feed.') : saved.isHumanPick ? 'This deal is now featured as a DealScout Pick.' : 'Review saved without changing publication status.',
       });
     } catch (error) {
       toast({ title: 'Review save failed', description: error.message, variant: 'destructive' });
+    } finally {
+      setBusyAsin(null);
+    }
+  }
+
+  async function reject(deal) {
+    setBusyAsin(deal.asin);
+    try {
+      await editorialApi.save(deal.asin, {
+        editorialNote: editorialByAsin[deal.asin]?.editorialNote || '',
+        isHumanPick: false,
+      });
+      await dealsApi.update(deal.id || deal.asin, { status: 'REJECTED' });
+      setDeals((prev) => prev.filter((d) => d.asin !== deal.asin));
+      toast({ title: 'Deal rejected', description: 'Removed from the review queue and public feed.' });
+    } catch (error) {
+      toast({ title: 'Could not reject deal', description: error.message, variant: 'destructive' });
     } finally {
       setBusyAsin(null);
     }
@@ -74,13 +89,12 @@ export default function EditorialReview() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <Link to="/admin" className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 mb-2"><ArrowLeft className="w-3.5 h-3.5" /> Back to Admin</Link>
-          <h1 className="text-3xl font-black text-slate-900">Review Queue</h1>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Review held or unreviewed deals, publish them normally, or reserve DealScout Pick for the few offers worth featuring.</p>
+          <h1 className="text-3xl font-black text-slate-900">Review Exceptions</h1>
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Normal verified deals publish automatically. This queue is reserved for deals with a specific reason to need a human decision.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {[
             ['needs-review', 'Needs review'],
-            ['holdback', 'Held for review'],
             ['picks', 'DealScout Picks'],
             ['all', 'All verified'],
           ].map(([key, label]) => (
@@ -91,13 +105,13 @@ export default function EditorialReview() {
 
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950 flex gap-3 items-start">
         <ShieldCheck className="w-5 h-5 shrink-0 text-emerald-700" />
-        <div><strong>Keep notes factual:</strong> don’t claim personal use unless you actually used the product. A useful note can explain why the price stands out, an important tradeoff, or why the deal is worth featuring.</div>
+        <div><strong>Low-touch by design:</strong> valid ordinary deals do not wait for you. Review is for exceptions such as suspiciously extreme discounts or incomplete presentation data.</div>
       </div>
 
       {loading ? (
         <div className="py-24 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-600" /></div>
       ) : visibleDeals.length === 0 ? (
-        <div className="py-20 text-center rounded-3xl border border-slate-200 bg-white"><CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500 mb-3" /><h2 className="font-bold text-slate-900">Queue is clear</h2><p className="text-sm text-slate-500 mt-1">No verified deals match this filter.</p></div>
+        <div className="py-20 text-center rounded-3xl border border-slate-200 bg-white"><CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500 mb-3" /><h2 className="font-bold text-slate-900">Queue is clear</h2><p className="text-sm text-slate-500 mt-1">Automation is handling the ordinary deals.</p></div>
       ) : (
         <div className="space-y-4">
           {visibleDeals.map((deal) => {
@@ -110,7 +124,7 @@ export default function EditorialReview() {
                   <div className="w-20 h-20 rounded-2xl bg-slate-50 border border-slate-100 p-1 shrink-0 overflow-hidden"><Image src={deal.imageUrl} alt={deal.title} fittingType="contain" className="w-full h-full" /></div>
                   <div className="min-w-0">
                     <div className="text-[10px] font-black uppercase tracking-wide text-emerald-600">Price verified • {deal.sourceProvider || 'Provider'}</div>
-                    {held && <div className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded mt-1"><Clock className="w-3 h-3" /> Held for review</div>}
+                    {held && <div className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded mt-1"><Clock className="w-3 h-3" /> Needs a decision</div>}
                     <h3 className="text-xs font-bold text-slate-900 mt-1 line-clamp-3">{deal.title}</h3>
                     <div className="text-sm font-black text-emerald-700 mt-1">{formatPrice(deal.salePrice)} <span className="text-xs text-slate-400 line-through font-normal">{formatPrice(deal.originalPrice)}</span></div>
                     <div className="text-[11px] text-slate-500">{deal.discountPercent}% off • ASIN {deal.asin}</div>
@@ -118,20 +132,15 @@ export default function EditorialReview() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700">Why I chose this deal <span className="font-normal text-slate-400">(optional, max 600 characters)</span></label>
-                  <Textarea value={e.editorialNote || ''} maxLength={600} onChange={(event) => updateDraft(deal.asin, { editorialNote: event.target.value })} placeholder="Example: $70 below the current list price, and the discount is unusually strong for this model." className="mt-2 min-h-[88px] rounded-xl text-sm" />
+                  <label className="text-xs font-bold text-slate-700">Editorial note <span className="font-normal text-slate-400">(optional, max 600 characters)</span></label>
+                  <Textarea value={e.editorialNote || ''} maxLength={600} onChange={(event) => updateDraft(deal.asin, { editorialNote: event.target.value })} className="mt-2 min-h-[88px] rounded-xl text-sm" />
                   <div className="flex justify-between mt-1 text-[10px] text-slate-400"><span>{e.reviewedAt ? `Reviewed ${new Date(Number(e.reviewedAt) * 1000).toLocaleString()}` : 'Not reviewed yet'}</span><span>{(e.editorialNote || '').length}/600</span></div>
                 </div>
 
                 <div className="flex lg:flex-col gap-2 justify-center">
-                  {held && (
-                    <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, true)} className="rounded-xl font-bold gap-1.5 bg-slate-900 hover:bg-slate-800">
-                      {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Publish Normally
-                    </Button>
-                  )}
-                  <Button disabled={busy} onClick={() => save(deal, { isHumanPick: true }, held)} className={`rounded-xl font-bold gap-1.5 ${e.isHumanPick ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
-                    {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}{held ? 'Publish as Pick' : e.isHumanPick ? 'Update Pick' : 'Make DealScout Pick'}
-                  </Button>
+                  {held && <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, true)} className="rounded-xl font-bold gap-1.5 bg-slate-900 hover:bg-slate-800">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Publish Normally</Button>}
+                  <Button disabled={busy} onClick={() => save(deal, { isHumanPick: true }, held)} className="rounded-xl font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}{held ? 'Publish as Pick' : e.isHumanPick ? 'Update Pick' : 'Make DealScout Pick'}</Button>
+                  {held && <Button disabled={busy} onClick={() => reject(deal)} variant="outline" className="rounded-xl font-bold gap-1.5 text-red-700 border-red-200 hover:bg-red-50"><XCircle className="w-4 h-4" /> Reject</Button>}
                   <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, false)} variant="outline" className="rounded-xl font-bold gap-1.5"><Save className="w-4 h-4" /> Save for Later</Button>
                 </div>
               </div>
