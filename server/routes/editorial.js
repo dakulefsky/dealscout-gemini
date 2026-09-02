@@ -3,6 +3,7 @@ const router = express.Router();
 const deals = require('../repositories/dealRepository');
 const editorial = require('../repositories/editorialRepository');
 const { optionalAuth, requireAdmin } = require('../middleware/auth');
+const { isPublicDeal } = require('../services/publicDealPolicy');
 
 const AFFILIATE_DISCLOSURE = 'As an Amazon Associate I earn from qualifying purchases.';
 
@@ -32,6 +33,7 @@ function publicDealShape(row) {
     sourceProvider: row.source_provider || null,
     status: row.status,
     isExpired: row.is_expired === 1 || row.status === 'EXPIRED',
+    priceCheckAt: row.price_check_at || null,
     created_date: row.created_at ? new Date(Number(row.created_at) * 1000).toISOString() : null,
   };
 }
@@ -43,7 +45,7 @@ router.get('/picks', async (req, res) => {
     const picks = [];
     for (const row of rows) {
       const deal = await deals.findByIdOrAsin(row.asin);
-      if (!deal || deal.status !== 'APPROVED' || deal.is_expired === 1 || deal.source_verified !== 1) continue;
+      if (!isPublicDeal(deal)) continue;
       picks.push({ ...publicShape(row), deal: publicDealShape(deal) });
       if (picks.length >= limit) break;
     }
@@ -74,7 +76,7 @@ router.get('/:asin', optionalAuth, async (req, res) => {
   const deal = await deals.findByIdOrAsin(asin);
   if (!deal) return res.status(404).json({ error: 'Deal not found' });
 
-  const canSee = req.user?.role === 'admin' || (deal.status === 'APPROVED' && deal.is_expired !== 1 && deal.source_verified === 1);
+  const canSee = req.user?.role === 'admin' || isPublicDeal(deal);
   if (!canSee) return res.status(404).json({ error: 'Deal not found' });
 
   const row = await editorial.getByAsin(asin);
