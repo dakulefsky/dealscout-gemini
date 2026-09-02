@@ -1,10 +1,7 @@
 const postgres = require('../storage/postgres');
 const bookmarkRepository = require('./bookmarkRepository');
 const dealRepository = require('./dealRepository');
-
-function isPublicDeal(deal) {
-  return deal && deal.status === 'APPROVED' && deal.source_verified === 1 && deal.is_expired !== 1;
-}
+const { isPublicDeal, freshPriceThreshold } = require('../services/publicDealPolicy');
 
 async function listPublicSavedDeals(userId) {
   if (!postgres.isConfigured()) {
@@ -22,6 +19,8 @@ async function listPublicSavedDeals(userId) {
   }
 
   await bookmarkRepository.ensureSchema();
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const threshold = freshPriceThreshold(nowSeconds);
   const result = await postgres.query(`
     SELECT d.*,
            b.created_at AS bookmark_created_at,
@@ -32,7 +31,10 @@ async function listPublicSavedDeals(userId) {
        AND d.status = 'APPROVED'
        AND d.source_verified = 1
        AND d.is_expired <> 1
-     ORDER BY b.created_at DESC`, [userId]);
+       AND d.price_check_at IS NOT NULL
+       AND d.price_check_at >= $2
+       AND d.price_check_at <= $3
+     ORDER BY b.created_at DESC`, [userId, threshold, nowSeconds]);
   return result.rows;
 }
 
