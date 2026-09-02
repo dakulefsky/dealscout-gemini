@@ -68,7 +68,11 @@ test('admin wiring keeps publication health private and failure-aware', () => {
   assert.match(endpoint, /publicationMetrics\.health\(\)/);
   assert.match(apiCore, /publicationHealth:\s*\(\) => api\.get\('\/api\/functions\/publication-health'\)/);
   assert.match(admin, /\['publication health', functions\.publicationHealth\(\)\]/);
-  assert.match(admin, /Publication automation/);
+  assert.match(admin, /Web, app, and WhatsApp Status/);
+  assert.match(admin, /Shared deal pull/);
+  assert.match(admin, /Pull deals now/);
+  assert.match(admin, /shared PostgreSQL catalog/);
+  assert.match(admin, /WhatsApp Status/);
   assert.match(admin, /publicationUnavailable/);
   assert.match(admin, /Failed or overdue jobs/);
 });
