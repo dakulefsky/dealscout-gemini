@@ -17,15 +17,14 @@ test('verified rediscovery can return an expired deal to review', () => {
 });
 
 test('nonexpired approved deals are not downgraded by rediscovery', () => {
-  assert.deepEqual(
-    rediscoveryLifecycleChanges({ status: 'APPROVED', is_expired: 0 }, 'PENDING_REVIEW'),
-    {}
-  );
+  assert.deepEqual(rediscoveryLifecycleChanges({ status: 'APPROVED', is_expired: 0 }, 'PENDING_REVIEW'), {});
 });
 
 test('nonexpired pending deals may be promoted when rediscovered as approvable', () => {
-  assert.deepEqual(
-    rediscoveryLifecycleChanges({ status: 'PENDING_REVIEW', is_expired: 0 }, 'APPROVED'),
-    { status: 'APPROVED' }
-  );
+  assert.deepEqual(rediscoveryLifecycleChanges({ status: 'PENDING_REVIEW', is_expired: 0 }, 'APPROVED'), { status: 'APPROVED' });
+});
+
+test('manual rejection is sticky across normal rediscovery', () => {
+  assert.deepEqual(rediscoveryLifecycleChanges({ status: 'REJECTED', is_expired: 0 }, 'APPROVED'), {});
+  assert.deepEqual(rediscoveryLifecycleChanges({ status: 'REJECTED', is_expired: 0 }, 'PENDING_REVIEW'), {});
 });
