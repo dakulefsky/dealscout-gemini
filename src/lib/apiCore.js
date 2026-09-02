@@ -177,6 +177,8 @@ function createDealScoutClient({
     imageHealth: () => api.get('/api/functions/image-health'),
     integrityHealth: () => api.get('/api/functions/integrity-health'),
     publicationHealth: () => api.get('/api/functions/publication-health'),
+    channelSettings: () => api.get('/api/functions/channel-settings'),
+    setWhatsAppStatusEnabled: (enabled) => api.post('/api/functions/channel-settings', { whatsappStatusEnabled: Boolean(enabled) }),
     legacyEnrichmentPreview: () => api.get('/api/functions/legacy-enrichment-cleanup'),
     cleanupLegacyEnrichment: () => api.post('/api/functions/legacy-enrichment-cleanup'),
     adminActivity: (limit = 12) => api.get(`/api/functions/admin-activity?limit=${encodeURIComponent(limit)}`),

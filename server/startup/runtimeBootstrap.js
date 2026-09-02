@@ -9,6 +9,7 @@ const refreshStateRepository = require('../repositories/refreshStateRepository')
 const publicationQueueRepository = require('../repositories/publicationQueueRepository');
 const priceHistoryService = require('../services/priceHistoryService');
 const providerBudgetService = require('../services/providerBudgetService');
+const channelSettingsService = require('../services/channelSettingsService');
 const { RUNTIME_ROLES, assertProductionRuntime } = require('../config/runtimeRequirements');
 
 async function ensureOperationalSchemas() {
@@ -22,6 +23,7 @@ async function ensureOperationalSchemas() {
     publicationQueueRepository.ensureSchema(),
     priceHistoryService.ensureSchema(),
     providerBudgetService.ensureSchema(),
+    channelSettingsService.ensureSchema(),
   ]);
   await bookmarkRepository.ensureSchema();
 }
