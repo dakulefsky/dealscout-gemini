@@ -23,13 +23,15 @@ test('manual image repair is guarded by a separate distributed lock', () => {
   assert.match(source, /withAdvisoryLock\(IMAGE_REPAIR_LOCK_ID/);
 });
 
-test('web startup does not trigger paid provider maintenance immediately', () => {
+test('web startup only polls for due maintenance and does not trigger paid provider work immediately', () => {
   const cron = read('server/services/cronService.js');
   const images = read('server/services/imageRepairService.js');
   const server = read('server.js');
   assert.doesNotMatch(cron, /INITIAL_CYCLE_DELAY_MS/);
   assert.doesNotMatch(cron, /initialTimeoutId/);
-  assert.match(cron, /TWELVE_HOURS_MS/);
+  assert.match(cron, /SCHEDULER_POLL_MS = 15 \* 60 \* 1000/);
+  assert.match(cron, /this\.scheduleNextCycle\(\)/);
+  assert.match(cron, /maintenanceCadence\.claim/);
   assert.doesNotMatch(images, /setTimeout|setInterval|startImageRepairScheduler/);
   assert.doesNotMatch(server, /startImageRepairScheduler/);
 });
