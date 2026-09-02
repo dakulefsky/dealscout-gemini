@@ -26,12 +26,12 @@ function priceCheckAgeHours(deal, nowMs = Date.now()) {
 function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now(), maxDealAgeHours = PUBLIC_PRICE_MAX_AGE_HOURS }) {
   const freshDeals = deals.filter((deal) => priceCheckAgeHours(deal, nowMs) <= maxDealAgeHours);
   const urls = [
-    { loc: `${baseUrl}/`, priority: '1.0', changefreq: 'hourly' },
-    ...categories.map((c) => ({ loc: `${baseUrl}/category/${encodeURIComponent(c.slug)}`, priority: '0.8', changefreq: 'daily' })),
-    ...freshDeals.map((d) => ({ loc: `${baseUrl}/deal/${encodeURIComponent(d.id || d.asin)}`, priority: '0.9', changefreq: 'hourly', lastmod: d.price_check_at ? new Date(Number(d.price_check_at) * 1000).toISOString() : undefined })),
-    { loc: `${baseUrl}/disclosure`, priority: '0.3', changefreq: 'yearly' },
+    { loc: `${baseUrl}/` },
+    ...categories.map((c) => ({ loc: `${baseUrl}/category/${encodeURIComponent(c.slug)}` })),
+    ...freshDeals.map((d) => ({ loc: `${baseUrl}/deal/${encodeURIComponent(d.id || d.asin)}`, lastmod: d.price_check_at ? new Date(Number(d.price_check_at) * 1000).toISOString() : undefined })),
+    { loc: `${baseUrl}/disclosure` },
   ];
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${xmlEscape(u.loc)}</loc>${u.lastmod ? `<lastmod>${xmlEscape(u.lastmod)}</lastmod>` : ''}<changefreq>${u.changefreq}</changefreq><priority>${u.priority}</priority></url>`).join('\n')}\n</urlset>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${xmlEscape(u.loc)}</loc>${u.lastmod ? `<lastmod>${xmlEscape(u.lastmod)}</lastmod>` : ''}</url>`).join('\n')}\n</urlset>`;
 }
 
 function buildRobots(baseUrl) {
@@ -64,8 +64,31 @@ function homeMeta(baseUrl) {
 
 function categoryMeta(baseUrl, category) {
   const name = category?.name || 'Amazon Deals';
-  const description = category?.description || `Browse current ${name} deals and price drops on DealScout.`;
-  return { title: `${name} Deals & Price Drops — DealScout`, description, canonical: `${baseUrl}/category/${encodeURIComponent(category.slug)}` };
+  const slug = category?.slug || 'other';
+  const canonical = `${baseUrl}/category/${encodeURIComponent(slug)}`;
+  const description = category?.description
+    ? `Browse current ${name} deals and price drops on DealScout. ${category.description}`
+    : `Browse current ${name} deals and price drops on DealScout, with recently verified prices and rotating live offers.`;
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        name: `${name} Deals & Price Drops`,
+        description,
+        url: canonical,
+        isPartOf: { '@type': 'WebSite', name: 'DealScout', url: `${baseUrl}/` },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'DealScout', item: `${baseUrl}/` },
+          { '@type': 'ListItem', position: 2, name, item: canonical },
+        ],
+      },
+    ],
+  };
+  return { title: `${name} Deals & Price Drops — DealScout`, description, canonical, jsonLd };
 }
 
 function dealMeta(baseUrl, deal, nowMs = Date.now()) {
