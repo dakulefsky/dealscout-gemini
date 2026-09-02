@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock3, Eraser, Globe2, History, Image, Loader2, MessageCircle, RefreshCw, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock3, Eraser, Globe2, History, Image, Loader2, MessageCircle, PauseCircle, PlayCircle, RefreshCw, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { deals as dealsApi, functions } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
@@ -15,6 +15,7 @@ function activityLabel(action = '') {
     'deal.approve_all': 'Approved review queue', 'images.repair': 'Repaired product images',
     'legacy_enrichment.cleanup': 'Cleaned legacy copy', 'prices.verify': 'Checked deal prices',
     'deals.discover': 'Ran deal discovery', 'provider.switch': 'Changed data provider',
+    'channel.whatsapp_status': 'Changed WhatsApp Status publishing',
     'deal.import': 'Imported deal', 'editorial.save': 'Saved DealScout Pick', 'editorial.remove': 'Removed DealScout Pick',
   };
   return labels[action] || String(action).replace(/[._]/g, ' ');
@@ -52,6 +53,7 @@ export default function AdminHome() {
   const [provider, setProvider] = useState({});
   const [integrity, setIntegrity] = useState({});
   const [publication, setPublication] = useState({});
+  const [channelSettings, setChannelSettings] = useState({});
   const [legacyCleanup, setLegacyCleanup] = useState({});
   const [recentActivity, setRecentActivity] = useState([]);
   const [loadFailures, setLoadFailures] = useState([]);
@@ -65,6 +67,7 @@ export default function AdminHome() {
       ['provider status', functions.providerStatus()],
       ['integrity health', functions.integrityHealth()],
       ['publication health', functions.publicationHealth()],
+      ['channel settings', functions.channelSettings()],
       ['legacy cleanup preview', functions.legacyEnrichmentPreview()],
       ['admin activity', functions.adminActivity(8)],
     ];
@@ -76,8 +79,9 @@ export default function AdminHome() {
       setProvider(value(1));
       setIntegrity(value(2));
       setPublication(value(3));
-      setLegacyCleanup(value(4));
-      setRecentActivity(value(5, EMPTY_ACTIVITY)?.activity || []);
+      setChannelSettings(value(4));
+      setLegacyCleanup(value(5));
+      setRecentActivity(value(6, EMPTY_ACTIVITY)?.activity || []);
       setLoadFailures(results.flatMap((result, index) => result.status === 'rejected' ? [requests[index][0]] : []));
     } finally {
       setLoading(false);
@@ -119,6 +123,12 @@ export default function AdminHome() {
   const cron = provider.cron || {};
   const nextPull = countdownLabel(cron.nextRunEstimate, now);
   const lastPull = cron.lastRun ? new Date(cron.lastRun).toLocaleString() : 'Not yet this process';
+  const rainforestBudget = provider.rainforest?.budget || {};
+  const budgetUnavailable = Boolean(rainforestBudget.error) || loadFailures.includes('provider status');
+  const whatsappSettingsUnavailable = loadFailures.includes('channel settings');
+  const whatsappStatusEnabled = whatsappSettingsUnavailable ? null : channelSettings.whatsappStatus?.enabled !== false;
+  const whatsappStatusLabel = whatsappStatusEnabled === false ? 'Paused' : publicationUnavailable ? 'Unknown' : publicationIssues ? 'Needs attention' : 'Ready';
+  const whatsappStatusClass = whatsappStatusEnabled === false || publicationUnavailable || publicationIssues ? 'text-amber-700' : 'text-emerald-700';
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-7">
@@ -180,16 +190,19 @@ export default function AdminHome() {
           </div>
 
           <div className="bg-white border border-slate-200 rounded-3xl p-5">
-            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><MessageCircle className="w-5 h-5 text-emerald-600" /><div className="font-black text-slate-900">WhatsApp Status</div></div><span className={`text-xs font-bold ${publicationUnavailable || publicationIssues ? 'text-amber-700' : 'text-emerald-700'}`}>{publicationUnavailable ? 'Unknown' : publicationIssues ? 'Needs attention' : 'Ready'}</span></div>
+            <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><MessageCircle className="w-5 h-5 text-emerald-600" /><div className="font-black text-slate-900">WhatsApp Status</div></div><span className={`text-xs font-bold ${whatsappStatusClass}`}>{whatsappStatusLabel}</span></div>
             <p className="text-sm text-slate-500 mt-3">Publishes from the same approved deal catalog; it does not perform its own Rainforest discovery pull.</p>
             <div className="mt-4 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-slate-50 p-3"><div className="text-slate-500">Queued</div><div className="font-black text-slate-900 mt-1">{publicationUnavailable ? '—' : publicationCounts.queued || 0}</div></div><div className="rounded-xl bg-slate-50 p-3"><div className="text-slate-500">Published</div><div className="font-black text-slate-900 mt-1">{publicationUnavailable ? '—' : publicationCounts.published || 0}</div></div></div>
+            <Button disabled={actionInFlight || whatsappStatusEnabled === null} onClick={() => run('whatsapp-status', () => functions.setWhatsAppStatusEnabled(!whatsappStatusEnabled), whatsappStatusEnabled ? 'WhatsApp Status paused' : 'WhatsApp Status resumed')} variant="outline" className="mt-4 w-full rounded-xl gap-2 font-bold">
+              {busy === 'whatsapp-status' ? <Loader2 className="w-4 h-4 animate-spin" /> : whatsappStatusEnabled ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />} {whatsappStatusEnabled ? 'Pause Status publishing' : 'Resume Status publishing'}
+            </Button>
           </div>
         </div>
       </section>
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Link to="/admin/editorial" className="lg:col-span-2 bg-slate-900 text-white rounded-3xl p-6 hover:bg-slate-800 transition group">
-          <div className="flex items-start justify-between gap-4"><div><div className="inline-flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider"><CheckCircle2 className="w-4 h-4" /> Review queue</div><h2 className="text-2xl font-black mt-3">Review deals that need attention</h2><p className="text-sm text-slate-300 mt-2">Publish normally, feature as a Pick, or save for later.</p></div><ArrowRight className="w-5 h-5 mt-1 group-hover:translate-x-1 transition" /></div>
+          <div className="flex items-start justify-between gap-4"><div><div className="inline-flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider"><CheckCircle2 className="w-4 h-4" /> Review queue</div><h2 className="text-2xl font-black mt-3">Review deals that need attention</h2><p className="text-sm text-slate-300 mt-2">Publish normally, feature as a Pick, reject, or save for later.</p></div><ArrowRight className="w-5 h-5 mt-1 group-hover:translate-x-1 transition" /></div>
           <div className="mt-6 text-sm font-bold">{stats.pendingCount ?? '—'} waiting</div>
         </Link>
 
@@ -198,6 +211,9 @@ export default function AdminHome() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-slate-500">Provider</span><span className="font-bold text-slate-800">{loadFailures.includes('provider status') ? 'Unavailable' : effectiveProvider}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Rainforest</span><span className={provider.rainforest?.isConfigured ? 'font-bold text-emerald-700' : 'font-bold text-amber-700'}>{loadFailures.includes('provider status') ? 'Unknown' : provider.rainforest?.isConfigured ? 'Ready' : 'Not configured'}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Rainforest today</span><span className="font-bold text-slate-800">{budgetUnavailable ? '—' : `${rainforestBudget.dayCount || 0}/${rainforestBudget.limits?.daily ?? '∞'}`}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Rainforest month</span><span className="font-bold text-slate-800">{budgetUnavailable ? '—' : `${rainforestBudget.monthCount || 0}/${rainforestBudget.limits?.monthly ?? '∞'}`}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">Requests blocked today</span><span className={Number(rainforestBudget.blockedToday || 0) > 0 ? 'font-bold text-amber-700' : 'font-bold text-slate-800'}>{budgetUnavailable ? '—' : rainforestBudget.blockedToday || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Missing images</span><span className={integrity.missingImages > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.missingImages || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Stale prices</span><span className={integrity.stalePrices > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.stalePrices || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Approved unverified</span><span className={integrity.unverifiedApproved > 0 ? 'font-bold text-rose-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.unverifiedApproved || 0}</span></div>
@@ -206,10 +222,10 @@ export default function AdminHome() {
       </div>
 
       <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6">
-        <div className="flex items-center justify-between gap-4 mb-4"><div className="flex items-center gap-2"><Activity className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">WhatsApp publication automation</h2></div>{!publicationUnavailable && <span className={`text-xs font-bold ${publicationIssues ? 'text-amber-700' : 'text-emerald-700'}`}>{publicationIssues ? 'Needs attention' : 'Healthy'}</span>}</div>
+        <div className="flex items-center justify-between gap-4 mb-4"><div className="flex items-center gap-2"><Activity className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">WhatsApp publication automation</h2></div>{!publicationUnavailable && <span className={`text-xs font-bold ${whatsappStatusEnabled === false || publicationIssues ? 'text-amber-700' : 'text-emerald-700'}`}>{whatsappStatusEnabled === false ? 'Paused' : publicationIssues ? 'Needs attention' : 'Healthy'}</span>}</div>
         {publicationUnavailable ? <p className="text-sm text-slate-500">Publication queue health is unavailable right now.</p> : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <Stat label="Queued" value={publicationCounts.queued || 0} hint={publication.retryWaiting ? `${publication.retryWaiting} waiting to retry` : 'Ready or scheduled'} />
+            <Stat label="Queued" value={publicationCounts.queued || 0} hint={whatsappStatusEnabled === false ? 'Held while Status is paused' : publication.retryWaiting ? `${publication.retryWaiting} waiting to retry` : 'Ready or scheduled'} />
             <Stat label="Overdue" value={publication.overdue || 0} hint={publication.oldestQueuedAt ? `Oldest ${relativeTime(publication.oldestQueuedAt)}` : 'No overdue backlog'} />
             <Stat label="Failed" value={publicationCounts.failed || 0} hint="Terminal failures" />
             <Stat label="Published" value={publicationCounts.published || 0} hint={`Last success ${relativeTime(publication.lastPublishedAt)}`} />
