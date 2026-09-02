@@ -10,15 +10,15 @@ export default function AiDealAssistant({ deal }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: `Hi! I'm the DealScout AI Advisor. Ask me anything about the **${deal.title?.substring(0, 45)}...** (specs, competitor comparisons, real-world durability, or value assessment).`,
+      text: `Hi! I'm the DealScout AI Advisor. Ask me about the deal data we have for **${deal.title?.substring(0, 45)}...**. If DealScout does not have a fact, I'll tell you rather than guess.`,
     },
   ]);
 
   const quickPrompts = [
-    'Is this price genuinely a good discount?',
-    'What are the most common complaints?',
-    'Who is this product best suited for?',
-    'How does it compare to alternatives in this category?',
+    'How strong is this discount based on the listed prices?',
+    'What does DealScout know about this product?',
+    'What are the main pros and cons in the saved deal summary?',
+    'What important information is missing from this deal record?',
   ];
 
   const handleSend = async (customPrompt) => {
@@ -69,7 +69,7 @@ export default function AiDealAssistant({ deal }) {
               Gemini Deal Advisor
               <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">AI Powered</span>
             </h3>
-            <p className="text-xs text-slate-400">Instant unbiased answers grounded in specifications and customer feedback</p>
+            <p className="text-xs text-slate-400">Answers are limited to DealScout's saved deal facts and editorial context</p>
           </div>
         </div>
       </div>
@@ -97,7 +97,7 @@ export default function AiDealAssistant({ deal }) {
             <div className="w-7 h-7 rounded-xl bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 flex items-center justify-center shrink-0">
               <Loader2 className="w-4 h-4 animate-spin" />
             </div>
-            <span>Analyzing product details with Gemini...</span>
+            <span>Checking the saved deal context with Gemini...</span>
           </div>
         )}
       </div>
@@ -116,7 +116,7 @@ export default function AiDealAssistant({ deal }) {
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="flex gap-2">
-        <Input type="text" placeholder="Ask a question about this deal..." value={question} onChange={(e) => setQuestion(e.target.value)} disabled={isLoading} className="bg-slate-800/90 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-emerald-500 rounded-xl" />
+        <Input type="text" placeholder="Ask about this deal..." value={question} onChange={(e) => setQuestion(e.target.value)} disabled={isLoading} className="bg-slate-800/90 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-emerald-500 rounded-xl" />
         <Button type="submit" disabled={isLoading || !question.trim()} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl px-4 shrink-0">
           {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </Button>
