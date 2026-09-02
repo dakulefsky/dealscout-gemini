@@ -1,10 +1,8 @@
 const { strictGetItems, strictSearchItems, getPaapiConfig } = require('./amazonPaapiStrictAdapter');
 const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
-const {
-  runProviderCall,
-  getProviderThrottleStatus,
-} = require('./providerThrottle');
+const { runProviderCall, getProviderThrottleStatus } = require('./providerThrottle');
+const { usageStatus } = require('./providerBudgetService');
 
 const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
 
@@ -18,10 +16,15 @@ function isRainforestConfigured() {
   return Boolean(key && key !== 'your_rainforest_api_key_here');
 }
 
+function rethrowBudgetError(error) {
+  if (error?.code === 'PROVIDER_BUDGET_EXCEEDED') throw error;
+}
+
 async function getProviderStatus() {
   const configuredProvider = getConfiguredProvider();
   const paapiConfig = getPaapiConfig();
   const rainforestConfigured = isRainforestConfigured();
+  const rainforestBudget = await usageStatus('rainforest').catch((error) => ({ error: error.message }));
   let effectiveProvider = 'none';
 
   if (configuredProvider === 'amazon_paapi' && paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
@@ -47,6 +50,7 @@ async function getProviderStatus() {
       isConfigured: rainforestConfigured,
       status: rainforestConfigured ? 'Ready' : 'Not configured',
       throttle: getProviderThrottleStatus('rainforest'),
+      budget: rainforestBudget,
     },
   };
 }
@@ -95,6 +99,7 @@ async function fetchProductByAsin(asin, options = {}) {
       const verified = await paapiProduct(cleanAsin, options);
       if (verified) return verified;
     } catch (err) {
+      rethrowBudgetError(err);
       console.warn(`[ProviderRouter PA-API notice for ${cleanAsin}]:`, err.message);
       if (configuredProvider === 'amazon_paapi') return null;
     }
@@ -109,6 +114,7 @@ async function fetchProductByAsin(asin, options = {}) {
         return null;
       }
     } catch (err) {
+      rethrowBudgetError(err);
       console.warn(`[ProviderRouter Rainforest notice for ${cleanAsin}]:`, err.message);
       if (configuredProvider === 'rainforest') return null;
     }
@@ -129,6 +135,7 @@ async function fetchDealsList(options = {}) {
       if (verified.length) return verified;
       if (configuredProvider === 'amazon_paapi') return [];
     } catch (err) {
+      rethrowBudgetError(err);
       console.warn('[ProviderRouter PA-API search notice]:', err.message);
       if (configuredProvider === 'amazon_paapi') return [];
     }
@@ -141,11 +148,13 @@ async function fetchDealsList(options = {}) {
       if (verified.length) return verified;
       if (configuredProvider === 'rainforest') return [];
     } catch (err) {
+      rethrowBudgetError(err);
       console.warn('[ProviderRouter Rainforest deals notice]:', err.message);
       if (configuredProvider === 'rainforest') return [];
     }
   }
 
+  // Fail closed. Never fall back to legacy scraper, curated, or synthetic metadata.
   return [];
 }
 

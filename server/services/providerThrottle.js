@@ -1,3 +1,5 @@
+const { reserveRequest } = require('./providerBudgetService');
+
 const DEFAULTS = Object.freeze({
   slowLatencyMs: 1500,
   maxInterRequestDelayMs: 5000,
@@ -19,38 +21,22 @@ class ProviderCooldownError extends Error {
   }
 }
 
-function nowMs() {
-  return Date.now();
-}
-
-function cleanProvider(provider) {
-  return String(provider || '').trim().toLowerCase() || 'unknown';
-}
+function nowMs() { return Date.now(); }
+function cleanProvider(provider) { return String(provider || '').trim().toLowerCase() || 'unknown'; }
 
 function currentState(provider) {
   const key = cleanProvider(provider);
   if (!state.has(key)) {
     state.set(key, {
-      provider: key,
-      consecutiveFailures: 0,
-      cooldownUntil: 0,
-      latencyEwmaMs: 0,
-      lastLatencyMs: 0,
-      lastStatusCode: null,
-      lastFailureAt: null,
-      lastSuccessAt: null,
+      provider: key, consecutiveFailures: 0, cooldownUntil: 0, latencyEwmaMs: 0,
+      lastLatencyMs: 0, lastStatusCode: null, lastFailureAt: null, lastSuccessAt: null,
     });
   }
   return state.get(key);
 }
 
 function statusCodeFromError(error) {
-  const candidates = [
-    error?.statusCode,
-    error?.status,
-    error?.response?.status,
-    error?.cause?.statusCode,
-  ];
+  const candidates = [error?.statusCode, error?.status, error?.response?.status, error?.cause?.statusCode];
   for (const value of candidates) {
     const code = Number(value);
     if (Number.isInteger(code) && code >= 100 && code <= 599) return code;
@@ -69,9 +55,7 @@ function isTransientProviderFailure(error) {
 function updateLatency(entry, latencyMs, { ewmaAlpha = DEFAULTS.ewmaAlpha } = {}) {
   const latency = Math.max(0, Number(latencyMs) || 0);
   entry.lastLatencyMs = latency;
-  entry.latencyEwmaMs = entry.latencyEwmaMs > 0
-    ? (ewmaAlpha * latency) + ((1 - ewmaAlpha) * entry.latencyEwmaMs)
-    : latency;
+  entry.latencyEwmaMs = entry.latencyEwmaMs > 0 ? (ewmaAlpha * latency) + ((1 - ewmaAlpha) * entry.latencyEwmaMs) : latency;
 }
 
 function recordSuccess(provider, latencyMs, options = {}) {
@@ -90,7 +74,6 @@ function recordFailure(provider, error, latencyMs, options = {}) {
   const status = statusCodeFromError(error);
   entry.lastStatusCode = status;
   entry.lastFailureAt = nowMs();
-
   if (isTransientProviderFailure(error)) {
     entry.consecutiveFailures += 1;
     const base = Math.max(250, Number(options.baseCooldownMs ?? DEFAULTS.baseCooldownMs) || DEFAULTS.baseCooldownMs);
@@ -99,7 +82,6 @@ function recordFailure(provider, error, latencyMs, options = {}) {
     const cooldownMs = Math.min(maximum, base * (2 ** exponent));
     entry.cooldownUntil = Math.max(entry.cooldownUntil, nowMs() + cooldownMs);
   }
-
   return { ...entry };
 }
 
@@ -111,18 +93,9 @@ function recommendedDelayMs(provider, options = {}) {
   return Math.min(maximum, Math.round(entry.latencyEwmaMs - threshold));
 }
 
-function retryAfterMs(provider) {
-  return Math.max(0, currentState(provider).cooldownUntil - nowMs());
-}
-
-function isCoolingDown(provider) {
-  return retryAfterMs(provider) > 0;
-}
-
-function delay(ms) {
-  if (!(ms > 0)) return Promise.resolve();
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+function retryAfterMs(provider) { return Math.max(0, currentState(provider).cooldownUntil - nowMs()); }
+function isCoolingDown(provider) { return retryAfterMs(provider) > 0; }
+function delay(ms) { return ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve(); }
 
 async function runProviderCall(provider, task, options = {}) {
   if (typeof task !== 'function') throw new TypeError('runProviderCall requires a task function');
@@ -132,6 +105,10 @@ async function runProviderCall(provider, task, options = {}) {
 
   const pacingDelay = recommendedDelayMs(key, options);
   if (pacingDelay > 0) await delay(pacingDelay);
+
+  // Reserve immediately before the outbound task. Failed network attempts still
+  // consume the provider allowance, while cooldown-blocked calls do not.
+  await reserveRequest(key);
 
   const startedAt = nowMs();
   try {
@@ -166,16 +143,7 @@ function resetProviderThrottle(provider) {
 }
 
 module.exports = {
-  DEFAULTS,
-  ProviderCooldownError,
-  statusCodeFromError,
-  isTransientProviderFailure,
-  recordSuccess,
-  recordFailure,
-  recommendedDelayMs,
-  retryAfterMs,
-  isCoolingDown,
-  runProviderCall,
-  getProviderThrottleStatus,
-  resetProviderThrottle,
+  DEFAULTS, ProviderCooldownError, statusCodeFromError, isTransientProviderFailure,
+  recordSuccess, recordFailure, recommendedDelayMs, retryAfterMs, isCoolingDown,
+  runProviderCall, getProviderThrottleStatus, resetProviderThrottle,
 };
