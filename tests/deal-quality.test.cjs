@@ -22,19 +22,24 @@ function base(overrides = {}) {
 test('strong verified deal is auto-approved from provider-neutral facts', () => {
   const result = scoreVerifiedDeal(base({ originalPrice: 300, salePrice: 175 }));
   assert.equal(result.decision, 'AUTO_APPROVE');
-  assert.ok(result.score >= 75);
 });
 
-test('verified but modest deal stays pending review', () => {
+test('ordinary verified 15%+ deal auto-publishes instead of filling review queue', () => {
   const result = scoreVerifiedDeal(base({ originalPrice: 100, salePrice: 84, isPrime: false, dealBadge: null }));
-  assert.equal(result.decision, 'PENDING_REVIEW');
+  assert.ok(result.score < 75);
+  assert.equal(result.decision, 'AUTO_APPROVE');
 });
 
 test('extreme discounts are never auto-approved from price math alone', () => {
   const result = scoreVerifiedDeal(base({ originalPrice: 1000, salePrice: 99 }));
-  assert.ok(result.score >= 75);
   assert.equal(result.decision, 'PENDING_REVIEW');
   assert.equal(result.reasons.includes('extreme discount requires review'), true);
+});
+
+test('missing image requires review instead of silent publication', () => {
+  const result = scoreVerifiedDeal(base({ imageUrl: '' }));
+  assert.equal(result.decision, 'PENDING_REVIEW');
+  assert.equal(result.reasons.includes('missing image requires review'), true);
 });
 
 test('ratings metadata cannot change publication quality', () => {
