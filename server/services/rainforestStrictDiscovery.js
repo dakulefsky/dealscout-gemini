@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { imageCandidates } = require('./rainforestImage');
+const { classifyCategory, normalizeCategory } = require('./categoryClassifier');
 
 const ENDPOINT = 'https://api.rainforestapi.com/request';
 
@@ -15,25 +16,6 @@ function moneyValue(value) {
 
 function cleanText(value) {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
-}
-
-function normalizeCategory(value = '') {
-  const category = cleanText(value).toLowerCase();
-  if (!category) return 'Other';
-
-  if (/amazon device|kindle|echo|fire tv|fire tablet|ring|blink|electronics|computer|laptop|tablet|phone|audio|headphone|speaker|camera|tv|television|video game|gaming/.test(category)) return 'Electronics';
-  if (/home|kitchen|appliance|furniture|bedding|bath|garden|patio|decor|vacuum/.test(category)) return 'Home & Kitchen';
-  if (/sport|outdoor|fitness|exercise|camping|hiking|cycling|bike/.test(category)) return 'Sports & Outdoors';
-  if (/beauty|health|personal care|grooming|skin|hair|makeup|wellness/.test(category)) return 'Health & Beauty';
-  if (/toy|game|puzzle|hobby/.test(category)) return 'Toys & Games';
-  if (/baby|infant|toddler/.test(category)) return 'Baby';
-  if (/pet|dog|cat|aquarium/.test(category)) return 'Pet Supplies';
-  if (/automotive|car|truck|motorcycle/.test(category)) return 'Automotive';
-  if (/tool|hardware|home improvement/.test(category)) return 'Tools & Home Improvement';
-  if (/office|school|stationery/.test(category)) return 'Office & School';
-  if (/clothing|fashion|shoe|jewelry|watch|apparel|accessor/.test(category)) return 'Clothing & Accessories';
-  if (/grocery|food|beverage|snack|pantry/.test(category)) return 'Grocery';
-  return 'Other';
 }
 
 function affiliateUrl(asin) {
@@ -59,8 +41,9 @@ function normalizeDeal(item) {
 
   const discountPercent = Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1));
   const gallery = imageCandidates(item.main_image, item.image, item.images, item.images_flat);
-  const rawCategoryName = cleanText(item.category?.name) || cleanText(item.category) || cleanText(item.search_alias) || '';
-  const categoryName = normalizeCategory(rawCategoryName);
+  const rawCategoryName = cleanText(item.category?.name) || cleanText(item.category) || '';
+  const searchAlias = cleanText(item.search_alias) || '';
+  const categoryName = classifyCategory({ rawCategory: rawCategoryName, searchAlias, title });
   const availability = cleanText(item.availability?.raw || item.buybox_winner?.availability?.raw) || null;
 
   return {
@@ -83,7 +66,7 @@ function normalizeDeal(item) {
     dealBadge: item.deal_badge || item.badge || null,
     sourceProvider: 'RAINFOREST',
     sourceVerified: true,
-    rawSourceData: `Rainforest API deals feed | ASIN: ${asin} | rawCategory=${rawCategoryName || 'unknown'}`,
+    rawSourceData: `Rainforest API deals feed | ASIN: ${asin} | rawCategory=${rawCategoryName || 'unknown'} | searchAlias=${searchAlias || 'unknown'} | normalizedCategory=${categoryName}`,
   };
 }
 
