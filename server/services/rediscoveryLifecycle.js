@@ -8,6 +8,8 @@ function rediscoveryLifecycleChanges(existing, publicationStatus) {
     };
   }
 
+  if (existing?.status === 'REJECTED') return {};
+
   if (existing?.status !== 'APPROVED' && publicationStatus === 'APPROVED') {
     return { status: 'APPROVED' };
   }
