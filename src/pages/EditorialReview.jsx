@@ -10,6 +10,13 @@ import { useToast } from '@/components/ui/use-toast';
 
 const emptyEditorial = { editorialNote: '', isHumanPick: false, reviewedAt: null, reviewedBy: null };
 
+function reviewReason(deal = {}) {
+  const discount = Number(deal.discountPercent);
+  if (Number.isFinite(discount) && discount >= 80) return 'Extreme discount — confirm the price drop looks real before publishing.';
+  if (!String(deal.imageUrl || '').trim()) return 'Missing product image — publish only if the listing still looks presentable.';
+  return 'Automation found an exception that should be checked before publication.';
+}
+
 export default function EditorialReview() {
   const [deals, setDeals] = useState([]);
   const [editorialByAsin, setEditorialByAsin] = useState({});
@@ -128,6 +135,7 @@ export default function EditorialReview() {
                     <h3 className="text-xs font-bold text-slate-900 mt-1 line-clamp-3">{deal.title}</h3>
                     <div className="text-sm font-black text-emerald-700 mt-1">{formatPrice(deal.salePrice)} <span className="text-xs text-slate-400 line-through font-normal">{formatPrice(deal.originalPrice)}</span></div>
                     <div className="text-[11px] text-slate-500">{deal.discountPercent}% off • ASIN {deal.asin}</div>
+                    {held && <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-2 text-[11px] leading-snug text-amber-900"><span className="font-black">Why review:</span> {reviewReason(deal)}</div>}
                   </div>
                 </div>
 
@@ -151,3 +159,5 @@ export default function EditorialReview() {
     </div>
   );
 }
+
+export { reviewReason };
