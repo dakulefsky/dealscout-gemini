@@ -2,7 +2,7 @@ const CATEGORY_RULES = [
   {
     category: 'Electronics',
     strong: [
-      /\b(?:iphone|ipad|macbook|chromebook|laptop|notebook computer|desktop computer|monitor|smartphone|cell phone|android phone|tablet|kindle|echo|alexa|fire tv|fire tablet|ring doorbell|blink camera|router|modem|wifi|wi-fi|bluetooth|earbuds?|headphones?|headset|speaker|soundbar|television|\btv\b|projector|camera|webcam|microphone|keyboard|mouse|ssd|hard drive|flash drive|usb(?:-c)?|power bank|charger|charging cable|smartwatch|fitness tracker|gaming console|playstation|xbox|nintendo switch|video game)\b/i,
+      /\b(?:iphone|ipad|macbook|chromebook|laptop|notebook computer|desktop computer|monitor|smartphone|cell phone|android phone|tablet|kindle|echo|alexa|fire tv|fire tablet|ring doorbell|blink camera|router|modem|wifi|wi-fi|bluetooth|ethernet|cat[5-8](?:e)?|earbuds?|headphones?|headset|speaker|soundbar|television|tv|projector|camera|webcam|microphone|keyboard|mouse|ssd|hard drive|flash drive|usb(?:-c)?|power bank|charger|charging cable|smartwatch|fitness tracker|gaming console|playstation|xbox|nintendo switch|video game)\b/i,
     ],
     broad: [/\b(?:amazon devices?|electronics?|computers?|audio|home theater|cell phones?|camera & photo|video games?|gaming)\b/i],
   },
@@ -11,7 +11,7 @@ const CATEGORY_RULES = [
     strong: [
       /\b(?:air fryer|coffee maker|espresso machine|blender|mixer|toaster|microwave|cookware|frying pan|skillet|knife set|vacuum|robot vacuum|mop|bedding|mattress|pillow|sheet set|towel|furniture|sofa|desk chair|storage bin|humidifier|air purifier|fan|space heater|lamp|lighting|curtain|rug|patio furniture)\b/i,
     ],
-    broad: [/\b(?:home & kitchen|home and kitchen|kitchen|household|furniture|bedding|bath|garden|patio|home décor|home decor|appliances?)\b/i],
+    broad: [/\b(?:home & kitchen|home and kitchen|kitchen|furniture|bedding|bath|garden|patio|home décor|home decor|appliances?)\b/i],
   },
   {
     category: 'Sports & Outdoors',
@@ -94,8 +94,6 @@ function classifyCategory({ rawCategory = '', title = '', searchAlias = '' } = {
   const usableCategory = GENERIC_CATEGORY_TEXT.test(categoryText) ? '' : categoryText;
   const usableAlias = GENERIC_CATEGORY_TEXT.test(aliasText) ? '' : aliasText;
 
-  // A specific product phrase in the title is usually more reliable than a broad
-  // Amazon browse bucket (for example Smartwatch inside Watches, or Switch inside Toys & Games).
   const strongTitleMatches = CATEGORY_RULES
     .map((rule, index) => ({ category: rule.category, index, matched: matchesAny(titleText, rule.strong) }))
     .filter((entry) => entry.matched);
