@@ -3,9 +3,10 @@ const router = express.Router();
 const deals = require('../repositories/dealRepository');
 const { optionalAuth } = require('../middleware/auth');
 const { getHistory } = require('../services/priceHistoryService');
+const { isPublicDeal } = require('../services/publicDealPolicy');
 
 function canSeeDeal(req, deal) {
-  return req.user?.role === 'admin' || (deal.status === 'APPROVED' && deal.is_expired !== 1 && deal.source_verified === 1);
+  return req.user?.role === 'admin' || isPublicDeal(deal);
 }
 
 router.get('/:id/price-history', optionalAuth, async (req, res) => {

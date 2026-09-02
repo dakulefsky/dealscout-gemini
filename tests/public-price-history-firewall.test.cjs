@@ -13,3 +13,8 @@ test('public price history strips provider internals', () => {
   const publicBlock = source.match(/const publicHistory = history\.map[\s\S]*?\}\);/)?.[0] || '';
   assert.equal(publicBlock.includes('sourceProvider'), false);
 });
+
+test('public price history is only available while the deal passes the shared freshness policy', () => {
+  assert.match(source, /const \{ isPublicDeal \} = require\('\.\.\/services\/publicDealPolicy'\)/);
+  assert.match(source, /req\.user\?\.role === 'admin' \|\| isPublicDeal\(deal\)/);
+});
