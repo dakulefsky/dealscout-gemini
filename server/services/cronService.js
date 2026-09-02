@@ -13,11 +13,7 @@ const { canAttemptRefresh } = require('./refreshRetryPolicy');
 
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
-const JOB_LOCKS = Object.freeze({
-  purgeExpired: 44001,
-  verifyPrices: 44002,
-  discoverDeals: 44003,
-});
+const JOB_LOCKS = Object.freeze({ purgeExpired: 44001, verifyPrices: 44002, discoverDeals: 44003 });
 
 async function safeRecordObservation(observation) {
   try { await recordObservation(observation); }
@@ -30,6 +26,12 @@ function providerHasTransientTrouble(status) {
   );
 }
 
+function boundedNumber(value, fallback, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(number)));
+}
+
 class DealCronService {
   constructor() {
     this.intervalId = null;
@@ -39,27 +41,27 @@ class DealCronService {
     this.lastPurgeRun = null;
     this.isRunning = false;
     this.stats = {
-      totalRuns: 0,
-      dealsAdded: 0,
-      dealsUpdated: 0,
-      dealsAutoApproved: 0,
-      dealsPendingReview: 0,
-      dealsEditorialHoldback: 0,
-      dealsRejected: 0,
-      dealsExpired: 0,
-      dealsPurged: 0,
-      lastError: null,
-      nextRunEstimate: null,
+      totalRuns: 0, dealsAdded: 0, dealsUpdated: 0, dealsAutoApproved: 0,
+      dealsPendingReview: 0, dealsEditorialHoldback: 0, dealsRejected: 0,
+      dealsExpired: 0, dealsPurged: 0, lastError: null, nextRunEstimate: null,
     };
+  }
+
+  scheduleNextCycle(delayMs = TWELVE_HOURS_MS) {
+    if (this.intervalId) clearTimeout(this.intervalId);
+    const delay = Math.max(1000, Number(delayMs) || TWELVE_HOURS_MS);
+    this.stats.nextRunEstimate = new Date(Date.now() + delay).toISOString();
+    this.intervalId = setTimeout(async () => {
+      this.intervalId = null;
+      try { await this.runFullCycle(); }
+      catch (err) { console.warn('[DealCronService] Scheduled cycle:', err.message); }
+      finally { this.scheduleNextCycle(); }
+    }, delay);
   }
 
   start() {
     if (this.intervalId) return;
-    this.stats.nextRunEstimate = new Date(Date.now() + TWELVE_HOURS_MS).toISOString();
-    this.intervalId = setInterval(
-      () => this.runFullCycle().catch((err) => console.warn('[DealCronService] Scheduled cycle:', err.message)),
-      TWELVE_HOURS_MS,
-    );
+    this.scheduleNextCycle();
     this.purgeIntervalId = setInterval(
       () => this.purgeOldExpiredDeals().catch((err) => console.warn('[DealCronService] Purge:', err.message)),
       THIRTY_MINUTES_MS,
@@ -67,10 +69,11 @@ class DealCronService {
   }
 
   stop() {
-    if (this.intervalId) clearInterval(this.intervalId);
+    if (this.intervalId) clearTimeout(this.intervalId);
     if (this.purgeIntervalId) clearInterval(this.purgeIntervalId);
     this.intervalId = null;
     this.purgeIntervalId = null;
+    this.stats.nextRunEstimate = null;
   }
 
   async runDistributed(lockId, job, task) {
@@ -112,10 +115,7 @@ class DealCronService {
         if (checkedCount >= batchSize) break;
         const attemptAt = Math.floor(Date.now() / 1000);
         const refreshState = await refreshStates.get(deal.asin);
-        if (!canAttemptRefresh(refreshState, attemptAt)) {
-          deferredCount += 1;
-          continue;
-        }
+        if (!canAttemptRefresh(refreshState, attemptAt)) { deferredCount += 1; continue; }
 
         checkedCount += 1;
         try {
@@ -131,11 +131,7 @@ class DealCronService {
             continue;
           }
 
-          await refreshStates.recordSuccess(deal.asin, {
-            at: attemptAt,
-            provider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER',
-          });
-
+          await refreshStates.recordSuccess(deal.asin, { at: attemptAt, provider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
           const outOfStock = liveInfo.availability && /out of stock|unavailable/i.test(liveInfo.availability);
           const original = Number(liveInfo.originalPrice);
           const sale = Number(liveInfo.salePrice);
@@ -144,12 +140,7 @@ class DealCronService {
             || (Number.isFinite(discount) && discount < 5 && Number.isFinite(original) && Number.isFinite(sale) && sale >= original);
 
           if (Number.isFinite(original) && Number.isFinite(sale) && original > 0 && sale > 0 && sale <= original) {
-            await safeRecordObservation({
-              asin: deal.asin,
-              salePrice: sale,
-              originalPrice: original,
-              sourceProvider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER',
-            });
+            await safeRecordObservation({ asin: deal.asin, salePrice: sale, originalPrice: original, sourceProvider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
           }
 
           if (outOfStock || discountEnded) {
@@ -158,11 +149,7 @@ class DealCronService {
             continue;
           }
 
-          const changes = {
-            price_check_at: attemptAt,
-            last_verify_attempt_at: attemptAt,
-            ...verifiedSourceChanges(deal, liveInfo),
-          };
+          const changes = { price_check_at: attemptAt, last_verify_attempt_at: attemptAt, ...verifiedSourceChanges(deal, liveInfo) };
           if (Number.isFinite(sale) && sale > 0) changes.sale_price = sale;
           if (Number.isFinite(original) && Number.isFinite(sale) && original >= sale) changes.original_price = original;
           if (Number.isFinite(discount) && discount >= 0) changes.discount_percent = discount;
@@ -178,19 +165,15 @@ class DealCronService {
       }
 
       this.stats.dealsExpired += expiredCount;
-      return {
-        checkedCount,
-        expiredCount,
-        deferredCount,
-        itemFailureCount,
-        eligibleCount: activeDeals.length,
-        batchSize,
-      };
+      return { checkedCount, expiredCount, deferredCount, itemFailureCount, eligibleCount: activeDeals.length, batchSize };
     });
   }
 
-  async syncDailyDeals() {
+  async syncDailyDeals(options = {}) {
     if (this.isRunning) return { skipped: true, reason: 'ALREADY_RUNNING' };
+
+    const maxResults = boundedNumber(options.maxResults, 20, 1, 50);
+    const minDiscount = boundedNumber(options.minDiscount, 15, 0, 100);
 
     return this.runDistributed(JOB_LOCKS.discoverDeals, 'discover-deals', async () => {
       if (this.isRunning) return { skipped: true, reason: 'ALREADY_RUNNING' };
@@ -206,13 +189,10 @@ class DealCronService {
       let rejectedCount = 0;
 
       try {
-        const providerDeals = await fetchDealsList({ amazonDomain: 'amazon.com', maxResults: 20, minDiscount: 15 });
+        const providerDeals = await fetchDealsList({ amazonDomain: 'amazon.com', maxResults, minDiscount });
         for (const item of providerDeals) {
           const quality = scoreVerifiedDeal(item);
-          if (quality.decision === 'REJECT') {
-            rejectedCount += 1;
-            continue;
-          }
+          if (quality.decision === 'REJECT') { rejectedCount += 1; continue; }
 
           const original = Number(item.originalPrice ?? item.original_price);
           const sale = Number(item.salePrice ?? item.sale_price);
@@ -222,23 +202,13 @@ class DealCronService {
           const verifiedAt = Math.floor(Date.now() / 1000);
           if (publication.reason === 'EDITORIAL_HOLDBACK') holdbackCount += 1;
 
-          await safeRecordObservation({
-            asin: item.asin,
-            salePrice: sale,
-            originalPrice: original,
-            sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER',
-          });
-
+          await safeRecordObservation({ asin: item.asin, salePrice: sale, originalPrice: original, sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER' });
           const existing = await deals.findByIdOrAsin(item.asin);
           if (existing) {
             const changes = {
-              sale_price: sale,
-              original_price: original,
-              discount_percent: discount,
-              price_check_at: verifiedAt,
-              last_verify_attempt_at: verifiedAt,
-              source_verified: 1,
-              source_sufficient: 1,
+              sale_price: sale, original_price: original, discount_percent: discount,
+              price_check_at: verifiedAt, last_verify_attempt_at: verifiedAt,
+              source_verified: 1, source_sufficient: 1,
               source_provider: item.sourceProvider || existing.source_provider,
               quality_score: quality.score,
               ...rediscoveryLifecycleChanges(existing, status),
@@ -251,38 +221,20 @@ class DealCronService {
           }
 
           await deals.upsert({
-            id: item.asin,
-            title: item.title,
-            asin: item.asin,
-            category: item.category || 'Other',
-            original_price: original,
-            sale_price: sale,
-            discount_percent: discount,
+            id: item.asin, title: item.title, asin: item.asin, category: item.category || 'Other',
+            original_price: original, sale_price: sale, discount_percent: discount,
             image_url: item.imageUrl || item.image_url || '',
             product_url: item.productUrl || item.product_url || `https://www.amazon.com/dp/${item.asin}`,
-            rating: 0,
-            ratings_total: 0,
-            short_bio: '',
-            full_summary: '',
-            pros: '',
-            cons: '',
-            reviews: [],
-            source_sufficient: 1,
-            source_verified: 1,
-            source_provider: item.sourceProvider || 'VERIFIED_PROVIDER',
-            status,
-            quality_score: quality.score,
-            is_expired: 0,
-            expired_at: null,
-            price_check_at: verifiedAt,
-            last_verify_attempt_at: verifiedAt,
+            rating: 0, ratings_total: 0, short_bio: '', full_summary: '', pros: '', cons: '', reviews: [],
+            source_sufficient: 1, source_verified: 1, source_provider: item.sourceProvider || 'VERIFIED_PROVIDER',
+            status, quality_score: quality.score, is_expired: 0, expired_at: null,
+            price_check_at: verifiedAt, last_verify_attempt_at: verifiedAt,
             raw_source_data: `${item.sourceProvider || 'Verified provider'} | ASIN: ${item.asin} | publication=${publication.reason}`,
             created_at: verifiedAt,
           });
           await refreshStates.recordSuccess(item.asin, { provider: item.sourceProvider, at: verifiedAt });
           createdCount += 1;
-          if (status === 'APPROVED') autoApprovedCount += 1;
-          else pendingCount += 1;
+          if (status === 'APPROVED') autoApprovedCount += 1; else pendingCount += 1;
         }
 
         this.stats.dealsAdded += createdCount;
@@ -291,17 +243,15 @@ class DealCronService {
         this.stats.dealsPendingReview += pendingCount;
         this.stats.dealsEditorialHoldback += holdbackCount;
         this.stats.dealsRejected += rejectedCount;
-        this.stats.nextRunEstimate = new Date(Date.now() + TWELVE_HOURS_MS).toISOString();
+
+        // A manual pull should move the actual next automatic provider cycle too,
+        // so the admin countdown and provider spend stay aligned.
+        if (this.intervalId) this.scheduleNextCycle();
 
         return {
-          created: createdCount,
-          updated: updatedCount,
-          autoApproved: autoApprovedCount,
-          pendingReview: pendingCount,
-          editorialHoldback: holdbackCount,
-          rejected: rejectedCount,
-          editorialHoldbackPercent: getHoldbackPercent(),
-          status: 'SUCCESS',
+          created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount,
+          pendingReview: pendingCount, editorialHoldback: holdbackCount, rejected: rejectedCount,
+          editorialHoldbackPercent: getHoldbackPercent(), maxResults, minDiscount, status: 'SUCCESS',
         };
       } catch (err) {
         this.stats.lastError = err.message;
