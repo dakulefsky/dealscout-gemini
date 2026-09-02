@@ -1,10 +1,8 @@
 const { strictGetItems, strictSearchItems, getPaapiConfig } = require('./amazonPaapiStrictAdapter');
 const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
-const {
-  runProviderCall,
-  getProviderThrottleStatus,
-} = require('./providerThrottle');
+const { runProviderCall, getProviderThrottleStatus } = require('./providerThrottle');
+const { usageStatus } = require('./providerBudgetService');
 
 const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
 
@@ -22,6 +20,7 @@ async function getProviderStatus() {
   const configuredProvider = getConfiguredProvider();
   const paapiConfig = getPaapiConfig();
   const rainforestConfigured = isRainforestConfigured();
+  const rainforestBudget = await usageStatus('rainforest').catch((error) => ({ error: error.message }));
   let effectiveProvider = 'none';
 
   if (configuredProvider === 'amazon_paapi' && paapiConfig.isConfigured) effectiveProvider = 'amazon_paapi';
@@ -47,6 +46,7 @@ async function getProviderStatus() {
       isConfigured: rainforestConfigured,
       status: rainforestConfigured ? 'Ready' : 'Not configured',
       throttle: getProviderThrottleStatus('rainforest'),
+      budget: rainforestBudget,
     },
   };
 }
@@ -114,7 +114,6 @@ async function fetchProductByAsin(asin, options = {}) {
     }
   }
 
-  // Fail closed. Never fall back to legacy scraper, curated, or synthetic metadata.
   return null;
 }
 
