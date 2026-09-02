@@ -9,8 +9,8 @@ function stableBucket(value = '') {
 }
 
 function getHoldbackPercent() {
-  const raw = Number(process.env.EDITORIAL_HOLDBACK_PERCENT ?? 20);
-  if (!Number.isFinite(raw)) return 20;
+  const raw = Number(process.env.EDITORIAL_HOLDBACK_PERCENT ?? 0);
+  if (!Number.isFinite(raw)) return 0;
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
 
