@@ -8,9 +8,11 @@ function stableBucket(value = '') {
   return (hash >>> 0) % 100;
 }
 
+// Random editorial sampling is opt-in. The default review queue should contain
+// actual exceptions, not a percentage of otherwise-safe deals.
 function getHoldbackPercent() {
-  const raw = Number(process.env.EDITORIAL_HOLDBACK_PERCENT ?? 20);
-  if (!Number.isFinite(raw)) return 20;
+  const raw = Number(process.env.EDITORIAL_HOLDBACK_PERCENT ?? 0);
+  if (!Number.isFinite(raw)) return 0;
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
 
