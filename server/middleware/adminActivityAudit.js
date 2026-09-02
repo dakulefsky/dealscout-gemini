@@ -28,6 +28,7 @@ function inferAction(req) {
   if (/\/verify-prices$/.test(path)) return 'prices.verify';
   if (/\/fetch-deals$/.test(path)) return 'deals.discover';
   if (/\/provider-switch$/.test(path)) return 'provider.switch';
+  if (/\/channel-settings$/.test(path) && method === 'POST') return 'channel.whatsapp_status';
   if (/\/sitestripe-import$/.test(path)) return 'deal.import';
   if (path.startsWith('/api/editorial/')) return method === 'DELETE' ? 'editorial.remove' : 'editorial.save';
   if (path.startsWith('/api/categories')) return `category.${method.toLowerCase()}`;
