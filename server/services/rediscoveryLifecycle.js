@@ -8,6 +8,10 @@ function rediscoveryLifecycleChanges(existing, publicationStatus) {
     };
   }
 
+  // A human rejection is sticky. Rediscovery can refresh its price/source data,
+  // but must not silently put the same ASIN back into the public feed or queue.
+  if (existing?.status === 'REJECTED') return {};
+
   if (existing?.status !== 'APPROVED' && publicationStatus === 'APPROVED') {
     return { status: 'APPROVED' };
   }
