@@ -14,6 +14,7 @@ const { canAttemptRefresh } = require('./refreshRetryPolicy');
 const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
 const JOB_LOCKS = Object.freeze({ purgeExpired: 44001, verifyPrices: 44002, discoverDeals: 44003 });
+const PROVIDER_BATCH_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
 
 async function safeRecordObservation(observation) {
   try { await recordObservation(observation); }
@@ -24,6 +25,10 @@ function providerHasTransientTrouble(status) {
   return [status?.paapi?.throttle, status?.rainforest?.throttle].some((throttle) =>
     throttle?.coolingDown === true || Number(throttle?.consecutiveFailures || 0) > 0
   );
+}
+
+function shouldStopProviderBatch(error) {
+  return PROVIDER_BATCH_STOP_CODES.has(String(error?.code || ''));
 }
 
 function boundedNumber(value, fallback, min, max) {
@@ -110,6 +115,8 @@ class DealCronService {
       let checkedCount = 0;
       let deferredCount = 0;
       let itemFailureCount = 0;
+      let providerDeferred = false;
+      let providerDeferredReason = null;
 
       for (const deal of verificationCandidates) {
         if (checkedCount >= batchSize) break;
@@ -155,6 +162,14 @@ class DealCronService {
           if (Number.isFinite(discount) && discount >= 0) changes.discount_percent = discount;
           await deals.update(deal.id, changes);
         } catch (err) {
+          if (shouldStopProviderBatch(err)) {
+            providerDeferred = true;
+            providerDeferredReason = err.code;
+            deferredCount += Math.max(0, batchSize - checkedCount);
+            console.warn(`[DealCronService] Verification batch stopped: ${err.code}`);
+            break;
+          }
+
           const providerStatus = await getProviderStatus().catch(() => null);
           if (!providerHasTransientTrouble(providerStatus)) {
             await refreshStates.recordFailure(deal.asin, err, { at: attemptAt });
@@ -165,7 +180,10 @@ class DealCronService {
       }
 
       this.stats.dealsExpired += expiredCount;
-      return { checkedCount, expiredCount, deferredCount, itemFailureCount, eligibleCount: activeDeals.length, batchSize };
+      return {
+        checkedCount, expiredCount, deferredCount, itemFailureCount, eligibleCount: activeDeals.length, batchSize,
+        providerDeferred, providerDeferredReason,
+      };
     });
   }
 
@@ -277,3 +295,4 @@ class DealCronService {
 }
 
 module.exports = new DealCronService();
+module.exports.shouldStopProviderBatch = shouldStopProviderBatch;
