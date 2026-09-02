@@ -17,7 +17,8 @@ test('server owns an explicit graceful shutdown path', () => {
   assert.match(serverSource, /process\.once\('SIGTERM'/);
   assert.match(serverSource, /process\.once\('SIGINT'/);
   assert.match(serverSource, /dealCron\.stop\(\)/);
-  assert.match(serverSource, /imageRepair\.stopImageRepairScheduler\(\)/);
+  assert.doesNotMatch(serverSource, /startImageRepairScheduler/);
+  assert.doesNotMatch(serverSource, /stopImageRepairScheduler/);
   assert.match(serverSource, /httpServer\.close/);
   assert.match(serverSource, /postgres\.closePool\(\)/);
 });

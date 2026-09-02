@@ -16,7 +16,6 @@ const {
 const {
   getProviderStatus,
   fetchProductByAsin,
-  fetchDealsList,
 } = require('../services/providerRouter');
 const dealCron = require('../services/cronService');
 
@@ -197,24 +196,16 @@ router.post('/rainforest-lookup', requireAdmin, async (req, res) => {
 router.post('/fetch-deals', requireAdmin, async (req, res) => {
   try {
     const maxResults = Math.min(50, Math.max(1, Number(req.body?.maxDeals) || 15));
-    const dealsToIngest = await fetchDealsList({ maxResults });
-    let created = 0;
-    const skipped = [];
-
-    for (const rawItem of dealsToIngest) {
-      const item = requireVerifiedProduct(rawItem);
-      if (!item) {
-        skipped.push({ asin: rawItem?.asin || null, reason: 'unverified' });
-        continue;
-      }
-      if (await deals.findByIdOrAsin(item.asin)) {
-        skipped.push({ asin: item.asin, reason: 'exists' });
-        continue;
-      }
-      await deals.upsert(providerDealRecord(item));
-      created += 1;
-    }
-    res.json({ created, skipped, processed: dealsToIngest.length });
+    const result = await dealCron.syncDailyDeals({ maxResults });
+    if (result?.status === 'NOTICE' && result.error) return res.status(502).json({ error: result.error });
+    res.json({
+      success: true,
+      ...result,
+      created: Number(result?.created || 0),
+      processed: Number(result?.created || 0) + Number(result?.updated || 0) + Number(result?.rejected || 0),
+      scope: ['web', 'app', 'whatsapp_status'],
+      catalog: 'shared',
+    });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Failed to fetch deals' });
   }

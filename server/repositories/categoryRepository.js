@@ -3,6 +3,22 @@ const postgres = require('../storage/postgres');
 
 let schemaReady = false;
 
+const CANONICAL_CATEGORIES = [
+  ['cat-electronics', 'Electronics', 'electronics', 'Tech, audio, computers, TVs, gaming, and smart devices.'],
+  ['cat-home-kitchen', 'Home & Kitchen', 'home-kitchen', 'Cookware, appliances, furniture, cleaning, and home essentials.'],
+  ['cat-sports-outdoors', 'Sports & Outdoors', 'sports-outdoors', 'Fitness, camping, cycling, and outdoor equipment.'],
+  ['cat-health-beauty', 'Health & Beauty', 'health-beauty', 'Personal care, grooming, skincare, haircare, and wellness.'],
+  ['cat-toys-games', 'Toys & Games', 'toys-games', 'Toys, games, puzzles, and hobby products.'],
+  ['cat-baby', 'Baby', 'baby', 'Baby and toddler essentials.'],
+  ['cat-pet-supplies', 'Pet Supplies', 'pet-supplies', 'Food, gear, and essentials for pets.'],
+  ['cat-automotive', 'Automotive', 'automotive', 'Car, truck, and vehicle accessories.'],
+  ['cat-tools-home-improvement', 'Tools & Home Improvement', 'tools-home-improvement', 'Tools, hardware, and home-improvement products.'],
+  ['cat-office-school', 'Office & School', 'office-school', 'Office, school, stationery, and workspace essentials.'],
+  ['cat-clothing-accessories', 'Clothing & Accessories', 'clothing-accessories', 'Apparel, shoes, watches, jewelry, and accessories.'],
+  ['cat-grocery', 'Grocery', 'grocery', 'Food, beverages, snacks, and pantry items.'],
+  ['cat-other', 'Other', 'other', 'Deals that do not cleanly fit another category.'],
+].map(([id, name, slug, description]) => ({ id, name, slug, description }));
+
 async function ensureSchema() {
   if (!postgres.isConfigured() || schemaReady) return;
   await postgres.query(`
@@ -15,23 +31,31 @@ async function ensureSchema() {
     )
   `);
 
-  const count = await postgres.query('SELECT COUNT(*)::int AS count FROM categories');
-  if (count.rows[0].count === 0 && Array.isArray(db.tables.categories) && db.tables.categories.length) {
-    for (const category of db.tables.categories) {
-      await postgres.query(
-        `INSERT INTO categories (id, name, slug, description, created_at)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (id) DO NOTHING`,
-        [category.id, category.name, category.slug, category.description || null, category.created_at || Math.floor(Date.now() / 1000)]
-      );
-    }
+  const createdAt = Math.floor(Date.now() / 1000);
+  for (const category of CANONICAL_CATEGORIES) {
+    await postgres.query(
+      `INSERT INTO categories (id, name, slug, description, created_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         slug = EXCLUDED.slug,
+         description = EXCLUDED.description`,
+      [category.id, category.name, category.slug, category.description, createdAt]
+    );
   }
+
+  await postgres.query("DELETE FROM categories WHERE id = 'cat-amazon-devices' OR slug = 'amazon-devices'");
   schemaReady = true;
+}
+
+function localCategories() {
+  const createdAt = Math.floor(Date.now() / 1000);
+  return CANONICAL_CATEGORIES.map((category) => ({ ...category, created_at: createdAt }));
 }
 
 async function list({ slug } = {}) {
   if (!postgres.isConfigured()) {
-    let rows = [...(db.tables.categories || [])];
+    let rows = localCategories();
     if (slug) rows = rows.filter((c) => c.slug === slug);
     return rows.sort((a, b) => String(a.name).localeCompare(String(b.name))).map((c) => ({ ...c }));
   }
@@ -46,7 +70,7 @@ async function list({ slug } = {}) {
 
 async function getById(id) {
   if (!postgres.isConfigured()) {
-    const category = (db.tables.categories || []).find((c) => c.id === id);
+    const category = localCategories().find((c) => c.id === id);
     return category ? { ...category } : null;
   }
   await ensureSchema();
@@ -82,6 +106,7 @@ async function update(id, changes) {
 
   if (!postgres.isConfigured()) {
     const index = db.tables.categories.findIndex((c) => c.id === id);
+    if (index === -1) return { ...current, ...next };
     db.tables.categories[index] = { ...db.tables.categories[index], ...next };
     db.saveDb();
     return { ...db.tables.categories[index] };
@@ -109,4 +134,4 @@ async function remove(id) {
   return result.rowCount > 0;
 }
 
-module.exports = { list, getById, create, update, remove, ensureSchema };
+module.exports = { list, getById, create, update, remove, ensureSchema, CANONICAL_CATEGORIES };

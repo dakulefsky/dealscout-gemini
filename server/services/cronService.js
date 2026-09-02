@@ -11,9 +11,8 @@ const { rediscoveryLifecycleChanges } = require('./rediscoveryLifecycle');
 const { verifiedSourceChanges } = require('./verifiedDealRefresh');
 const { canAttemptRefresh } = require('./refreshRetryPolicy');
 
-const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const THIRTY_MINUTES_MS = 30 * 60 * 1000;
-const INITIAL_CYCLE_DELAY_MS = 15_000;
 const JOB_LOCKS = Object.freeze({
   purgeExpired: 44001,
   verifyPrices: 44002,
@@ -35,7 +34,6 @@ class DealCronService {
   constructor() {
     this.intervalId = null;
     this.purgeIntervalId = null;
-    this.initialTimeoutId = null;
     this.lastRun = null;
     this.lastPriceCheck = null;
     this.lastPurgeRun = null;
@@ -56,15 +54,11 @@ class DealCronService {
   }
 
   start() {
-    if (this.intervalId || this.initialTimeoutId) return;
-    this.stats.nextRunEstimate = new Date(Date.now() + INITIAL_CYCLE_DELAY_MS).toISOString();
-    this.initialTimeoutId = setTimeout(() => {
-      this.initialTimeoutId = null;
-      this.runFullCycle().catch((err) => console.warn('[DealCronService] Initial cycle:', err.message));
-    }, INITIAL_CYCLE_DELAY_MS);
+    if (this.intervalId) return;
+    this.stats.nextRunEstimate = new Date(Date.now() + TWELVE_HOURS_MS).toISOString();
     this.intervalId = setInterval(
       () => this.runFullCycle().catch((err) => console.warn('[DealCronService] Scheduled cycle:', err.message)),
-      SIX_HOURS_MS,
+      TWELVE_HOURS_MS,
     );
     this.purgeIntervalId = setInterval(
       () => this.purgeOldExpiredDeals().catch((err) => console.warn('[DealCronService] Purge:', err.message)),
@@ -73,10 +67,8 @@ class DealCronService {
   }
 
   stop() {
-    if (this.initialTimeoutId) clearTimeout(this.initialTimeoutId);
     if (this.intervalId) clearInterval(this.intervalId);
     if (this.purgeIntervalId) clearInterval(this.purgeIntervalId);
-    this.initialTimeoutId = null;
     this.intervalId = null;
     this.purgeIntervalId = null;
   }
@@ -262,7 +254,7 @@ class DealCronService {
             id: item.asin,
             title: item.title,
             asin: item.asin,
-            category: item.category || 'Amazon',
+            category: item.category || 'Other',
             original_price: original,
             sale_price: sale,
             discount_percent: discount,
@@ -299,7 +291,7 @@ class DealCronService {
         this.stats.dealsPendingReview += pendingCount;
         this.stats.dealsEditorialHoldback += holdbackCount;
         this.stats.dealsRejected += rejectedCount;
-        this.stats.nextRunEstimate = new Date(Date.now() + SIX_HOURS_MS).toISOString();
+        this.stats.nextRunEstimate = new Date(Date.now() + TWELVE_HOURS_MS).toISOString();
 
         return {
           created: createdCount,
@@ -322,7 +314,7 @@ class DealCronService {
 
   async getStatus() {
     return {
-      running: Boolean(this.intervalId || this.initialTimeoutId),
+      running: Boolean(this.intervalId),
       lastRun: this.lastRun ? this.lastRun.toISOString() : null,
       lastPriceCheck: this.lastPriceCheck ? this.lastPriceCheck.toISOString() : null,
       lastPurgeRun: this.lastPurgeRun ? this.lastPurgeRun.toISOString() : null,

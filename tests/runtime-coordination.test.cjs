@@ -17,17 +17,21 @@ test('scheduled provider jobs are guarded by PostgreSQL advisory locks', () => {
   assert.match(cron, /runDistributed\(JOB_LOCKS\.discoverDeals/);
 });
 
-test('scheduled image repair is guarded by a separate distributed lock', () => {
+test('manual image repair is guarded by a separate distributed lock', () => {
   const source = read('server/services/imageRepairService.js');
   assert.match(source, /IMAGE_REPAIR_LOCK_ID = 44004/);
   assert.match(source, /withAdvisoryLock\(IMAGE_REPAIR_LOCK_ID/);
 });
 
-test('scheduler stop methods clear both delayed startup and recurring work', () => {
+test('web startup does not trigger paid provider maintenance immediately', () => {
   const cron = read('server/services/cronService.js');
   const images = read('server/services/imageRepairService.js');
-  assert.match(cron, /clearTimeout\(this\.initialTimeoutId\)/);
-  assert.match(images, /clearTimeout\(initialTimeoutId\)/);
+  const server = read('server.js');
+  assert.doesNotMatch(cron, /INITIAL_CYCLE_DELAY_MS/);
+  assert.doesNotMatch(cron, /initialTimeoutId/);
+  assert.match(cron, /TWELVE_HOURS_MS/);
+  assert.doesNotMatch(images, /setTimeout|setInterval|startImageRepairScheduler/);
+  assert.doesNotMatch(server, /startImageRepairScheduler/);
 });
 
 test('advisory lock helper keeps one database session for acquire and release', () => {
