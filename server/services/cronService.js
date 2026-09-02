@@ -1,5 +1,6 @@
 const deals = require('../repositories/dealRepository');
 const refreshStates = require('../repositories/refreshStateRepository');
+const maintenanceCadence = require('../repositories/maintenanceCadenceRepository');
 const postgres = require('../storage/postgres');
 const { fetchDealsList, fetchProductByAsin, getProviderStatus } = require('./providerRouter');
 const { recordObservation } = require('./priceHistoryService');
@@ -11,9 +12,11 @@ const { rediscoveryLifecycleChanges } = require('./rediscoveryLifecycle');
 const { verifiedSourceChanges } = require('./verifiedDealRefresh');
 const { canAttemptRefresh } = require('./refreshRetryPolicy');
 
-const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
-const THIRTY_MINUTES_MS = 30 * 60 * 1000;
+const TWELVE_HOURS_SECONDS = 12 * 60 * 60;
+const THIRTY_MINUTES_SECONDS = 30 * 60;
+const SCHEDULER_POLL_MS = 15 * 60 * 1000;
 const JOB_LOCKS = Object.freeze({ purgeExpired: 44001, verifyPrices: 44002, discoverDeals: 44003 });
+const JOB_INTERVALS = Object.freeze({ purgeExpired: THIRTY_MINUTES_SECONDS, verifyPrices: TWELVE_HOURS_SECONDS, discoverDeals: TWELVE_HOURS_SECONDS });
 const PROVIDER_BATCH_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
 
 async function safeRecordObservation(observation) {
@@ -37,6 +40,15 @@ function boundedNumber(value, fallback, min, max) {
   return Math.min(max, Math.max(min, Math.round(number)));
 }
 
+function cadenceSkip(job, claim) {
+  return {
+    skipped: true,
+    reason: 'NOT_DUE',
+    job,
+    nextDueAt: claim?.state?.next_due_at || null,
+  };
+}
+
 class DealCronService {
   constructor() {
     this.intervalId = null;
@@ -52,13 +64,12 @@ class DealCronService {
     };
   }
 
-  scheduleNextCycle(delayMs = TWELVE_HOURS_MS) {
+  scheduleNextCycle(delayMs = SCHEDULER_POLL_MS) {
     if (this.intervalId) clearTimeout(this.intervalId);
-    const delay = Math.max(1000, Number(delayMs) || TWELVE_HOURS_MS);
-    this.stats.nextRunEstimate = new Date(Date.now() + delay).toISOString();
+    const delay = Math.max(1000, Number(delayMs) || SCHEDULER_POLL_MS);
     this.intervalId = setTimeout(async () => {
       this.intervalId = null;
-      try { await this.runFullCycle(); }
+      try { await this.runFullCycle({ scheduled: true }); }
       catch (err) { console.warn('[DealCronService] Scheduled cycle:', err.message); }
       finally { this.scheduleNextCycle(); }
     }, delay);
@@ -66,11 +77,9 @@ class DealCronService {
 
   start() {
     if (this.intervalId) return;
+    // Cloud Run instances only poll for due work. PostgreSQL owns the actual
+    // cadence, so staggered instances/restarts cannot multiply provider pulls.
     this.scheduleNextCycle();
-    this.purgeIntervalId = setInterval(
-      () => this.purgeOldExpiredDeals().catch((err) => console.warn('[DealCronService] Purge:', err.message)),
-      THIRTY_MINUTES_MS,
-    );
   }
 
   stop() {
@@ -87,15 +96,21 @@ class DealCronService {
     return result.result;
   }
 
-  async runFullCycle() {
-    const purge = await this.purgeOldExpiredDeals();
-    const verification = await this.checkDealPricesAndAvailability();
-    const discovery = await this.syncDailyDeals();
+  async claimCadence(jobKey, intervalSeconds, scheduled) {
+    return maintenanceCadence.claim(jobKey, intervalSeconds, { force: !scheduled });
+  }
+
+  async runFullCycle({ scheduled = false } = {}) {
+    const purge = await this.purgeOldExpiredDeals({ scheduled });
+    const verification = await this.checkDealPricesAndAvailability({ scheduled });
+    const discovery = await this.syncDailyDeals({ scheduled });
     return { purge, verification, discovery };
   }
 
-  async purgeOldExpiredDeals() {
+  async purgeOldExpiredDeals({ scheduled = false } = {}) {
     return this.runDistributed(JOB_LOCKS.purgeExpired, 'purge-expired', async () => {
+      const claim = await this.claimCadence('purge-expired', JOB_INTERVALS.purgeExpired, scheduled);
+      if (!claim.acquired) return cadenceSkip('purge-expired', claim);
       this.lastPurgeRun = new Date();
       const result = await deals.purgeExpired(86400);
       this.stats.dealsPurged += result.purgedCount || 0;
@@ -103,8 +118,10 @@ class DealCronService {
     });
   }
 
-  async checkDealPricesAndAvailability() {
+  async checkDealPricesAndAvailability({ scheduled = false } = {}) {
     return this.runDistributed(JOB_LOCKS.verifyPrices, 'verify-prices', async () => {
+      const claim = await this.claimCadence('verify-prices', JOB_INTERVALS.verifyPrices, scheduled);
+      if (!claim.acquired) return cadenceSkip('verify-prices', claim);
       this.lastPriceCheck = new Date();
       const all = await deals.listAll();
       const activeDeals = all.filter((deal) => !deal.is_expired && deal.status === 'APPROVED' && deal.source_verified === 1);
@@ -192,9 +209,12 @@ class DealCronService {
 
     const maxResults = boundedNumber(options.maxResults, 20, 1, 50);
     const minDiscount = boundedNumber(options.minDiscount, 15, 0, 100);
+    const scheduled = options.scheduled === true;
 
     return this.runDistributed(JOB_LOCKS.discoverDeals, 'discover-deals', async () => {
       if (this.isRunning) return { skipped: true, reason: 'ALREADY_RUNNING' };
+      const claim = await this.claimCadence('discover-deals', JOB_INTERVALS.discoverDeals, scheduled);
+      if (!claim.acquired) return cadenceSkip('discover-deals', claim);
       this.isRunning = true;
       this.lastRun = new Date();
       this.stats.totalRuns += 1;
@@ -262,10 +282,6 @@ class DealCronService {
         this.stats.dealsEditorialHoldback += holdbackCount;
         this.stats.dealsRejected += rejectedCount;
 
-        // A manual pull should move the actual next automatic provider cycle too,
-        // so the admin countdown and provider spend stay aligned.
-        if (this.intervalId) this.scheduleNextCycle();
-
         return {
           created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount,
           pendingReview: pendingCount, editorialHoldback: holdbackCount, rejected: rejectedCount,
@@ -281,12 +297,17 @@ class DealCronService {
   }
 
   async getStatus() {
+    const durableDiscovery = await maintenanceCadence.get('discover-deals').catch(() => null);
+    const durableNextDue = Number(durableDiscovery?.next_due_at || 0);
+    const nextRunEstimate = durableNextDue > 0 ? new Date(durableNextDue * 1000).toISOString() : null;
     return {
       running: Boolean(this.intervalId),
       lastRun: this.lastRun ? this.lastRun.toISOString() : null,
       lastPriceCheck: this.lastPriceCheck ? this.lastPriceCheck.toISOString() : null,
       lastPurgeRun: this.lastPurgeRun ? this.lastPurgeRun.toISOString() : null,
-      nextRunEstimate: this.stats.nextRunEstimate,
+      nextRunEstimate,
+      scheduleSource: durableNextDue > 0 ? 'postgres' : 'pending_first_run',
+      schedulerPollMinutes: SCHEDULER_POLL_MS / 60000,
       editorialHoldbackPercent: getHoldbackPercent(),
       lifecycle: await deals.lifecycleStats(),
       stats: this.stats,
@@ -296,3 +317,4 @@ class DealCronService {
 
 module.exports = new DealCronService();
 module.exports.shouldStopProviderBatch = shouldStopProviderBatch;
+module.exports.cadenceSkip = cadenceSkip;
