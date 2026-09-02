@@ -2,6 +2,7 @@ const postgres = require('../storage/postgres');
 
 const BUDGET_LOCK_ID = 44005;
 const localUsage = new Map();
+let schemaEnsured = false;
 
 class ProviderBudgetExceededError extends Error {
   constructor(provider, scope, limit) {
@@ -34,16 +35,12 @@ function limitsFor(provider) {
   };
 }
 
-function dayKey(date = new Date()) {
-  return date.toISOString().slice(0, 10);
-}
-
-function monthKey(date = new Date()) {
-  return date.toISOString().slice(0, 7);
-}
+function dayKey(date = new Date()) { return date.toISOString().slice(0, 10); }
+function monthKey(date = new Date()) { return date.toISOString().slice(0, 7); }
+function remaining(limit, used) { return Number.isFinite(limit) ? Math.max(0, limit - used) : null; }
 
 async function ensureSchema() {
-  if (!postgres.isConfigured()) return;
+  if (!postgres.isConfigured() || schemaEnsured) return;
   await postgres.query(`
     CREATE TABLE IF NOT EXISTS provider_request_usage (
       provider TEXT NOT NULL,
@@ -56,6 +53,7 @@ async function ensureSchema() {
     )
   `);
   await postgres.query('CREATE INDEX IF NOT EXISTS idx_provider_request_usage_month ON provider_request_usage(provider, usage_date)');
+  schemaEnsured = true;
 }
 
 function localStatus(provider, now = new Date()) {
@@ -83,15 +81,26 @@ function localStatus(provider, now = new Date()) {
   return { dayCount, monthCount, blockedToday, lastRequestAt, lastBlockedAt };
 }
 
-function remaining(limit, used) {
-  return Number.isFinite(limit) ? Math.max(0, limit - used) : null;
+function emptyStatus(provider) {
+  return {
+    provider: cleanProvider(provider),
+    limits: { daily: null, monthly: null },
+    dayCount: 0,
+    monthCount: 0,
+    blockedToday: 0,
+    lastRequestAt: null,
+    lastBlockedAt: null,
+    remainingToday: null,
+    remainingMonth: null,
+  };
 }
 
 async function usageStatus(provider, now = new Date()) {
   const key = cleanProvider(provider);
   const limits = limitsFor(key);
-  let usage;
+  if (!Number.isFinite(limits.daily) && !Number.isFinite(limits.monthly)) return emptyStatus(key);
 
+  let usage;
   if (!postgres.isConfigured()) {
     usage = localStatus(key, now);
   } else {
@@ -140,28 +149,22 @@ async function recordBlockedPostgres(client, provider, today) {
 async function reserveRequest(provider, now = new Date()) {
   const key = cleanProvider(provider);
   const limits = limitsFor(key);
-  if (!Number.isFinite(limits.daily) && !Number.isFinite(limits.monthly)) return usageStatus(key, now);
+  if (!Number.isFinite(limits.daily) && !Number.isFinite(limits.monthly)) return emptyStatus(key);
 
   const today = dayKey(now);
   const month = monthKey(now);
 
   if (!postgres.isConfigured()) {
     const status = localStatus(key, now);
-    if (status.dayCount >= limits.daily) {
+    if (status.dayCount >= limits.daily || status.monthCount >= limits.monthly) {
+      const scope = status.dayCount >= limits.daily ? 'day' : 'month';
+      const limit = scope === 'day' ? limits.daily : limits.monthly;
       const entryKey = `${key}|${today}`;
       const entry = localUsage.get(entryKey) || { requestCount: 0, blockedCount: 0 };
       entry.blockedCount += 1;
       entry.lastBlockedAt = now.toISOString();
       localUsage.set(entryKey, entry);
-      throw new ProviderBudgetExceededError(key, 'day', limits.daily);
-    }
-    if (status.monthCount >= limits.monthly) {
-      const entryKey = `${key}|${today}`;
-      const entry = localUsage.get(entryKey) || { requestCount: 0, blockedCount: 0 };
-      entry.blockedCount += 1;
-      entry.lastBlockedAt = now.toISOString();
-      localUsage.set(entryKey, entry);
-      throw new ProviderBudgetExceededError(key, 'month', limits.monthly);
+      throw new ProviderBudgetExceededError(key, scope, limit);
     }
 
     const entryKey = `${key}|${today}`;
@@ -174,6 +177,7 @@ async function reserveRequest(provider, now = new Date()) {
 
   await ensureSchema();
   const client = await postgres.getPool().connect();
+  let budgetError = null;
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock($1)', [BUDGET_LOCK_ID]);
@@ -189,23 +193,20 @@ async function reserveRequest(provider, now = new Date()) {
     const dayCount = Number(counts.rows[0]?.day_count || 0);
     const monthCount = Number(counts.rows[0]?.month_count || 0);
 
-    if (dayCount >= limits.daily) {
+    if (dayCount >= limits.daily || monthCount >= limits.monthly) {
+      const scope = dayCount >= limits.daily ? 'day' : 'month';
+      const limit = scope === 'day' ? limits.daily : limits.monthly;
       await recordBlockedPostgres(client, key, today);
-      await client.query('COMMIT');
-      throw new ProviderBudgetExceededError(key, 'day', limits.daily);
-    }
-    if (monthCount >= limits.monthly) {
-      await recordBlockedPostgres(client, key, today);
-      await client.query('COMMIT');
-      throw new ProviderBudgetExceededError(key, 'month', limits.monthly);
+      budgetError = new ProviderBudgetExceededError(key, scope, limit);
+    } else {
+      await client.query(`
+        INSERT INTO provider_request_usage(provider, usage_date, request_count, last_request_at)
+        VALUES ($1, $2::date, 1, NOW())
+        ON CONFLICT (provider, usage_date)
+        DO UPDATE SET request_count = provider_request_usage.request_count + 1, last_request_at = NOW()
+      `, [key, today]);
     }
 
-    await client.query(`
-      INSERT INTO provider_request_usage(provider, usage_date, request_count, last_request_at)
-      VALUES ($1, $2::date, 1, NOW())
-      ON CONFLICT (provider, usage_date)
-      DO UPDATE SET request_count = provider_request_usage.request_count + 1, last_request_at = NOW()
-    `, [key, today]);
     await client.query('COMMIT');
   } catch (error) {
     try { await client.query('ROLLBACK'); } catch {}
@@ -214,6 +215,7 @@ async function reserveRequest(provider, now = new Date()) {
     client.release();
   }
 
+  if (budgetError) throw budgetError;
   return usageStatus(key, now);
 }
 
