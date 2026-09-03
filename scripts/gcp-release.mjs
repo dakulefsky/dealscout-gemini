@@ -115,6 +115,11 @@ export function buildReleasePlan(env = process.env) {
     ['AMAZON_ASSOCIATE_TAG', affiliateTag],
     ['DEAL_DATA_PROVIDER', dealProvider],
     ['RAINFOREST_DOMAIN', text(env, 'RAINFOREST_DOMAIN')],
+    ['RAINFOREST_DAILY_REQUEST_LIMIT', text(env, 'RAINFOREST_DAILY_REQUEST_LIMIT')],
+    ['RAINFOREST_MONTHLY_REQUEST_LIMIT', text(env, 'RAINFOREST_MONTHLY_REQUEST_LIMIT')],
+    ['GEMINI_MODEL', text(env, 'GEMINI_MODEL')],
+    ['GEMINI_DAILY_REQUEST_LIMIT', text(env, 'GEMINI_DAILY_REQUEST_LIMIT')],
+    ['GEMINI_MONTHLY_REQUEST_LIMIT', text(env, 'GEMINI_MONTHLY_REQUEST_LIMIT')],
   ]);
 
   const publisherEnv = encodeEnvVars([
