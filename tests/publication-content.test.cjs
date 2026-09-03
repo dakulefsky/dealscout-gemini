@@ -34,6 +34,16 @@ test('publication facts are normalized only from stored verified deal fields', (
   assert.equal(facts.asin, 'B000000099');
 });
 
+test('publication discount copy is derived from the verified price pair, not stale metadata', () => {
+  const staleClaim = deal({ original_price: 100, sale_price: 75, discount_percent: 50 });
+  const facts = publicationFacts(staleClaim);
+  assert.equal(facts.discountPercent, 25);
+
+  const content = composePublicationContent(CHANNELS.WHATSAPP_STATUS, staleClaim, { nowUnix: NOW });
+  assert.match(content.caption, /\$75 • 25% off/);
+  assert.doesNotMatch(content.caption, /50% off/);
+});
+
 test('WhatsApp content is concise factual copy with price disclaimer and verified destination', () => {
   const content = composePublicationContent(CHANNELS.WHATSAPP_STATUS, deal(), { nowUnix: NOW });
   assert.equal(content.format, 'image_caption');
