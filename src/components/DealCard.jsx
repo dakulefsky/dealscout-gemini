@@ -4,8 +4,8 @@ import { Heart, ArrowRight, Clock, AlertCircle, ShieldCheck, EyeOff } from 'luci
 import { Image } from '@/components/ui/image';
 import { useBookmarks } from '@/lib/BookmarksContext';
 import { verificationFreshness } from '@/lib/verificationFreshness';
-import { addCategoryInterest, reduceCategoryInterest, dwellWeight } from '@/lib/feedPersonalization';
-import { dismissDeal, isDealDismissed } from '@/lib/feedDismissals';
+import { addCategoryInterest, reduceCategoryInterest, dwellWeight, loadInterests } from '@/lib/feedPersonalization';
+import { dismissDeal, isDealDismissed, restoreDeal } from '@/lib/feedDismissals';
 
 export function formatPrice(price) {
   if (price == null || isNaN(price)) return '';
@@ -17,6 +17,9 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
   const dealId = deal.id || deal.asin;
   const saved = isSaved(dealId);
   const [dismissed, setDismissed] = useState(() => isDealDismissed(dealId));
+  const [undoVisible, setUndoVisible] = useState(false);
+  const undoTimerRef = useRef(null);
+  const dismissedInterestPenaltyRef = useRef(0);
   const isExpired = Boolean(deal.isExpired || deal.status === 'EXPIRED');
   const hoursLeft = deal.expiresInHours ? Math.max(1, Math.ceil(deal.expiresInHours)) : null;
   const freshness = verificationFreshness(deal.priceCheckAt);
@@ -32,8 +35,30 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
 
   function handleDismissClick() {
     dismissDeal(dealId);
-    reduceCategoryInterest(deal.category, 3);
+    const before = Number(loadInterests()[deal.category] || 0);
+    const after = Number(reduceCategoryInterest(deal.category, 3)[deal.category] || 0);
+    dismissedInterestPenaltyRef.current = Math.max(0, before - after);
+    viewedAt.current = null;
     setDismissed(true);
+    setUndoVisible(true);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => {
+      setUndoVisible(false);
+      undoTimerRef.current = null;
+      dismissedInterestPenaltyRef.current = 0;
+    }, 2000);
+  }
+
+  function handleUndoDismiss() {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = null;
+    restoreDeal(dealId);
+    if (dismissedInterestPenaltyRef.current > 0) {
+      addCategoryInterest(deal.category, dismissedInterestPenaltyRef.current);
+    }
+    dismissedInterestPenaltyRef.current = 0;
+    setUndoVisible(false);
+    setDismissed(false);
   }
 
   const finishDwell = useCallback(() => {
@@ -66,9 +91,21 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
     };
   }, [dealId, finishDwell]);
 
+  useEffect(() => () => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+  }, []);
+
   function handleDealClick() { addCategoryInterest(deal.category, 2); }
 
-  if (dismissed) return null;
+  if (dismissed) {
+    if (!undoVisible) return null;
+    return (
+      <div className="fixed left-1/2 -translate-x-1/2 bottom-20 lg:bottom-6 z-[70] flex items-center gap-3 rounded-full bg-slate-950 text-white shadow-xl px-4 py-2.5 text-sm font-semibold" role="status" aria-live="polite">
+        <span>Deal hidden</span>
+        <button type="button" onClick={handleUndoDismiss} className="font-black text-emerald-300 hover:text-emerald-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 rounded px-1">Undo</button>
+      </div>
+    );
+  }
 
   const sourceBadge = !isExpired && deal.sourceVerified ? (
     <span title={freshness.label} className={`inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-md whitespace-nowrap ${freshness.stale ? 'text-amber-800 bg-amber-100' : 'text-slate-600 bg-slate-100'}`}>
