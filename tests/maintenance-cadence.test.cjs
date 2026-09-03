@@ -22,3 +22,14 @@ test('manual force claim resets next durable due time', async () => {
   assert.equal(forced.acquired, true);
   assert.equal(forced.state.next_due_at, 4800);
 });
+
+test('provider-deferred job can replace a claimed interval with an earlier useful retry', async () => {
+  cadence.resetFallback();
+  await cadence.claim('discover-deals', 43200, { nowUnix: 1000 });
+  const rescheduled = await cadence.reschedule('discover-deals', 1600, { nowUnix: 1100 });
+  assert.equal(rescheduled.next_due_at, 1600);
+  const early = await cadence.claim('discover-deals', 43200, { nowUnix: 1500 });
+  const due = await cadence.claim('discover-deals', 43200, { nowUnix: 1600 });
+  assert.equal(early.acquired, false);
+  assert.equal(due.acquired, true);
+});

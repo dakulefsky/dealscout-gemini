@@ -15,6 +15,7 @@ const { canAttemptRefresh } = require('./refreshRetryPolicy');
 const TWELVE_HOURS_SECONDS = 12 * 60 * 60;
 const THIRTY_MINUTES_SECONDS = 30 * 60;
 const SCHEDULER_POLL_MS = 15 * 60 * 1000;
+const PROVIDER_RETRY_SAFETY_SECONDS = 60;
 const JOB_LOCKS = Object.freeze({ purgeExpired: 44001, verifyPrices: 44002, discoverDeals: 44003 });
 const JOB_INTERVALS = Object.freeze({ purgeExpired: THIRTY_MINUTES_SECONDS, verifyPrices: TWELVE_HOURS_SECONDS, discoverDeals: TWELVE_HOURS_SECONDS });
 const PROVIDER_BATCH_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
@@ -32,6 +33,34 @@ function providerHasTransientTrouble(status) {
 
 function shouldStopProviderBatch(error) {
   return PROVIDER_BATCH_STOP_CODES.has(String(error?.code || ''));
+}
+
+function providerRetryAt(error, nowMs = Date.now()) {
+  const code = String(error?.code || '');
+  const nowSeconds = Math.floor(Number(nowMs) / 1000);
+  if (code === 'PROVIDER_COOLDOWN') {
+    const retrySeconds = Math.max(PROVIDER_RETRY_SAFETY_SECONDS, Math.ceil(Number(error?.retryAfterMs || 0) / 1000));
+    return nowSeconds + retrySeconds;
+  }
+  if (code !== 'PROVIDER_BUDGET_EXCEEDED') return null;
+
+  const now = new Date(Number(nowMs));
+  if (String(error?.scope || '').toLowerCase() === 'month') {
+    return Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 1, 0) / 1000);
+  }
+  return Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 1, 0) / 1000);
+}
+
+async function rescheduleProviderJob(jobKey, error) {
+  const retryAt = providerRetryAt(error);
+  if (!retryAt) return null;
+  try {
+    await maintenanceCadence.reschedule(jobKey, retryAt);
+    return retryAt;
+  } catch (rescheduleError) {
+    console.warn(`[DealCronService] Could not reschedule ${jobKey} after ${error?.code || 'provider deferral'}:`, rescheduleError.message);
+    return null;
+  }
 }
 
 function boundedNumber(value, fallback, min, max) {
@@ -102,8 +131,11 @@ class DealCronService {
 
   async runFullCycle({ scheduled = false } = {}) {
     const purge = await this.purgeOldExpiredDeals({ scheduled });
-    const verification = await this.checkDealPricesAndAvailability({ scheduled });
+    // One discovery request can refresh many existing ASINs and add new inventory,
+    // so give that bulk request priority before spending the remaining provider
+    // allowance on single-ASIN verification calls.
     const discovery = await this.syncDailyDeals({ scheduled });
+    const verification = await this.checkDealPricesAndAvailability({ scheduled });
     return { purge, verification, discovery };
   }
 
@@ -134,6 +166,7 @@ class DealCronService {
       let itemFailureCount = 0;
       let providerDeferred = false;
       let providerDeferredReason = null;
+      let providerRetryAtUnix = null;
 
       for (const deal of verificationCandidates) {
         if (checkedCount >= batchSize) break;
@@ -182,6 +215,7 @@ class DealCronService {
           if (shouldStopProviderBatch(err)) {
             providerDeferred = true;
             providerDeferredReason = err.code;
+            providerRetryAtUnix = await rescheduleProviderJob('verify-prices', err);
             deferredCount += Math.max(0, batchSize - checkedCount);
             console.warn(`[DealCronService] Verification batch stopped: ${err.code}`);
             break;
@@ -199,7 +233,7 @@ class DealCronService {
       this.stats.dealsExpired += expiredCount;
       return {
         checkedCount, expiredCount, deferredCount, itemFailureCount, eligibleCount: activeDeals.length, batchSize,
-        providerDeferred, providerDeferredReason,
+        providerDeferred, providerDeferredReason, providerRetryAt: providerRetryAtUnix,
       };
     });
   }
@@ -289,6 +323,10 @@ class DealCronService {
         };
       } catch (err) {
         this.stats.lastError = err.message;
+        if (shouldStopProviderBatch(err)) {
+          const retryAt = await rescheduleProviderJob('discover-deals', err);
+          return { error: err.message, code: err.code, status: 'DEFERRED', nextDueAt: retryAt };
+        }
         return { error: err.message, status: 'NOTICE' };
       } finally {
         this.isRunning = false;
@@ -317,4 +355,5 @@ class DealCronService {
 
 module.exports = new DealCronService();
 module.exports.shouldStopProviderBatch = shouldStopProviderBatch;
+module.exports.providerRetryAt = providerRetryAt;
 module.exports.cadenceSkip = cadenceSkip;
