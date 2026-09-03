@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isAiIngest, normalizeVerifiedAiBody } = require('../server/middleware/verifiedAiIngestGuard');
+const { isAiIngest, normalizeVerifiedAiBody, providerErrorResponse } = require('../server/middleware/verifiedAiIngestGuard');
 
 test('detects legacy Gemini AI ingest payloads', () => {
   assert.equal(isAiIngest({ rawSourceData: 'Gemini AI Ingest | ASIN: B0GGGQDY9H' }), true);
@@ -53,4 +53,27 @@ test('verified provider facts overwrite fabricated AI defaults and strip unprove
 test('AI save fails closed without verified live data', () => {
   assert.throws(() => normalizeVerifiedAiBody({ asin: 'B0GGGQDY9H' }, null), /verified by a live product source/i);
   assert.throws(() => normalizeVerifiedAiBody({ asin: 'B0GGGQDY9H' }, { sourceVerified: true, asin: 'B0GGGQDY9H', title: 'x', originalPrice: 100, salePrice: 120 }), /valid original\/sale price pair/i);
+});
+
+test('provider-wide AI ingest deferrals keep retryable HTTP semantics', () => {
+  function response() {
+    return {
+      statusCode: null,
+      body: null,
+      status(code) { this.statusCode = code; return this; },
+      json(body) { this.body = body; return this; },
+    };
+  }
+
+  const budget = response();
+  providerErrorResponse(budget, { code: 'PROVIDER_BUDGET_EXCEEDED', scope: 'day', limit: 16 });
+  assert.equal(budget.statusCode, 429);
+  assert.equal(budget.body.code, 'PROVIDER_BUDGET_EXCEEDED');
+
+  const cooldown = response();
+  providerErrorResponse(cooldown, { code: 'PROVIDER_COOLDOWN', retryAfterMs: 120000 });
+  assert.equal(cooldown.statusCode, 503);
+  assert.equal(cooldown.body.retryAfterMs, 120000);
+
+  assert.equal(providerErrorResponse(response(), new Error('ordinary verification failure')), null);
 });
