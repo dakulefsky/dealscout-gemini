@@ -3,6 +3,15 @@ const postgres = require('../storage/postgres');
 const { encodeCursor, decodeCursor } = require('../services/dealCursor');
 const { isPublicDeal, freshPriceThreshold } = require('../services/publicDealPolicy');
 
+const DISCOUNT_SQL = '(100.0 * (original_price - sale_price) / original_price)';
+
+function derivedDiscount(row) {
+  const original = Number(row?.original_price ?? row?.originalPrice);
+  const sale = Number(row?.sale_price ?? row?.salePrice);
+  if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0 || sale <= 0 || sale >= original) return 0;
+  return ((original - sale) / original) * 100;
+}
+
 function normalizeSort(value) {
   if (value === 'discount_desc' || value === '-discount_percent') return 'discount_desc';
   if (value === 'price_asc') return 'price_asc';
@@ -32,7 +41,7 @@ function normalizeFilters(options = {}) {
 
 function cursorFromRow(row, sort) {
   const primary = sort === 'discount_desc'
-    ? Number(row.discount_percent)
+    ? derivedDiscount(row)
     : sort === 'price_asc' || sort === 'price_desc'
       ? Number(row.sale_price)
       : Number(row.created_at);
@@ -40,7 +49,7 @@ function cursorFromRow(row, sort) {
 }
 
 function orderBy(sort) {
-  if (sort === 'discount_desc') return 'discount_percent DESC, created_at DESC, id DESC';
+  if (sort === 'discount_desc') return `${DISCOUNT_SQL} DESC, created_at DESC, id DESC`;
   if (sort === 'price_asc') return 'sale_price ASC, created_at DESC, id DESC';
   if (sort === 'price_desc') return 'sale_price DESC, created_at DESC, id DESC';
   return 'created_at DESC, id DESC';
@@ -55,7 +64,7 @@ function addCursorPredicate(where, params, cursor, sort) {
     return;
   }
   const primary = `$${params.push(Number(cursor.primary))}`;
-  const field = sort === 'discount_desc' ? 'discount_percent' : 'sale_price';
+  const field = sort === 'discount_desc' ? DISCOUNT_SQL : 'sale_price';
   const op = sort === 'price_asc' ? '>' : '<';
   where.push(`(${field} ${op} ${primary} OR (${field} = ${primary} AND (created_at < ${created} OR (created_at = ${created} AND id < ${id}))))`);
 }
@@ -67,7 +76,7 @@ function filterFallback(rows, filters) {
       const term = filters.q.toLowerCase();
       if (![deal.title, deal.asin, deal.category].some((value) => String(value || '').toLowerCase().includes(term))) return false;
     }
-    if (filters.minDiscount !== null && Number(deal.discount_percent) < filters.minDiscount) return false;
+    if (filters.minDiscount !== null && derivedDiscount(deal) < filters.minDiscount) return false;
     if (filters.minPrice !== null && Number(deal.sale_price) < filters.minPrice) return false;
     if (filters.maxPrice !== null && Number(deal.sale_price) > filters.maxPrice) return false;
     return true;
@@ -78,7 +87,7 @@ function fallbackSort(rows, sort) {
   return rows.sort((a, b) => {
     const createdDiff = Number(b.created_at) - Number(a.created_at);
     const idDiff = String(b.id).localeCompare(String(a.id));
-    if (sort === 'discount_desc') return Number(b.discount_percent) - Number(a.discount_percent) || createdDiff || idDiff;
+    if (sort === 'discount_desc') return derivedDiscount(b) - derivedDiscount(a) || createdDiff || idDiff;
     if (sort === 'price_asc') return Number(a.sale_price) - Number(b.sale_price) || createdDiff || idDiff;
     if (sort === 'price_desc') return Number(b.sale_price) - Number(a.sale_price) || createdDiff || idDiff;
     return createdDiff || idDiff;
@@ -89,7 +98,7 @@ function afterCursor(row, cursor, sort) {
   if (!cursor) return true;
   const created = Number(row.created_at);
   if (sort === '-created_date') return created < cursor.createdAt || (created === cursor.createdAt && String(row.id) < cursor.id);
-  const value = sort === 'discount_desc' ? Number(row.discount_percent) : Number(row.sale_price);
+  const value = sort === 'discount_desc' ? derivedDiscount(row) : Number(row.sale_price);
   const primary = Number(cursor.primary);
   const primaryAfter = sort === 'price_asc' ? value > primary : value < primary;
   return primaryAfter || (value === primary && (created < cursor.createdAt || (created === cursor.createdAt && String(row.id) < cursor.id)));
@@ -132,7 +141,7 @@ async function page(options = {}) {
     const placeholder = `$${params.push(pattern)}`;
     where.push(`(COALESCE(title, '') ILIKE ${placeholder} OR COALESCE(asin, '') ILIKE ${placeholder} OR COALESCE(category, '') ILIKE ${placeholder})`);
   }
-  if (filters.minDiscount !== null) where.push(`discount_percent >= $${params.push(filters.minDiscount)}`);
+  if (filters.minDiscount !== null) where.push(`${DISCOUNT_SQL} >= $${params.push(filters.minDiscount)}`);
   if (filters.minPrice !== null) where.push(`sale_price >= $${params.push(filters.minPrice)}`);
   if (filters.maxPrice !== null) where.push(`sale_price <= $${params.push(filters.maxPrice)}`);
   addCursorPredicate(where, params, cursor, sort);
@@ -151,4 +160,4 @@ async function page(options = {}) {
   };
 }
 
-module.exports = { page, normalizeSort, normalizeLimit, normalizeFilters, orderBy };
+module.exports = { page, normalizeSort, normalizeLimit, normalizeFilters, orderBy, derivedDiscount, DISCOUNT_SQL };
