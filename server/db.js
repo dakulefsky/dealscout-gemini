@@ -10,6 +10,7 @@ const tables = {
   deals: [],
   bookmarks: [],
   price_alerts: [],
+  push_devices: [],
   publication_jobs: [],
 };
 

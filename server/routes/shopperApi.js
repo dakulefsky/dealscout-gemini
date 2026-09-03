@@ -21,6 +21,7 @@ function buildShopperApi({ version = null } = {}) {
   router.use('/deals', require('./deals'));
   router.use('/categories', require('./categories'));
   router.use('/bookmarks', require('./bookmarks'));
+  router.use('/notifications', require('./notifications'));
 
   if (version) {
     router.get('/meta', (_req, res) => res.json({ apiVersion: String(version) }));
