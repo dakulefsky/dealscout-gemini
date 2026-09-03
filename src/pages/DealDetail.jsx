@@ -49,14 +49,26 @@ export default function DealDetail() {
 
   async function handleBuy() {
     if (!deal) return;
+    // Open synchronously from the user gesture so browsers do not block the new tab
+    // while the affiliate redirect endpoint is resolving.
+    const amazonTab = window.open('about:blank', '_blank');
+    if (!amazonTab) {
+      toast({ title: 'Could not open Amazon', description: 'Please allow pop-ups for DealScout and try again.', variant: 'destructive' });
+      return;
+    }
+    amazonTab.opener = null;
     setRedirecting(true);
     try {
       const res = await functions.amazonRedirect(deal.productUrl);
       if (res?.redirectUrl) {
         addCategoryInterest(deal.category, 3);
-        window.location.href = res.redirectUrl;
-      } else toast({ title: "Couldn't open Amazon", variant: 'destructive' });
+        amazonTab.location.replace(res.redirectUrl);
+      } else {
+        amazonTab.close();
+        toast({ title: "Couldn't open Amazon", variant: 'destructive' });
+      }
     } catch (e) {
+      amazonTab.close();
       toast({ title: 'Could not open Amazon', description: e.message, variant: 'destructive' });
     } finally {
       setRedirecting(false);
