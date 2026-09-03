@@ -5,6 +5,7 @@ const { runProviderCall, getProviderThrottleStatus } = require('./providerThrott
 const { usageStatus } = require('./providerBudgetService');
 
 const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
+const PROVIDER_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
 
 function getConfiguredProvider() {
   const configured = String(process.env.DEAL_DATA_PROVIDER || 'auto').trim().toLowerCase();
@@ -16,8 +17,8 @@ function isRainforestConfigured() {
   return Boolean(key && key !== 'your_rainforest_api_key_here');
 }
 
-function rethrowBudgetError(error) {
-  if (error?.code === 'PROVIDER_BUDGET_EXCEEDED') throw error;
+function rethrowProviderStop(error) {
+  if (PROVIDER_STOP_CODES.has(String(error?.code || ''))) throw error;
 }
 
 async function getProviderStatus() {
@@ -99,7 +100,7 @@ async function fetchProductByAsin(asin, options = {}) {
       const verified = await paapiProduct(cleanAsin, options);
       if (verified) return verified;
     } catch (err) {
-      rethrowBudgetError(err);
+      rethrowProviderStop(err);
       console.warn(`[ProviderRouter PA-API notice for ${cleanAsin}]:`, err.message);
       if (configuredProvider === 'amazon_paapi') return null;
     }
@@ -114,7 +115,7 @@ async function fetchProductByAsin(asin, options = {}) {
         return null;
       }
     } catch (err) {
-      rethrowBudgetError(err);
+      rethrowProviderStop(err);
       console.warn(`[ProviderRouter Rainforest notice for ${cleanAsin}]:`, err.message);
       if (configuredProvider === 'rainforest') return null;
     }
@@ -135,7 +136,7 @@ async function fetchDealsList(options = {}) {
       if (verified.length) return verified;
       if (configuredProvider === 'amazon_paapi') return [];
     } catch (err) {
-      rethrowBudgetError(err);
+      rethrowProviderStop(err);
       console.warn('[ProviderRouter PA-API search notice]:', err.message);
       if (configuredProvider === 'amazon_paapi') return [];
     }
@@ -148,7 +149,7 @@ async function fetchDealsList(options = {}) {
       if (verified.length) return verified;
       if (configuredProvider === 'rainforest') return [];
     } catch (err) {
-      rethrowBudgetError(err);
+      rethrowProviderStop(err);
       console.warn('[ProviderRouter Rainforest deals notice]:', err.message);
       if (configuredProvider === 'rainforest') return [];
     }
@@ -158,4 +159,4 @@ async function fetchDealsList(options = {}) {
   return [];
 }
 
-module.exports = { getConfiguredProvider, getProviderStatus, fetchProductByAsin, fetchDealsList };
+module.exports = { getConfiguredProvider, getProviderStatus, fetchProductByAsin, fetchDealsList, rethrowProviderStop };
