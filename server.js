@@ -58,14 +58,9 @@ async function startServer() {
     }
   });
 
-  // v1 is the stable contract for shopper-facing web/mobile clients. The
-  // unversioned mount remains a compatibility alias while existing clients
-  // transition; both use the exact same route implementation and trust rules.
   app.use('/api/v1', buildShopperApi({ version: 1 }));
   app.use('/api', buildShopperApi());
 
-  // Administrative and internal automation APIs are intentionally kept outside
-  // the shopper compatibility contract and can evolve with the admin console.
   app.use('/api/editorial', require('./server/routes/editorial.js'));
   app.use('/api/functions', require('./server/middleware/imageRepairEndpoint.js').imageRepairEndpoint);
   app.use('/api/functions', require('./server/middleware/integrityHealthEndpoint.js').integrityHealthEndpoint);
@@ -112,6 +107,10 @@ async function startServer() {
           if (rows[0]) meta = seo.categoryMeta(baseUrl, rows[0]);
         } else if (req.path === '/disclosure') {
           meta = { title: 'Affiliate Disclosure — DealScout', description: 'How DealScout uses Amazon affiliate links and how deal pricing is presented.', canonical: `${baseUrl}/disclosure` };
+        } else if (req.path === '/privacy') {
+          meta = { title: 'Privacy Policy — DealScout', description: 'How DealScout uses guest identity, saved-deal, personalization, and service data.', canonical: `${baseUrl}/privacy` };
+        } else if (req.path === '/support') {
+          meta = { title: 'Support — DealScout', description: 'Help with DealScout prices, saved deals, links, and the mobile app.', canonical: `${baseUrl}/support` };
         } else if (req.path === '/saved') {
           meta = { ...seo.homeMeta(baseUrl), title: 'Saved Deals — DealScout', description: 'Your saved DealScout deals.', canonical: null, robots: 'noindex,follow' };
         }
