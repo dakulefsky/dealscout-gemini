@@ -2,6 +2,15 @@ const deals = require('./dealRepository');
 const postgres = require('../storage/postgres');
 const { isPublicDeal, freshPriceThreshold } = require('../services/publicDealPolicy');
 
+const DISCOUNT_SQL = '(100.0 * (original_price - sale_price) / original_price)';
+
+function derivedDiscount(deal) {
+  const original = Number(deal?.original_price ?? deal?.originalPrice);
+  const sale = Number(deal?.sale_price ?? deal?.salePrice);
+  if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0 || sale <= 0 || sale >= original) return 0;
+  return ((original - sale) / original) * 100;
+}
+
 function numberOrNull(value) {
   if (value === undefined || value === null || value === '') return null;
   const number = Number(value);
@@ -46,13 +55,14 @@ function filterFallback(rows, options, isAdmin) {
       return fields.some((value) => String(value || '').toLowerCase().includes(term));
     });
   }
-  if (opts.minDiscount !== null) list = list.filter((deal) => Number(deal.discount_percent) >= opts.minDiscount);
+  if (opts.minDiscount !== null) list = list.filter((deal) => (isAdmin ? Number(deal.discount_percent) : derivedDiscount(deal)) >= opts.minDiscount);
   if (opts.minPrice !== null) list = list.filter((deal) => Number(deal.sale_price) >= opts.minPrice);
   if (opts.maxPrice !== null) list = list.filter((deal) => Number(deal.sale_price) <= opts.maxPrice);
   if (isAdmin && opts.minRating !== null) list = list.filter((deal) => Number(deal.rating) >= opts.minRating);
 
-  if (opts.sort === 'discount_desc' || opts.sort === '-discount_percent') list.sort((a, b) => Number(b.discount_percent) - Number(a.discount_percent));
-  else if (opts.sort === 'price_asc') list.sort((a, b) => Number(a.sale_price) - Number(b.sale_price));
+  if (opts.sort === 'discount_desc' || opts.sort === '-discount_percent') {
+    list.sort((a, b) => (isAdmin ? Number(b.discount_percent) - Number(a.discount_percent) : derivedDiscount(b) - derivedDiscount(a)));
+  } else if (opts.sort === 'price_asc') list.sort((a, b) => Number(a.sale_price) - Number(b.sale_price));
   else if (opts.sort === 'price_desc') list.sort((a, b) => Number(b.sale_price) - Number(a.sale_price));
   else if (isAdmin && opts.sort === 'rating_desc') list.sort((a, b) => Number(b.rating) - Number(a.rating));
   else list.sort((a, b) => Number(b.created_at) - Number(a.created_at));
@@ -66,7 +76,7 @@ function addParam(params, value) {
 }
 
 function postgresOrder(sort, isAdmin) {
-  if (sort === 'discount_desc' || sort === '-discount_percent') return 'discount_percent DESC, created_at DESC';
+  if (sort === 'discount_desc' || sort === '-discount_percent') return `${isAdmin ? 'discount_percent' : DISCOUNT_SQL} DESC, created_at DESC`;
   if (sort === 'price_asc') return 'sale_price ASC, created_at DESC';
   if (sort === 'price_desc') return 'sale_price DESC, created_at DESC';
   if (isAdmin && sort === 'rating_desc') return 'rating DESC, created_at DESC';
@@ -108,7 +118,7 @@ async function list(options = {}, { isAdmin = false } = {}) {
     where.push(`(${searchable.map((field) => `COALESCE(${field}, '') ILIKE ${placeholder}`).join(' OR ')})`);
   }
 
-  if (opts.minDiscount !== null) where.push(`discount_percent >= ${addParam(params, opts.minDiscount)}`);
+  if (opts.minDiscount !== null) where.push(`${isAdmin ? 'discount_percent' : DISCOUNT_SQL} >= ${addParam(params, opts.minDiscount)}`);
   if (opts.minPrice !== null) where.push(`sale_price >= ${addParam(params, opts.minPrice)}`);
   if (opts.maxPrice !== null) where.push(`sale_price <= ${addParam(params, opts.maxPrice)}`);
   if (isAdmin && opts.minRating !== null) where.push(`rating >= ${addParam(params, opts.minRating)}`);
@@ -130,7 +140,7 @@ function aggregateFallback(rows, isAdmin) {
     return {
       total: visible.length,
       approvedCount: visible.length,
-      avgDiscount: visible.length ? Math.round(visible.reduce((sum, deal) => sum + Number(deal.discount_percent || 0), 0) / visible.length) : 0,
+      avgDiscount: visible.length ? Math.round(visible.reduce((sum, deal) => sum + derivedDiscount(deal), 0) / visible.length) : 0,
       categoriesCount: new Set(visible.map((deal) => deal.category).filter(Boolean)).size,
     };
   }
@@ -171,7 +181,7 @@ async function stats({ isAdmin = false } = {}) {
       SELECT
         COUNT(*)::int AS total,
         COUNT(*)::int AS approved_count,
-        COALESCE(ROUND(AVG(discount_percent)), 0)::int AS avg_discount,
+        COALESCE(ROUND(AVG(${DISCOUNT_SQL})), 0)::int AS avg_discount,
         COUNT(DISTINCT category)::int AS categories_count
       FROM deals
       WHERE status = 'APPROVED'
@@ -239,4 +249,4 @@ async function stats({ isAdmin = false } = {}) {
   };
 }
 
-module.exports = { list, stats, normalizeOptions, filterFallback, postgresOrder, aggregateFallback };
+module.exports = { list, stats, normalizeOptions, filterFallback, postgresOrder, aggregateFallback, derivedDiscount, DISCOUNT_SQL };
