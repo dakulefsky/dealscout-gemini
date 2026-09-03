@@ -4,7 +4,7 @@ import { Heart, ArrowRight, Clock, AlertCircle, ShieldCheck, EyeOff } from 'luci
 import { Image } from '@/components/ui/image';
 import { useBookmarks } from '@/lib/BookmarksContext';
 import { verificationFreshness } from '@/lib/verificationFreshness';
-import { addCategoryInterest, reduceCategoryInterest, dwellWeight } from '@/lib/feedPersonalization';
+import { addCategoryInterest, reduceCategoryInterest, dwellWeight, loadInterests } from '@/lib/feedPersonalization';
 import { dismissDeal, isDealDismissed, restoreDeal } from '@/lib/feedDismissals';
 
 export function formatPrice(price) {
@@ -19,6 +19,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
   const [dismissed, setDismissed] = useState(() => isDealDismissed(dealId));
   const [undoVisible, setUndoVisible] = useState(false);
   const undoTimerRef = useRef(null);
+  const dismissedInterestPenaltyRef = useRef(0);
   const isExpired = Boolean(deal.isExpired || deal.status === 'EXPIRED');
   const hoursLeft = deal.expiresInHours ? Math.max(1, Math.ceil(deal.expiresInHours)) : null;
   const freshness = verificationFreshness(deal.priceCheckAt);
@@ -34,7 +35,9 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
 
   function handleDismissClick() {
     dismissDeal(dealId);
-    reduceCategoryInterest(deal.category, 3);
+    const before = Number(loadInterests()[deal.category] || 0);
+    const after = Number(reduceCategoryInterest(deal.category, 3)[deal.category] || 0);
+    dismissedInterestPenaltyRef.current = Math.max(0, before - after);
     viewedAt.current = null;
     setDismissed(true);
     setUndoVisible(true);
@@ -42,6 +45,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
     undoTimerRef.current = setTimeout(() => {
       setUndoVisible(false);
       undoTimerRef.current = null;
+      dismissedInterestPenaltyRef.current = 0;
     }, 2000);
   }
 
@@ -49,7 +53,10 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     undoTimerRef.current = null;
     restoreDeal(dealId);
-    addCategoryInterest(deal.category, 3);
+    if (dismissedInterestPenaltyRef.current > 0) {
+      addCategoryInterest(deal.category, dismissedInterestPenaltyRef.current);
+    }
+    dismissedInterestPenaltyRef.current = 0;
     setUndoVisible(false);
     setDismissed(false);
   }
