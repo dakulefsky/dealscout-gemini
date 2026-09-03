@@ -15,8 +15,9 @@ test('sitemap repository selects only fresh public deal identity fields in Postg
   assert.doesNotMatch(repository, /SELECT \*/);
 });
 
-test('server sitemap no longer loads the full deal catalog', () => {
-  assert.match(server, /sitemapRepository\.listFreshPublicDeals\(\{ maxAgeHours: 168 \}\)/);
+test('server sitemap uses the repository shared public-freshness default and never loads the full catalog', () => {
+  assert.match(server, /sitemapRepository\.listFreshPublicDeals\(\)/);
+  assert.doesNotMatch(server, /listFreshPublicDeals\(\{ maxAgeHours: 168 \}\)/);
   const sitemapBlock = server.match(/app\.get\('\/sitemap\.xml'[\s\S]*?\n  \}\);/i)?.[0] || '';
   assert.doesNotMatch(sitemapBlock, /dealRepository\.listAll\(\)/);
   assert.doesNotMatch(sitemapBlock, /allDeals\.filter/);
