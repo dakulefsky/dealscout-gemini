@@ -78,6 +78,15 @@ function cadenceSkip(job, claim) {
   };
 }
 
+function verifiedDealEnded(liveInfo = {}) {
+  if (liveInfo.isDeal === false) return true;
+  const original = Number(liveInfo.originalPrice);
+  const sale = Number(liveInfo.salePrice);
+  if (Number.isFinite(original) && Number.isFinite(sale) && original > 0 && sale > 0 && sale >= original) return true;
+  const discount = Number(liveInfo.discountPercent);
+  return Number.isFinite(discount) && discount < 5;
+}
+
 class DealCronService {
   constructor() {
     this.intervalId = null;
@@ -193,10 +202,9 @@ class DealCronService {
           const original = Number(liveInfo.originalPrice);
           const sale = Number(liveInfo.salePrice);
           const discount = Number(liveInfo.discountPercent);
-          const discountEnded = liveInfo.isDeal === false
-            || (Number.isFinite(discount) && discount < 5 && Number.isFinite(original) && Number.isFinite(sale) && sale >= original);
+          const discountEnded = verifiedDealEnded(liveInfo);
 
-          if (Number.isFinite(original) && Number.isFinite(sale) && original > 0 && sale > 0 && sale <= original) {
+          if (Number.isFinite(original) && Number.isFinite(sale) && original > 0 && sale > 0 && sale < original) {
             await safeRecordObservation({ asin: deal.asin, salePrice: sale, originalPrice: original, sourceProvider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
           }
 
@@ -208,7 +216,7 @@ class DealCronService {
 
           const changes = { price_check_at: attemptAt, last_verify_attempt_at: attemptAt, ...verifiedSourceChanges(deal, liveInfo) };
           if (Number.isFinite(sale) && sale > 0) changes.sale_price = sale;
-          if (Number.isFinite(original) && Number.isFinite(sale) && original >= sale) changes.original_price = original;
+          if (Number.isFinite(original) && Number.isFinite(sale) && original > sale) changes.original_price = original;
           if (Number.isFinite(discount) && discount >= 0) changes.discount_percent = discount;
           await deals.update(deal.id, changes);
         } catch (err) {
@@ -319,41 +327,29 @@ class DealCronService {
         return {
           created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount,
           pendingReview: pendingCount, editorialHoldback: holdbackCount, rejected: rejectedCount,
-          editorialHoldbackPercent: getHoldbackPercent(), maxResults, minDiscount, status: 'SUCCESS',
         };
       } catch (err) {
         this.stats.lastError = err.message;
-        if (shouldStopProviderBatch(err)) {
-          const retryAt = await rescheduleProviderJob('discover-deals', err);
-          return { error: err.message, code: err.code, status: 'DEFERRED', nextDueAt: retryAt };
-        }
-        return { error: err.message, status: 'NOTICE' };
+        if (shouldStopProviderBatch(err)) await rescheduleProviderJob('discover-deals', err);
+        throw err;
       } finally {
         this.isRunning = false;
       }
     });
   }
 
-  async getStatus() {
-    const durableDiscovery = await maintenanceCadence.get('discover-deals').catch(() => null);
-    const durableNextDue = Number(durableDiscovery?.next_due_at || 0);
-    const nextRunEstimate = durableNextDue > 0 ? new Date(durableNextDue * 1000).toISOString() : null;
+  getStats() {
     return {
-      running: Boolean(this.intervalId),
-      lastRun: this.lastRun ? this.lastRun.toISOString() : null,
-      lastPriceCheck: this.lastPriceCheck ? this.lastPriceCheck.toISOString() : null,
-      lastPurgeRun: this.lastPurgeRun ? this.lastPurgeRun.toISOString() : null,
-      nextRunEstimate,
-      scheduleSource: durableNextDue > 0 ? 'postgres' : 'pending_first_run',
-      schedulerPollMinutes: SCHEDULER_POLL_MS / 60000,
+      ...this.stats,
+      lastRun: this.lastRun,
+      lastPriceCheck: this.lastPriceCheck,
+      lastPurgeRun: this.lastPurgeRun,
+      isRunning: this.isRunning,
       editorialHoldbackPercent: getHoldbackPercent(),
-      lifecycle: await deals.lifecycleStats(),
-      stats: this.stats,
     };
   }
 }
 
-module.exports = new DealCronService();
-module.exports.shouldStopProviderBatch = shouldStopProviderBatch;
-module.exports.providerRetryAt = providerRetryAt;
-module.exports.cadenceSkip = cadenceSkip;
+const cronService = new DealCronService();
+cronService.verifiedDealEnded = verifiedDealEnded;
+module.exports = cronService;
