@@ -3,6 +3,7 @@ const router = express.Router();
 const deals = require('../repositories/dealRepository');
 const { requireAdmin } = require('../middleware/auth');
 const { extractAsin, formatAffiliateUrl } = require('../services/amazonUrlService');
+const { scoreVerifiedDeal } = require('../services/dealQualityService');
 const {
   isPaapiConfigured,
   getPaapiConfig,
@@ -39,12 +40,12 @@ function requireVerifiedProduct(item) {
   };
 }
 
-function providerDealRecord(item, status = 'PENDING_REVIEW', productUrl) {
+function providerDealRecord(item, status = 'PENDING_REVIEW', productUrl, qualityScore = 0) {
   return {
     id: item.asin,
     title: item.title,
     asin: item.asin,
-    category: item.category || 'Electronics',
+    category: item.category || 'Other',
     original_price: item.originalPrice,
     sale_price: item.salePrice,
     discount_percent: item.discountPercent,
@@ -61,12 +62,23 @@ function providerDealRecord(item, status = 'PENDING_REVIEW', productUrl) {
     source_verified: 1,
     source_provider: item.sourceProvider || 'VERIFIED_PROVIDER',
     status,
+    quality_score: qualityScore,
     is_expired: 0,
     expired_at: null,
     price_check_at: Math.floor(Date.now() / 1000),
     raw_source_data: item.rawSourceData || item.raw_source_data || `${item.sourceProvider || 'Verified provider'} | ASIN: ${item.asin}`,
     created_at: Math.floor(Date.now() / 1000),
   };
+}
+
+function providerErrorResponse(res, err, fallback = 'Provider request failed') {
+  if (err?.code === 'PROVIDER_BUDGET_EXCEEDED') {
+    return res.status(429).json({ error: 'Provider request budget reached.', code: err.code, scope: err.scope, limit: err.limit });
+  }
+  if (err?.code === 'PROVIDER_COOLDOWN') {
+    return res.status(503).json({ error: 'Provider is temporarily cooling down.', code: err.code, retryAfterMs: err.retryAfterMs });
+  }
+  return res.status(500).json({ error: err?.message || fallback });
 }
 
 router.get('/provider-status', requireAdmin, async (_req, res) => {
@@ -137,11 +149,28 @@ async function handleSiteStripeImportReq(req, res) {
       return res.status(422).json({ error: 'Deal could not be verified from a live source. It was not imported.', code: 'UNVERIFIED_DEAL' });
     }
 
-    const deal = await deals.upsert(providerDealRecord(item, req.body?.autoApprove === true ? 'APPROVED' : 'PENDING_REVIEW', customUrl));
-    res.json({ success: true, alreadyExists: false, deal, affiliateTag: AMAZON_ASSOCIATE_TAG });
+    const quality = scoreVerifiedDeal(item);
+    if (quality.decision === 'REJECT') {
+      return res.status(422).json({
+        error: 'This product does not meet DealScout publication standards, so it was not imported as a deal.',
+        code: 'DEAL_QUALITY_REJECTED',
+        reasons: quality.reasons,
+      });
+    }
+    const requestedAutoApprove = req.body?.autoApprove === true;
+    const status = requestedAutoApprove && quality.decision === 'AUTO_APPROVE' ? 'APPROVED' : 'PENDING_REVIEW';
+    const deal = await deals.upsert(providerDealRecord(item, status, customUrl, quality.score));
+    res.json({
+      success: true,
+      alreadyExists: false,
+      deal,
+      quality: { score: quality.score, decision: quality.decision, reasons: quality.reasons },
+      autoApproved: status === 'APPROVED',
+      affiliateTag: AMAZON_ASSOCIATE_TAG,
+    });
   } catch (err) {
     console.error('[SiteStripe Import Error]', err);
-    res.status(500).json({ error: err.message || 'Failed to import SiteStripe deal.' });
+    return providerErrorResponse(res, err, 'Failed to import SiteStripe deal.');
   }
 }
 router.post('/import-sitestripe', requireAdmin, handleSiteStripeImportReq);
@@ -152,7 +181,7 @@ router.post('/verify-prices', requireAdmin, async (_req, res) => {
     const result = await dealCron.checkDealPricesAndAvailability();
     res.json({ success: true, ...result, lifecycle: await deals.lifecycleStats() });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return providerErrorResponse(res, err, 'Price verification failed.');
   }
 });
 
@@ -189,7 +218,7 @@ router.post('/rainforest-lookup', requireAdmin, async (req, res) => {
     if (!data) return res.status(404).json({ error: 'No verifiable product data was found.' });
     res.json({ configured: true, asin, data });
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Lookup failed' });
+    return providerErrorResponse(res, err, 'Lookup failed');
   }
 });
 
@@ -207,7 +236,7 @@ router.post('/fetch-deals', requireAdmin, async (req, res) => {
       catalog: 'shared',
     });
   } catch (err) {
-    res.status(500).json({ error: err.message || 'Failed to fetch deals' });
+    return providerErrorResponse(res, err, 'Failed to fetch deals');
   }
 });
 
