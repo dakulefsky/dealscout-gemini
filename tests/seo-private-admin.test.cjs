@@ -53,6 +53,17 @@ test('fresh deal metadata is factual and excludes ratings/reviews', () => {
   assert.equal(meta.jsonLd.offers.availability, 'https://schema.org/InStock');
 });
 
+test('fresh SEO discount is derived from the verified price pair, not stored metadata', () => {
+  const nowMs = Date.UTC(2026, 7, 28, 9, 0, 0);
+  const meta = seo.dealMeta('https://dealscout.example', {
+    id: 'B0TRUTH001', asin: 'B0TRUTH001', title: 'Price Truth Product', original_price: 100,
+    sale_price: 75, discount_percent: 80,
+    price_check_at: Math.floor((nowMs - 3600000) / 1000),
+  }, nowMs);
+  assert.match(meta.description, /25% off/);
+  assert.doesNotMatch(meta.description, /80% off/);
+});
+
 test('stale deal metadata contains no stale price or offer claim', () => {
   const nowMs = Date.UTC(2026, 7, 28, 9, 0, 0);
   const meta = seo.dealMeta('https://dealscout.example', {
