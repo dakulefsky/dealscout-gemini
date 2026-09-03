@@ -192,7 +192,12 @@ export default function Layout({ children }) {
             </div>
             <div>
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">More</h4>
-              <ul className="space-y-1.5 text-xs"><li><Link to="/disclosure" className="text-slate-600 hover:text-emerald-600">Affiliate Disclosure</Link></li><li><Link to="/saved" className="text-slate-600 hover:text-emerald-600">Saved Deals</Link></li></ul>
+              <ul className="space-y-1.5 text-xs">
+                <li><Link to="/disclosure" className="text-slate-600 hover:text-emerald-600">Affiliate Disclosure</Link></li>
+                <li><Link to="/privacy" className="text-slate-600 hover:text-emerald-600">Privacy</Link></li>
+                <li><Link to="/support" className="text-slate-600 hover:text-emerald-600">Support</Link></li>
+                <li><Link to="/saved" className="text-slate-600 hover:text-emerald-600">Saved Deals</Link></li>
+              </ul>
             </div>
           </div>
           <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-slate-400 text-center sm:text-left"><span>&copy; {new Date().getFullYear()} DealScout. Amazon and the Amazon logo are trademarks of Amazon.com, Inc.</span><span>As an Amazon Associate I earn from qualifying purchases.</span></div>
