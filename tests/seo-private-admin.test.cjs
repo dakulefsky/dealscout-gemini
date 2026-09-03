@@ -60,11 +60,23 @@ test('stale deal metadata contains no stale price or offer claim', () => {
     sale_price: 179.99, discount_percent: 28,
     price_check_at: Math.floor((nowMs - 96 * 3600000) / 1000),
   }, nowMs);
-  assert.match(meta.description, /waiting for a fresh price check/i);
+  assert.match(meta.description, /waiting for a fresh/i);
   assert.doesNotMatch(meta.title, /179\.99/);
   assert.doesNotMatch(meta.description, /179\.99|28% off|save \$/i);
   assert.equal(meta.jsonLd.offers, undefined);
   assert.equal(meta.robots, 'noindex,follow');
+});
+
+test('malformed fresh deal metadata is also noindex and contains no offer', () => {
+  const nowMs = Date.UTC(2026, 7, 28, 9, 0, 0);
+  const meta = seo.dealMeta('https://dealscout.example', {
+    id: 'BADPRICE01', asin: 'BADPRICE01', title: 'Bad price record', original_price: 100,
+    sale_price: 120, discount_percent: 20,
+    price_check_at: Math.floor((nowMs - 2 * 3600000) / 1000),
+  }, nowMs);
+  assert.equal(meta.robots, 'noindex,follow');
+  assert.equal(meta.jsonLd.offers, undefined);
+  assert.doesNotMatch(meta.title, /120/);
 });
 
 test('public app no longer exposes general login/register or legacy admin operations', () => {
