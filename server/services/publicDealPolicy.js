@@ -5,6 +5,16 @@ function checkedAtSeconds(deal) {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+function hasValidPricePair(deal) {
+  const original = Number(deal?.original_price ?? deal?.originalPrice);
+  const sale = Number(deal?.sale_price ?? deal?.salePrice);
+  return Number.isFinite(original)
+    && Number.isFinite(sale)
+    && original > 0
+    && sale > 0
+    && sale < original;
+}
+
 function isPriceFresh(deal, nowSeconds = Math.floor(Date.now() / 1000), maxAgeSeconds = PUBLIC_PRICE_MAX_AGE_SECONDS) {
   const checkedAt = checkedAtSeconds(deal);
   if (!checkedAt) return false;
@@ -17,6 +27,7 @@ function isPublicDeal(deal, options = {}) {
   if (deal.status !== 'APPROVED') return false;
   if (deal.is_expired === 1 || deal.isExpired === true) return false;
   if (!(deal.source_verified === 1 || deal.sourceVerified === true)) return false;
+  if (!hasValidPricePair(deal)) return false;
   return isPriceFresh(deal, options.nowSeconds, options.maxAgeSeconds);
 }
 
@@ -27,6 +38,7 @@ function freshPriceThreshold(nowSeconds = Math.floor(Date.now() / 1000), maxAgeS
 module.exports = {
   PUBLIC_PRICE_MAX_AGE_SECONDS,
   checkedAtSeconds,
+  hasValidPricePair,
   isPriceFresh,
   isPublicDeal,
   freshPriceThreshold,
