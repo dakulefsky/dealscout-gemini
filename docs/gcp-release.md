@@ -35,7 +35,9 @@ WAHA_BASE_URL
 WAHA_SESSION
 ```
 
-Optional release settings include `GCP_REGION` (defaults to `us-central1`), `GCP_WEB_SERVICE`, `GCP_PUBLISHER_POOL`, `GCP_RUNTIME_SERVICE_ACCOUNT`, publication thresholds/polling values, and `RAINFOREST_DOMAIN`.
+Optional release settings include `GCP_REGION` (defaults to `us-central1`), `GCP_WEB_SERVICE`, `GCP_PUBLISHER_POOL`, `GCP_RUNTIME_SERVICE_ACCOUNT`, `RAINFOREST_DOMAIN`, and the publication worker controls the runtime actually consumes: `WAHA_TIMEOUT_MS`, `PUBLICATION_POLL_MS`, `PUBLICATION_MIN_SPACING_SECONDS`, `PUBLICATION_QUEUE_BATCH`, `PUBLICATION_CANDIDATE_LIMIT`, and `PUBLICATION_MAX_PER_CYCLE`.
+
+WhatsApp deal-quality thresholds are defined by the shared distribution policy rather than deployment-only environment variables, so the release command does not accept a second set of `PUBLICATION_MIN_DISCOUNT` or `PUBLICATION_MIN_QUALITY` controls that could drift from the website/app policy.
 
 Secret maps use gcloud's `ENV_VAR=SECRET_NAME:VERSION` format:
 
