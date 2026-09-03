@@ -43,10 +43,12 @@ test('Gemini budget blocks before an extra outbound request is reserved', async 
   );
 }));
 
-test('every Gemini generation passes through the durable budget reservation', () => {
-  assert.match(geminiSource, /async function generateGeminiContent/);
-  assert.match(geminiSource, /await reserveRequest\('gemini'\)/);
-  assert.doesNotMatch(geminiSource, /ai\.models\.generateContent\(/);
+test('every Gemini generation passes through one durable budget reservation boundary', () => {
+  const helper = geminiSource.match(/async function generateGeminiContent[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(helper, /await reserveRequest\('gemini'\)/);
+  assert.match(helper, /ai\.models\.generateContent\(request\)/);
+  assert.equal((geminiSource.match(/ai\.models\.generateContent\(/g) || []).length, 1);
+  assert.equal((geminiSource.match(/generateGeminiContent\(ai,/g) || []).length, 2);
 });
 
 test('AI routes expose budget exhaustion as a bounded 429 response', () => {
