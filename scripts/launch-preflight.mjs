@@ -60,6 +60,7 @@ export function evaluateLaunch({ env = {}, appConfig = {}, fileExists = () => fa
   const adaptivePath = expo.android?.adaptiveIcon?.foregroundImage
     ? path.resolve(root, 'apps/mobile', expo.android.adaptiveIcon.foregroundImage)
     : '';
+  const bootstrapCredentialsRemoved = !value(env, 'ADMIN_EMAIL') && !value(env, 'ADMIN_PASSWORD');
 
   const checks = [
     check('web-url', 'website', httpsOrigin(value(env, 'PUBLIC_WEB_URL')), 'PUBLIC_WEB_URL is a canonical HTTPS origin.'),
@@ -68,6 +69,7 @@ export function evaluateLaunch({ env = {}, appConfig = {}, fileExists = () => fa
     check('database', 'shared', dbReady, 'Shared production PostgreSQL/Cloud SQL configuration is complete.'),
     check('affiliate', 'shared', Boolean(value(env, 'AMAZON_ASSOCIATE_TAG')), 'AMAZON_ASSOCIATE_TAG is configured.'),
     check('provider', 'shared', providerReady(env), 'At least one selected verified deal-data provider is configured.'),
+    check('bootstrap-admin-env', 'shared', bootstrapCredentialsRemoved, 'Initial ADMIN_EMAIL/ADMIN_PASSWORD bootstrap credentials have been removed from the deployed runtime.', 'warning'),
     check('smtp', 'website', hasMail(env), 'SMTP is configured for admin recovery and verification mail.', 'warning'),
 
     check('mobile-api', 'mobile', httpsOrigin(value(env, 'EXPO_PUBLIC_API_URL')), 'EXPO_PUBLIC_API_URL points to the production HTTPS API origin.'),
