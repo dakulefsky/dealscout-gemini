@@ -31,6 +31,9 @@ async function listPublicSavedDeals(userId) {
        AND d.status = 'APPROVED'
        AND d.source_verified = 1
        AND d.is_expired <> 1
+       AND d.original_price > 0
+       AND d.sale_price > 0
+       AND d.sale_price < d.original_price
        AND d.price_check_at IS NOT NULL
        AND d.price_check_at >= $2
        AND d.price_check_at <= $3

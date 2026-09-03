@@ -17,6 +17,9 @@ async function listFreshPublicDeals({ maxAgeHours = PUBLIC_PRICE_MAX_AGE_SECONDS
      WHERE status = 'APPROVED'
        AND source_verified = 1
        AND is_expired <> 1
+       AND original_price > 0
+       AND sale_price > 0
+       AND sale_price < original_price
        AND price_check_at IS NOT NULL
        AND price_check_at >= $1
        AND price_check_at <= $2

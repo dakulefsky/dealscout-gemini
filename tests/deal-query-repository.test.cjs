@@ -11,6 +11,7 @@ test('production deal list is filtered, sorted and limited in PostgreSQL', () =>
   assert.match(source, /SELECT \* FROM deals/);
   assert.match(source, /status = 'APPROVED'/);
   assert.match(source, /source_verified = 1/);
+  assert.match(source, /sale_price < original_price/);
   assert.match(source, /ILIKE/);
   assert.match(source, /ORDER BY \$\{postgresOrder/);
   assert.match(source, /LIMIT \$\{limitPlaceholder\}/);
@@ -36,10 +37,10 @@ test('JSON fallback preserves public visibility, filters and sorting semantics',
   const { filterFallback } = require('../server/repositories/dealQueryRepository');
   const priceCheckAt = Math.floor(Date.now() / 1000) - 60;
   const rows = [
-    { id: 'a', asin: 'A000000001', title: 'Speaker', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 1, price_check_at: priceCheckAt, discount_percent: 30, sale_price: 40, created_at: 10 },
-    { id: 'b', asin: 'B000000002', title: 'Headphones', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 0, price_check_at: priceCheckAt, discount_percent: 60, sale_price: 20, created_at: 20 },
-    { id: 'c', asin: 'C000000003', title: 'Lamp', category: 'Home', status: 'PENDING_REVIEW', is_expired: 0, source_verified: 1, price_check_at: priceCheckAt, discount_percent: 50, sale_price: 10, created_at: 30 },
-    { id: 'd', asin: 'D000000004', title: 'Cable', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 1, price_check_at: priceCheckAt, discount_percent: 15, sale_price: 8, created_at: 40 },
+    { id: 'a', asin: 'A000000001', title: 'Speaker', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 1, price_check_at: priceCheckAt, discount_percent: 30, original_price: 60, sale_price: 40, created_at: 10 },
+    { id: 'b', asin: 'B000000002', title: 'Headphones', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 0, price_check_at: priceCheckAt, discount_percent: 60, original_price: 50, sale_price: 20, created_at: 20 },
+    { id: 'c', asin: 'C000000003', title: 'Lamp', category: 'Home', status: 'PENDING_REVIEW', is_expired: 0, source_verified: 1, price_check_at: priceCheckAt, discount_percent: 50, original_price: 20, sale_price: 10, created_at: 30 },
+    { id: 'd', asin: 'D000000004', title: 'Cable', category: 'Audio', status: 'APPROVED', is_expired: 0, source_verified: 1, price_check_at: priceCheckAt, discount_percent: 15, original_price: 10, sale_price: 8, created_at: 40 },
   ];
 
   const publicRows = filterFallback(rows, { category: 'Audio', minDiscount: 10, sort: 'price_asc', limit: 10 }, false);

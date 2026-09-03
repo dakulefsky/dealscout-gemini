@@ -7,9 +7,9 @@ const { aggregateFallback } = require('../server/repositories/dealQueryRepositor
 test('admin separates approved catalog size from actually shopper-visible inventory', () => {
   const now = Math.floor(Date.now() / 1000);
   const rows = [
-    { id: 'FRESH00001', status: 'APPROVED', source_verified: 1, is_expired: 0, price_check_at: now - 60, discount_percent: 30 },
-    { id: 'STALE00001', status: 'APPROVED', source_verified: 1, is_expired: 0, price_check_at: now - 25 * 60 * 60, discount_percent: 25 },
-    { id: 'REVIEW0001', status: 'PENDING_REVIEW', source_verified: 1, is_expired: 0, price_check_at: now - 60, discount_percent: 80 },
+    { id: 'FRESH00001', status: 'APPROVED', source_verified: 1, is_expired: 0, original_price: 100, sale_price: 70, price_check_at: now - 60, discount_percent: 30 },
+    { id: 'STALE00001', status: 'APPROVED', source_verified: 1, is_expired: 0, original_price: 100, sale_price: 75, price_check_at: now - 25 * 60 * 60, discount_percent: 25 },
+    { id: 'REVIEW0001', status: 'PENDING_REVIEW', source_verified: 1, is_expired: 0, original_price: 100, sale_price: 20, price_check_at: now - 60, discount_percent: 80 },
   ];
   const stats = aggregateFallback(rows, true);
   assert.equal(stats.approvedCount, 2);
@@ -21,6 +21,7 @@ test('production admin stats compute shopper-visible count with freshness and ve
   const source = fs.readFileSync(path.join(__dirname, '..', 'server', 'repositories', 'dealQueryRepository.js'), 'utf8');
   assert.match(source, /AS public_visible_count/i);
   assert.match(source, /source_verified = 1/);
+  assert.match(source, /sale_price < original_price/);
   assert.match(source, /price_check_at >= \$2/);
   assert.match(source, /price_check_at <= \$3/);
 });
