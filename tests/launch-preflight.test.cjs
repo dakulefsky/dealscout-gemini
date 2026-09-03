@@ -96,3 +96,15 @@ test('SMTP absence is visible but does not make the three-surface runtime itself
   assert.equal(result.ready, true);
   assert.deepEqual(result.warnings.map((item) => item.id), ['smtp']);
 });
+
+test('bootstrap admin credentials are flagged for removal after first production setup', async () => {
+  const { evaluateLaunch } = await moduleUnderTest();
+  const env = productionEnv();
+  env.ADMIN_EMAIL = 'bootstrap@example.com';
+  env.ADMIN_PASSWORD = 'temporary-bootstrap-value';
+  const result = evaluateLaunch({ env, appConfig: productionAppConfig(), fileExists: () => true });
+  assert.equal(result.ready, true);
+  assert.deepEqual(result.warnings.map((item) => item.id), ['bootstrap-admin-env']);
+  assert.equal(JSON.stringify(result).includes('temporary-bootstrap-value'), false);
+  assert.equal(JSON.stringify(result).includes('bootstrap@example.com'), false);
+});
