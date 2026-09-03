@@ -1,4 +1,12 @@
-function verificationBatchSize(activeCount, { intervalHours = 12, targetHours = 72, minBatch = 2, maxBatch = 6 } = {}) {
+const DEFAULT_PUBLIC_FRESHNESS_HOURS = 24;
+const DEFAULT_VERIFICATION_INTERVAL_HOURS = 12;
+
+function verificationBatchSize(activeCount, {
+  intervalHours = DEFAULT_VERIFICATION_INTERVAL_HOURS,
+  targetHours = DEFAULT_PUBLIC_FRESHNESS_HOURS,
+  minBatch = 2,
+  maxBatch = 6,
+} = {}) {
   const count = Math.max(0, Number.parseInt(activeCount, 10) || 0);
   const interval = Number(intervalHours);
   const target = Number(targetHours);
@@ -11,4 +19,16 @@ function verificationBatchSize(activeCount, { intervalHours = 12, targetHours = 
   return Math.min(maximum, Math.max(minimum, required));
 }
 
-module.exports = { verificationBatchSize };
+function freshnessCapacity({ intervalHours = DEFAULT_VERIFICATION_INTERVAL_HOURS, targetHours = DEFAULT_PUBLIC_FRESHNESS_HOURS, maxBatch = 6 } = {}) {
+  const interval = Math.max(1, Number(intervalHours) || DEFAULT_VERIFICATION_INTERVAL_HOURS);
+  const target = Math.max(interval, Number(targetHours) || DEFAULT_PUBLIC_FRESHNESS_HOURS);
+  const cycles = Math.max(1, Math.floor(target / interval));
+  return cycles * Math.max(1, Number.parseInt(maxBatch, 10) || 6);
+}
+
+module.exports = {
+  verificationBatchSize,
+  freshnessCapacity,
+  DEFAULT_PUBLIC_FRESHNESS_HOURS,
+  DEFAULT_VERIFICATION_INTERVAL_HOURS,
+};
