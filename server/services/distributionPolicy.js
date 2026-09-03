@@ -1,29 +1,29 @@
+const { PUBLIC_PRICE_MAX_AGE_SECONDS, hasValidPricePair } = require('./publicDealPolicy');
+
 const CHANNELS = Object.freeze({
   WEB: 'web',
   APP: 'app',
   WHATSAPP_STATUS: 'whatsapp_status',
 });
 
-const DAY_SECONDS = 24 * 60 * 60;
 const CHANNEL_POLICY = Object.freeze({
-  [CHANNELS.WEB]: Object.freeze({ maxFreshnessSeconds: 7 * DAY_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false }),
-  [CHANNELS.APP]: Object.freeze({ maxFreshnessSeconds: 7 * DAY_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false }),
-  [CHANNELS.WHATSAPP_STATUS]: Object.freeze({ maxFreshnessSeconds: DAY_SECONDS, minDiscountPercent: 20, minQualityScore: 75, requireImage: true }),
+  [CHANNELS.WEB]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false }),
+  [CHANNELS.APP]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false }),
+  [CHANNELS.WHATSAPP_STATUS]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 20, minQualityScore: 75, requireImage: true }),
 });
 
 function asUnixSeconds(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return 0;
-  // Accept either milliseconds or seconds at the boundary, but normalize once.
   return numeric > 10_000_000_000 ? Math.floor(numeric / 1000) : Math.floor(numeric);
 }
 
 function dealDiscountPercent(deal = {}) {
-  const explicit = Number(deal.discount_percent ?? deal.discountPercent);
-  if (Number.isFinite(explicit) && explicit >= 0) return explicit;
   const original = Number(deal.original_price ?? deal.originalPrice);
   const sale = Number(deal.sale_price ?? deal.salePrice);
   if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0 || sale <= 0 || sale >= original) return 0;
+  const explicit = Number(deal.discount_percent ?? deal.discountPercent);
+  if (Number.isFinite(explicit) && explicit >= 0) return explicit;
   return ((original - sale) / original) * 100;
 }
 
@@ -39,6 +39,7 @@ function evaluateDistribution(deal = {}, channel, nowUnix = Math.floor(Date.now(
 
   const reasons = [];
   if (!isVerifiedActiveDeal(deal)) reasons.push('deal_not_verified_active_approved');
+  if (!hasValidPricePair(deal)) reasons.push('invalid_price_pair');
 
   const discountPercent = dealDiscountPercent(deal);
   if (discountPercent < policy.minDiscountPercent) reasons.push('discount_below_channel_minimum');
@@ -52,7 +53,7 @@ function evaluateDistribution(deal = {}, channel, nowUnix = Math.floor(Date.now(
   const checkedAt = asUnixSeconds(deal.price_check_at ?? deal.priceCheckAt);
   const now = asUnixSeconds(nowUnix);
   const ageSeconds = checkedAt && now ? Math.max(0, now - checkedAt) : Number.POSITIVE_INFINITY;
-  if (!checkedAt || ageSeconds > policy.maxFreshnessSeconds) reasons.push('price_check_stale');
+  if (!checkedAt || checkedAt > now || ageSeconds > policy.maxFreshnessSeconds) reasons.push('price_check_stale');
 
   return {
     channel,
