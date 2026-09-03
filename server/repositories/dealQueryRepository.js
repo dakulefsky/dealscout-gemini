@@ -134,12 +134,14 @@ function aggregateFallback(rows, isAdmin) {
 
   const now = Math.floor(Date.now() / 1000);
   const approved = visible.filter((deal) => deal.status === 'APPROVED' && !deal.is_expired);
+  const publicVisible = visible.filter((deal) => isPublicDeal(deal, now));
   const pending = visible.filter((deal) => deal.status === 'PENDING_REVIEW');
   const expired = visible.filter((deal) => deal.is_expired === 1 || deal.status === 'EXPIRED');
   const rejected = visible.filter((deal) => deal.status === 'REJECTED');
   return {
     total: visible.length,
     approvedCount: approved.length,
+    publicVisibleCount: publicVisible.length,
     pendingCount: pending.length,
     expiredCount: expired.length,
     rejectedCount: rejected.length,
@@ -185,22 +187,36 @@ async function stats({ isAdmin = false } = {}) {
     };
   }
 
-  const threshold = Math.floor(Date.now() / 1000) - 86400;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const purgeThreshold = nowSeconds - 86400;
+  const freshnessThreshold = freshPriceThreshold(nowSeconds);
   const result = await postgres.query(`
     SELECT
       COUNT(*)::int AS total,
       COUNT(*) FILTER (WHERE status = 'APPROVED' AND is_expired <> 1)::int AS approved_count,
+      COUNT(*) FILTER (
+        WHERE status = 'APPROVED'
+          AND is_expired <> 1
+          AND source_verified = 1
+          AND original_price > 0
+          AND sale_price > 0
+          AND sale_price < original_price
+          AND price_check_at IS NOT NULL
+          AND price_check_at >= $2
+          AND price_check_at <= $3
+      )::int AS public_visible_count,
       COUNT(*) FILTER (WHERE status = 'PENDING_REVIEW')::int AS pending_count,
       COUNT(*) FILTER (WHERE is_expired = 1 OR status = 'EXPIRED')::int AS expired_count,
       COUNT(*) FILTER (WHERE status = 'REJECTED')::int AS rejected_count,
       COUNT(*) FILTER (WHERE (is_expired = 1 OR status = 'EXPIRED') AND expired_at IS NOT NULL AND expired_at <= $1)::int AS ready_to_purge_count,
       COALESCE(ROUND(AVG(discount_percent) FILTER (WHERE status = 'APPROVED' AND is_expired <> 1)), 0)::int AS avg_discount
     FROM deals
-  `, [threshold]);
+  `, [purgeThreshold, freshnessThreshold, nowSeconds]);
   const row = result.rows[0];
   return {
     total: row.total,
     approvedCount: row.approved_count,
+    publicVisibleCount: row.public_visible_count,
     pendingCount: row.pending_count,
     expiredCount: row.expired_count,
     rejectedCount: row.rejected_count,
@@ -217,4 +233,4 @@ async function stats({ isAdmin = false } = {}) {
   };
 }
 
-module.exports = { list, stats, normalizeOptions, filterFallback, postgresOrder };
+module.exports = { list, stats, normalizeOptions, filterFallback, postgresOrder, aggregateFallback };

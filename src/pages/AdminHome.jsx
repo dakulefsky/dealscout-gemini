@@ -113,6 +113,10 @@ export default function AdminHome() {
   if (loading) return <div className="max-w-6xl mx-auto px-4 py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-600" /></div>;
 
   const lifecycle = stats.lifecycle || {};
+  const publicVisibleCount = stats.publicVisibleCount ?? stats.approvedCount ?? lifecycle.activeCount;
+  const freshnessHiddenCount = Number.isFinite(Number(lifecycle.activeCount)) && Number.isFinite(Number(publicVisibleCount))
+    ? Math.max(0, Number(lifecycle.activeCount) - Number(publicVisibleCount))
+    : 0;
   const integrityIssues = Number(integrity.unverifiedApproved || 0) + Number(integrity.missingImages || 0) + Number(integrity.stalePrices || 0);
   const publicationUnavailable = loadFailures.includes('publication health');
   const publicationCounts = publication.counts || {};
@@ -164,7 +168,7 @@ export default function AdminHome() {
       </section>
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <Stat label="Live deals" value={stats.approvedCount ?? lifecycle.activeCount} />
+        <Stat label="Live deals" value={publicVisibleCount} hint={freshnessHiddenCount ? `${freshnessHiddenCount} approved waiting for a fresh price check` : 'Fresh on shopper surfaces'} />
         <Stat label="Needs review" value={stats.pendingCount} />
         <Stat label="Ended" value={lifecycle.expiredCount} />
         <Stat label="Integrity issues" value={loadFailures.includes('integrity health') ? null : integrityIssues} hint={loadFailures.includes('integrity health') ? 'Health check unavailable' : integrityIssues ? 'Needs attention' : 'Core checks clean'} />
@@ -177,8 +181,8 @@ export default function AdminHome() {
         <div className="grid lg:grid-cols-3 gap-4">
           <div className="bg-white border border-slate-200 rounded-3xl p-5">
             <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Globe2 className="w-5 h-5 text-emerald-600" /><div className="font-black text-slate-900">Web</div></div><span className="text-xs font-bold text-emerald-700">Live</span></div>
-            <p className="text-sm text-slate-500 mt-3">Reads approved deals from the shared catalog immediately after ingestion or review.</p>
-            <div className="mt-4 text-xs text-slate-500"><span className="font-bold text-slate-700">Visible deals:</span> {stats.approvedCount ?? lifecycle.activeCount ?? '—'}</div>
+            <p className="text-sm text-slate-500 mt-3">Reads approved, verified deals only while their price check is inside the public freshness window.</p>
+            <div className="mt-4 text-xs text-slate-500"><span className="font-bold text-slate-700">Visible deals:</span> {publicVisibleCount ?? '—'}</div>
             <Link to="/" className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-emerald-700 hover:text-emerald-800">Open shopper site <ArrowRight className="w-4 h-4" /></Link>
           </div>
 
