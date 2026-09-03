@@ -1,20 +1,19 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'priceHistory.js'), 'utf8');
+const root = path.join(__dirname, '..');
+const shopperRouter = fs.readFileSync(path.join(root, 'server', 'routes', 'shopperApi.js'), 'utf8');
+const apiCore = fs.readFileSync(path.join(root, 'src', 'lib', 'apiCore.js'), 'utf8');
+const observation = fs.readFileSync(path.join(root, 'server', 'services', 'priceHistoryService.js'), 'utf8');
 
-test('public price history strips provider internals', () => {
-  assert.match(source, /const publicHistory = history\.map/);
-  assert.match(source, /date: point\.date/);
-  assert.match(source, /price: Number\(point\.price\)/);
-  assert.match(source, /listPrice: Number\(point\.listPrice\)/);
-  const publicBlock = source.match(/const publicHistory = history\.map[\s\S]*?\}\);/)?.[0] || '';
-  assert.equal(publicBlock.includes('sourceProvider'), false);
+test('public price history remains removed from shopper routes and clients', () => {
+  assert.doesNotMatch(shopperRouter, /priceHistory|price-history/);
+  assert.doesNotMatch(apiCore, /getPriceHistory|price-history/);
 });
 
-test('public price history is only available while the deal passes the shared freshness policy', () => {
-  assert.match(source, /const \{ isPublicDeal \} = require\('\.\.\/services\/publicDealPolicy'\)/);
-  assert.match(source, /req\.user\?\.role === 'admin' \|\| isPublicDeal\(deal\)/);
+test('verified observations are alert-only and retain no history query or storage contract', () => {
+  assert.match(observation, /processPriceAlerts/);
+  assert.doesNotMatch(observation, /getHistory|price_history|observed_at|source_provider|HISTORY_FILE|MAX_POINTS_PER_ASIN/i);
 });
