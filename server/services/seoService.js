@@ -1,4 +1,4 @@
-const { PUBLIC_PRICE_MAX_AGE_SECONDS } = require('./publicDealPolicy');
+const { PUBLIC_PRICE_MAX_AGE_SECONDS, hasValidPricePair } = require('./publicDealPolicy');
 
 const PUBLIC_PRICE_MAX_AGE_HOURS = PUBLIC_PRICE_MAX_AGE_SECONDS / 3600;
 
@@ -95,14 +95,14 @@ function categoryMeta(baseUrl, category) {
 
 function dealMeta(baseUrl, deal, nowMs = Date.now()) {
   const ageHours = priceCheckAgeHours(deal, nowMs);
-  const fresh = ageHours <= PUBLIC_PRICE_MAX_AGE_HOURS;
+  const fresh = ageHours <= PUBLIC_PRICE_MAX_AGE_HOURS && hasValidPricePair(deal);
   const canonical = `${baseUrl}/deal/${encodeURIComponent(deal.id || deal.asin)}`;
   const image = deal.image_url || undefined;
 
   if (!fresh) {
     return {
       title: `${deal.title} | DealScout`,
-      description: 'This deal is waiting for a fresh price check. Confirm the current price and availability on Amazon.',
+      description: 'This deal is waiting for a fresh verified price. Confirm the current price and availability on Amazon.',
       canonical,
       image,
       robots: 'noindex,follow',
