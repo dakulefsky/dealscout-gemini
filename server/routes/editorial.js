@@ -18,14 +18,19 @@ function publicShape(row) {
 }
 
 function publicDealShape(row) {
+  const originalPrice = Number(row.original_price ?? 0);
+  const salePrice = Number(row.sale_price ?? 0);
+  const discountPercent = Number.isFinite(originalPrice) && Number.isFinite(salePrice) && originalPrice > 0 && salePrice > 0 && salePrice < originalPrice
+    ? Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1))
+    : 0;
   return {
     id: row.id,
     title: row.title,
     asin: row.asin,
     category: row.category,
-    originalPrice: Number(row.original_price ?? 0),
-    salePrice: Number(row.sale_price ?? 0),
-    discountPercent: Number(row.discount_percent ?? 0),
+    originalPrice,
+    salePrice,
+    discountPercent,
     imageUrl: row.image_url,
     productUrl: row.product_url,
     shortBio: row.short_bio || '',
