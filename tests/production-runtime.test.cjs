@@ -45,8 +45,8 @@ test('startup initializes every shared operational schema before serving traffic
     'activityRepository.ensureSchema()',
     'refreshStateRepository.ensureSchema()',
     'publicationQueueRepository.ensureSchema()',
-    'priceHistoryService.ensureSchema()',
   ]) assert.match(bootstrapSource, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.doesNotMatch(bootstrapSource, /priceHistoryService|price_history/);
   assert.match(serverSource, /await runtimeBootstrap\.initializeRuntime\(\{ isProduction \}\)/);
 });
 
