@@ -59,6 +59,31 @@ async function claim(jobKeyValue, intervalSecondsValue, { force = false, nowUnix
   return { acquired: false, state: existing.rows[0] || null };
 }
 
+async function reschedule(jobKeyValue, nextDueAtValue, { nowUnix = Math.floor(Date.now() / 1000) } = {}) {
+  const jobKey = cleanKey(jobKeyValue);
+  const now = Math.floor(Number(nowUnix));
+  const requested = Math.floor(Number(nextDueAtValue));
+  const nextDueAt = Number.isFinite(requested) ? Math.max(now + 1, requested) : now + 60;
+
+  if (!postgres.isConfigured()) {
+    const current = fallback.get(jobKey) || { job_key: jobKey, last_claimed_at: now };
+    const state = { ...current, next_due_at: nextDueAt };
+    fallback.set(jobKey, state);
+    return { ...state };
+  }
+
+  await ensureSchema();
+  const result = await postgres.query(`
+    INSERT INTO maintenance_job_state(job_key, last_claimed_at, next_due_at, updated_at)
+    VALUES ($1, $2, $3, NOW())
+    ON CONFLICT (job_key) DO UPDATE SET
+      next_due_at = EXCLUDED.next_due_at,
+      updated_at = NOW()
+    RETURNING *
+  `, [jobKey, now, nextDueAt]);
+  return result.rows[0] || null;
+}
+
 async function get(jobKeyValue) {
   const jobKey = cleanKey(jobKeyValue);
   if (!postgres.isConfigured()) return fallback.get(jobKey) || null;
@@ -69,4 +94,4 @@ async function get(jobKeyValue) {
 
 function resetFallback() { fallback.clear(); }
 
-module.exports = { ensureSchema, claim, get, cleanKey, resetFallback };
+module.exports = { ensureSchema, claim, reschedule, get, cleanKey, resetFallback };
