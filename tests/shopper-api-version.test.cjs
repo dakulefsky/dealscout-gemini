@@ -22,11 +22,12 @@ test('versioned registration cannot bypass the product registration gate', () =>
   assert.match(shopperRouterSource, /status\(404\)\.json\(\{ error: 'Not found' \}\)/);
 });
 
-test('deal route ordering preserves price history and verified ingest boundaries', () => {
-  const historyIndex = shopperRouterSource.indexOf("router.use('/deals', require('./priceHistory'))");
+test('deal route ordering preserves verified ingest boundary without exposing price history', () => {
   const guardIndex = shopperRouterSource.indexOf("router.use('/deals', require('../middleware/verifiedAiIngestGuard').verifiedAiIngestGuard)");
   const dealsIndex = shopperRouterSource.indexOf("router.use('/deals', require('./deals'))");
-  assert.ok(historyIndex >= 0 && guardIndex > historyIndex && dealsIndex > guardIndex);
+  assert.ok(guardIndex >= 0 && dealsIndex > guardIndex);
+  assert.doesNotMatch(shopperRouterSource, /priceHistory/);
+  assert.doesNotMatch(clientCoreSource, /getPriceHistory/);
 });
 
 test('web and mobile resource clients use v1 while internal automation endpoints stay unversioned', () => {
