@@ -48,7 +48,7 @@ async function startServer() {
   app.get('/sitemap.xml', async (req, res) => {
     try {
       const [liveDeals, categories] = await Promise.all([
-        sitemapRepository.listFreshPublicDeals({ maxAgeHours: 168 }),
+        sitemapRepository.listFreshPublicDeals(),
         categoryRepository.list(),
       ]);
       res.type('application/xml').send(seo.buildSitemap({ baseUrl: seo.siteBase(req, publicWebUrl), deals: liveDeals, categories }));
