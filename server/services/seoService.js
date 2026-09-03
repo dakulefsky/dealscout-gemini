@@ -116,10 +116,13 @@ function dealMeta(baseUrl, deal, nowMs = Date.now()) {
     };
   }
 
-  const savings = Math.max(0, Number(deal.original_price || 0) - Number(deal.sale_price || 0));
-  const sale = Number(deal.sale_price || 0).toFixed(2);
+  const original = Number(deal.original_price || 0);
+  const current = Number(deal.sale_price || 0);
+  const savings = Math.max(0, original - current);
+  const discountPercent = Number((((original - current) / original) * 100).toFixed(1));
+  const sale = current.toFixed(2);
   const title = `${deal.title} — $${sale} | DealScout`;
-  const description = `${deal.discount_percent || 0}% off${savings > 0 ? `, save $${savings.toFixed(2)}` : ''}. Price checked recently within DealScout’s 24-hour public freshness window; confirm final price and availability on Amazon.`;
+  const description = `${discountPercent}% off${savings > 0 ? `, save $${savings.toFixed(2)}` : ''}. Price checked recently within DealScout’s 24-hour public freshness window; confirm final price and availability on Amazon.`;
   const offer = {
     '@type': 'Offer',
     url: canonical,
