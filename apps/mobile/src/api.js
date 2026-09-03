@@ -52,5 +52,5 @@ const client = createDealScoutClient({
   getToken,
 });
 
-export const { deals, categories, bookmarks, auth } = client;
+export const { deals, categories, bookmarks, auth, functions } = client;
 export { getGuestId, getToken, setToken };
