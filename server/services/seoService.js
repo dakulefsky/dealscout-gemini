@@ -30,6 +30,8 @@ function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now()
     ...categories.map((c) => ({ loc: `${baseUrl}/category/${encodeURIComponent(c.slug)}` })),
     ...freshDeals.map((d) => ({ loc: `${baseUrl}/deal/${encodeURIComponent(d.id || d.asin)}`, lastmod: d.price_check_at ? new Date(Number(d.price_check_at) * 1000).toISOString() : undefined })),
     { loc: `${baseUrl}/disclosure` },
+    { loc: `${baseUrl}/privacy` },
+    { loc: `${baseUrl}/support` },
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${xmlEscape(u.loc)}</loc>${u.lastmod ? `<lastmod>${xmlEscape(u.lastmod)}</lastmod>` : ''}</url>`).join('\n')}\n</urlset>`;
 }
