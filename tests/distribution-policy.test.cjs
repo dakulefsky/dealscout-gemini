@@ -6,6 +6,7 @@ const {
   evaluateDistribution,
   selectChannelDeals,
   distributionScore,
+  dealDiscountPercent,
 } = require('../server/services/distributionPolicy');
 const { PUBLIC_PRICE_MAX_AGE_SECONDS } = require('../server/services/publicDealPolicy');
 
@@ -47,6 +48,15 @@ test('all channels fail closed for unverified, expired, stale or malformed-price
     assert.equal(malformed.eligible, false);
     assert.ok(malformed.reasons.includes('invalid_price_pair'));
   }
+});
+
+test('channel discount eligibility is derived from the live price pair, not stale stored metadata', () => {
+  const staleClaim = deal({ original_price: 100, sale_price: 85, discount_percent: 50, quality_score: 90 });
+  assert.equal(dealDiscountPercent(staleClaim), 15);
+  const whatsapp = evaluateDistribution(staleClaim, CHANNELS.WHATSAPP_STATUS, NOW);
+  assert.equal(whatsapp.eligible, false);
+  assert.ok(whatsapp.reasons.includes('discount_below_channel_minimum'));
+  assert.equal(whatsapp.metrics.discountPercent, 15);
 });
 
 test('website and app accept a normal verified 15 percent deal only while price is fresh', () => {

@@ -22,8 +22,6 @@ function dealDiscountPercent(deal = {}) {
   const original = Number(deal.original_price ?? deal.originalPrice);
   const sale = Number(deal.sale_price ?? deal.salePrice);
   if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0 || sale <= 0 || sale >= original) return 0;
-  const explicit = Number(deal.discount_percent ?? deal.discountPercent);
-  if (Number.isFinite(explicit) && explicit >= 0) return explicit;
   return ((original - sale) / original) * 100;
 }
 
