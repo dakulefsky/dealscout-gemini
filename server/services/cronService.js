@@ -22,7 +22,7 @@ const PROVIDER_BATCH_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER
 
 async function safeRecordObservation(observation) {
   try { await recordObservation(observation); }
-  catch (err) { console.warn('[DealCronService] Price history observation skipped:', err.message); }
+  catch (err) { console.warn('[DealCronService] Price observation skipped:', err.message); }
 }
 
 function providerHasTransientTrouble(status) {
@@ -250,7 +250,6 @@ class DealCronService {
       const claim = await this.claimCadence('discover-deals', JOB_INTERVALS.discoverDeals, scheduled);
       if (!claim.acquired) return cadenceSkip('discover-deals', claim);
       this.isRunning = true;
-      this.lastRun = new Date();
       this.stats.totalRuns += 1;
       this.stats.lastError = null;
       let createdCount = 0;
@@ -315,6 +314,7 @@ class DealCronService {
         this.stats.dealsPendingReview += pendingCount;
         this.stats.dealsEditorialHoldback += holdbackCount;
         this.stats.dealsRejected += rejectedCount;
+        this.lastRun = new Date();
 
         return {
           created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount,
