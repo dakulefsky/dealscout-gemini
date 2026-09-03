@@ -22,6 +22,11 @@ function env() {
     CORS_ORIGINS: 'https://dealscout.example,https://admin.dealscout.example',
     AMAZON_ASSOCIATE_TAG: 'dealscout-20',
     DEAL_DATA_PROVIDER: 'rainforest',
+    RAINFOREST_DAILY_REQUEST_LIMIT: '16',
+    RAINFOREST_MONTHLY_REQUEST_LIMIT: '500',
+    GEMINI_MODEL: 'gemini-3.7-flash',
+    GEMINI_DAILY_REQUEST_LIMIT: '200',
+    GEMINI_MONTHLY_REQUEST_LIMIT: '5000',
     GCP_DB_SECRETS: 'DB_USER=dealscout-db-user:latest,DB_PASSWORD=dealscout-db-password:latest,DB_NAME=dealscout-db-name:latest',
     GCP_WEB_SECRETS: 'JWT_SECRET=dealscout-jwt:latest,RAINFOREST_API_KEY=dealscout-rainforest:latest,SMTP_PASS=dealscout-smtp-pass:latest',
     GCP_PUBLISHER_SECRETS: 'WAHA_API_KEY=dealscout-waha-key:latest',
@@ -60,6 +65,21 @@ test('gcloud env encoding preserves comma-separated CORS as one web value', asyn
   const encoded = args[args.indexOf('--set-env-vars') + 1];
   assert.match(encoded, /^\^\|\^/);
   assert.match(encoded, /CORS_ORIGINS=https:\/\/dealscout\.example,https:\/\/admin\.dealscout\.example/);
+});
+
+test('web release forwards provider and Gemini budget controls', async () => {
+  const { buildReleasePlan } = await loadModule();
+  const plan = buildReleasePlan(env());
+  const args = plan.commands[0].args;
+  const encoded = args[args.indexOf('--set-env-vars') + 1];
+
+  for (const expected of [
+    'RAINFOREST_DAILY_REQUEST_LIMIT=16',
+    'RAINFOREST_MONTHLY_REQUEST_LIMIT=500',
+    'GEMINI_MODEL=gemini-3.7-flash',
+    'GEMINI_DAILY_REQUEST_LIMIT=200',
+    'GEMINI_MONTHLY_REQUEST_LIMIT=5000',
+  ]) assert.match(encoded, new RegExp(expected.replaceAll('.', '\\.')));
 });
 
 test('publisher release is pinned to whatsapp_status WAHA continuous mode', async () => {
@@ -101,7 +121,7 @@ test('publisher gets DB and WAHA secrets but not web auth or provider secrets', 
   assert.match(publisherSecrets, /DB_USER=dealscout-db-user:latest/);
   assert.match(publisherSecrets, /WAHA_API_KEY=dealscout-waha-key:latest/);
   assert.doesNotMatch(publisherSecrets, /JWT_SECRET|RAINFOREST_API_KEY|SMTP_PASS/);
-  assert.doesNotMatch(publisherEnv, /PUBLIC_WEB_URL|CORS_ORIGINS|AMAZON_ASSOCIATE_TAG|DEAL_DATA_PROVIDER|RAINFOREST_DOMAIN/);
+  assert.doesNotMatch(publisherEnv, /PUBLIC_WEB_URL|CORS_ORIGINS|AMAZON_ASSOCIATE_TAG|DEAL_DATA_PROVIDER|RAINFOREST_DOMAIN|GEMINI_|RAINFOREST_.*REQUEST_LIMIT/);
 });
 
 test('release fails before gcloud when required role-specific secret references are missing', async () => {
