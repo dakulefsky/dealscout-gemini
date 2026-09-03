@@ -27,8 +27,12 @@ function env() {
     GCP_PUBLISHER_SECRETS: 'WAHA_API_KEY=dealscout-waha-key:latest',
     WAHA_BASE_URL: 'https://waha.example',
     WAHA_SESSION: 'dealscout-status',
-    PUBLICATION_MIN_DISCOUNT: '20',
-    PUBLICATION_MIN_QUALITY: '75',
+    WAHA_TIMEOUT_MS: '18000',
+    PUBLICATION_POLL_MS: '1800000',
+    PUBLICATION_MIN_SPACING_SECONDS: '1800',
+    PUBLICATION_QUEUE_BATCH: '2',
+    PUBLICATION_CANDIDATE_LIMIT: '100',
+    PUBLICATION_MAX_PER_CYCLE: '1',
   };
 }
 
@@ -67,6 +71,24 @@ test('publisher release is pinned to whatsapp_status WAHA continuous mode', asyn
   assert.match(encoded, /PUBLICATION_TRANSPORT=waha/);
   assert.match(encoded, /PUBLICATION_RUN_MODE=continuous/);
   assert.match(encoded, /WAHA_SESSION=dealscout-status/);
+});
+
+test('publisher release forwards only publication worker config names the runtime consumes', async () => {
+  const { buildReleasePlan } = await loadModule();
+  const plan = buildReleasePlan(env());
+  const args = plan.commands[1].args;
+  const encoded = args[args.indexOf('--set-env-vars') + 1];
+
+  for (const expected of [
+    'WAHA_TIMEOUT_MS=18000',
+    'PUBLICATION_POLL_MS=1800000',
+    'PUBLICATION_MIN_SPACING_SECONDS=1800',
+    'PUBLICATION_QUEUE_BATCH=2',
+    'PUBLICATION_CANDIDATE_LIMIT=100',
+    'PUBLICATION_MAX_PER_CYCLE=1',
+  ]) assert.match(encoded, new RegExp(expected));
+
+  assert.doesNotMatch(encoded, /PUBLICATION_MIN_INTERVAL_MS|PUBLICATION_MIN_DISCOUNT|PUBLICATION_MIN_QUALITY/);
 });
 
 test('publisher gets DB and WAHA secrets but not web auth or provider secrets', async () => {

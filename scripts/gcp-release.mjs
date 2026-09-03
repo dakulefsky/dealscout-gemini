@@ -125,10 +125,12 @@ export function buildReleasePlan(env = process.env) {
     ['PUBLICATION_RUN_MODE', 'continuous'],
     ['WAHA_BASE_URL', requireValue(env, 'WAHA_BASE_URL')],
     ['WAHA_SESSION', requireValue(env, 'WAHA_SESSION')],
-    ['PUBLICATION_MIN_DISCOUNT', text(env, 'PUBLICATION_MIN_DISCOUNT')],
-    ['PUBLICATION_MIN_QUALITY', text(env, 'PUBLICATION_MIN_QUALITY')],
-    ['PUBLICATION_MIN_INTERVAL_MS', text(env, 'PUBLICATION_MIN_INTERVAL_MS')],
+    ['WAHA_TIMEOUT_MS', text(env, 'WAHA_TIMEOUT_MS')],
     ['PUBLICATION_POLL_MS', text(env, 'PUBLICATION_POLL_MS')],
+    ['PUBLICATION_MIN_SPACING_SECONDS', text(env, 'PUBLICATION_MIN_SPACING_SECONDS')],
+    ['PUBLICATION_QUEUE_BATCH', text(env, 'PUBLICATION_QUEUE_BATCH')],
+    ['PUBLICATION_CANDIDATE_LIMIT', text(env, 'PUBLICATION_CANDIDATE_LIMIT')],
+    ['PUBLICATION_MAX_PER_CYCLE', text(env, 'PUBLICATION_MAX_PER_CYCLE')],
   ]);
 
   const web = ['run', 'deploy', webService,
