@@ -39,6 +39,14 @@ function rateLimitAssistant(req, res, next) {
   next();
 }
 
+function aiErrorResponse(res, err, fallback) {
+  if (err?.code === 'PROVIDER_BUDGET_EXCEEDED' && err?.provider === 'gemini') {
+    return res.status(429).json({ error: 'AI request budget reached. Please try again later.', code: 'AI_BUDGET_EXCEEDED' });
+  }
+  if (err?.code === 'AI_NOT_CONFIGURED') return res.status(503).json({ error: fallback });
+  return res.status(err?.statusCode || 500).json({ error: fallback });
+}
+
 router.post('/analyze-deal', requireAdmin, async (req, res) => {
   try {
     let { title, asin, url, rawText, category } = req.body || {};
@@ -87,7 +95,7 @@ router.post('/analyze-deal', requireAdmin, async (req, res) => {
     res.json({ success: true, data: analysis });
   } catch (err) {
     console.error('[API /ai/analyze-deal error]', err);
-    res.status(500).json({ error: 'AI deal analysis failed' });
+    return aiErrorResponse(res, err, 'AI deal analysis failed');
   }
 });
 
@@ -107,8 +115,9 @@ router.post('/ask-deal-assistant', rateLimitAssistant, async (req, res) => {
     res.json({ success: true, answer: response.answer });
   } catch (err) {
     console.error('[API /ai/ask-deal-assistant error]', err);
-    res.status(500).json({ error: 'AI shopping assistant failed' });
+    return aiErrorResponse(res, err, 'AI shopping assistant failed');
   }
 });
 
 module.exports = router;
+module.exports.aiErrorResponse = aiErrorResponse;
