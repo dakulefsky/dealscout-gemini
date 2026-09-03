@@ -88,6 +88,9 @@ async function list(options = {}, { isAdmin = false } = {}) {
     where.push("status = 'APPROVED'");
     where.push('is_expired <> 1');
     where.push('source_verified = 1');
+    where.push('original_price > 0');
+    where.push('sale_price > 0');
+    where.push('sale_price < original_price');
     where.push(`price_check_at IS NOT NULL AND price_check_at >= ${addParam(params, freshPriceThreshold(nowSeconds))}`);
     where.push(`price_check_at <= ${addParam(params, nowSeconds)}`);
   }
@@ -134,7 +137,7 @@ function aggregateFallback(rows, isAdmin) {
 
   const now = Math.floor(Date.now() / 1000);
   const approved = visible.filter((deal) => deal.status === 'APPROVED' && !deal.is_expired);
-  const publicVisible = visible.filter((deal) => isPublicDeal(deal, now));
+  const publicVisible = visible.filter((deal) => isPublicDeal(deal, { nowSeconds: now }));
   const pending = visible.filter((deal) => deal.status === 'PENDING_REVIEW');
   const expired = visible.filter((deal) => deal.is_expired === 1 || deal.status === 'EXPIRED');
   const rejected = visible.filter((deal) => deal.status === 'REJECTED');
@@ -174,6 +177,9 @@ async function stats({ isAdmin = false } = {}) {
       WHERE status = 'APPROVED'
         AND is_expired <> 1
         AND source_verified = 1
+        AND original_price > 0
+        AND sale_price > 0
+        AND sale_price < original_price
         AND price_check_at IS NOT NULL
         AND price_check_at >= $1
         AND price_check_at <= $2
