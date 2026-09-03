@@ -12,6 +12,8 @@ const CategoryPage = lazy(() => import('@/pages/CategoryPage'));
 const DealDetail = lazy(() => import('@/pages/DealDetail'));
 const SavedDeals = lazy(() => import('@/pages/SavedDeals'));
 const Disclosure = lazy(() => import('@/pages/Disclosure'));
+const Privacy = lazy(() => import('@/pages/Privacy'));
+const Support = lazy(() => import('@/pages/Support'));
 const Login = lazy(() => import('@/pages/Login'));
 const ResetPassword = lazy(() => import('@/pages/ResetPassword'));
 const AdminHome = lazy(() => import('@/pages/AdminHome'));
@@ -49,6 +51,8 @@ export default function App() {
                   <Route path="/deal/:id" element={<DealDetail />} />
                   <Route path="/saved" element={<SavedDeals />} />
                   <Route path="/disclosure" element={<Disclosure />} />
+                  <Route path="/privacy" element={<Privacy />} />
+                  <Route path="/support" element={<Support />} />
 
                   <Route path="/admin/access" element={<Login />} />
                   <Route path="/admin/reset-password" element={<ResetPassword />} />
