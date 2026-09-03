@@ -117,7 +117,15 @@ async function page(options = {}) {
   const params = [];
   const freshness = `$${params.push(freshPriceThreshold(nowSeconds))}`;
   const now = `$${params.push(nowSeconds)}`;
-  const where = ["status = 'APPROVED'", 'is_expired <> 1', 'source_verified = 1', `price_check_at IS NOT NULL AND price_check_at >= ${freshness} AND price_check_at <= ${now}`];
+  const where = [
+    "status = 'APPROVED'",
+    'is_expired <> 1',
+    'source_verified = 1',
+    'original_price > 0',
+    'sale_price > 0',
+    'sale_price < original_price',
+    `price_check_at IS NOT NULL AND price_check_at >= ${freshness} AND price_check_at <= ${now}`,
+  ];
   if (filters.category) where.push(`LOWER(COALESCE(category, '')) = LOWER($${params.push(filters.category)})`);
   if (filters.q) {
     const pattern = `%${filters.q}%`;
