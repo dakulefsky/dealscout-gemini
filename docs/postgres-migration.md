@@ -1,18 +1,15 @@
-# PostgreSQL migration plan
+# PostgreSQL migration notes
 
-DealScout is migrating away from direct JSON/in-memory persistence in staged slices so production data is not put at risk by a single large rewrite.
+DealScout migrated production persistence away from direct JSON/in-memory storage in staged slices so each production data boundary could move independently.
 
-## Phase 1 — observed price history
+## Current state
 
-Price history is the first relational domain. When `DATABASE_URL` is configured, verified price observations are written to PostgreSQL in the `price_history` table. Without `DATABASE_URL`, local development uses an atomic JSON fallback at `server/data/price-history.json`.
+Production deal, user, bookmark, price-alert, publication, maintenance-cadence, and provider-usage data is repository-backed in PostgreSQL. The JSON database remains a development fallback only and must not act as a hidden secondary production datastore.
 
-The public price-history endpoint now returns only real observations collected from verified providers. The previous simulated 30-day curve is no longer served.
+Verified price observations are now **alert-only**: a successful provider price check can evaluate active price alerts, but DealScout no longer stores or exposes shopper-facing observed price history. The former `price_history` storage path and public history endpoint are retired.
 
-## Next phases
+## Remaining cleanup rule
 
-1. Categories and users move behind repository interfaces.
-2. Deals move to PostgreSQL with explicit transactional writes and indexes on ASIN, status, source verification, and timestamps.
-3. Bookmarks and price alerts move after users/deals so foreign keys can be enforced.
-4. The legacy `db.tables` and SQL-compatibility shim are removed only after all callers use repositories.
+Legacy JSON compatibility code should only remain while an active repository caller still depends on it. Dead compatibility shims should be removed rather than preserved as misleading architecture documentation.
 
-This staged approach keeps each migration independently deployable and reversible while preserving data integrity.
+Production schema changes should remain independently deployable and reversible, with indexes and constraints added alongside the repository behavior that depends on them.

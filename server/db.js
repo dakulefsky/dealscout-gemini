@@ -67,11 +67,6 @@ function loadDb() {
   saveDb();
 }
 
-function getDealPriceHistory() {
-  // Price history must come from observed provider checks, never synthetic data.
-  return [];
-}
-
 function expireDeal(idOrAsin, reason = 'Deal ended or price restored on Amazon') {
   const deal = tables.deals.find((item) => item.id === idOrAsin || item.asin === idOrAsin);
   if (!deal) return null;
@@ -147,7 +142,6 @@ loadDb();
 module.exports = {
   tables,
   saveDb,
-  getDealPriceHistory,
   expireDeal,
   restoreDeal,
   purgeExpiredDeals,
