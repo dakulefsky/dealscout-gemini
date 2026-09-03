@@ -44,14 +44,8 @@ function publicDealShape(row) {
 router.get('/picks', async (req, res) => {
   try {
     const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 8, 1), 24);
-    const rows = await editorial.listHumanPicks(Math.min(limit * 3, 50));
-    const picks = [];
-    for (const row of rows) {
-      const deal = await deals.findByIdOrAsin(row.asin);
-      if (!isPublicDeal(deal)) continue;
-      picks.push({ ...publicShape(row), deal: publicDealShape(deal) });
-      if (picks.length >= limit) break;
-    }
+    const rows = await editorial.listPublicHumanPicks(limit);
+    const picks = rows.map((row) => ({ ...publicShape(row), deal: publicDealShape(row) }));
     res.json({ picks, affiliateDisclosure: AFFILIATE_DISCLOSURE });
   } catch (err) {
     console.error('[editorial] picks failed:', err.message);
