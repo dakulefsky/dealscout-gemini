@@ -23,3 +23,10 @@ test('saved deal responses derive discount from the verified price pair', () => 
 test('editorial pick deal responses derive discount from the verified price pair', () => {
   assertPriceDerivedSerializer(editorial, 'publicDealShape');
 });
+
+test('editorial pick public deal shape excludes internal provider and legacy enrichment fields', () => {
+  const block = editorial.match(/function publicDealShape\([\s\S]*?\n\}/)?.[0] || '';
+  assert.doesNotMatch(block, /shortBio:|short_bio|sourceProvider:|source_provider/);
+  assert.match(block, /priceCheckAt:/);
+  assert.match(block, /qualityScore:|sourceVerified:/);
+});
