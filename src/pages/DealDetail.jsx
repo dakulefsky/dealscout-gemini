@@ -16,15 +16,10 @@ function categorySlug(value) {
   return encodeURIComponent(String(value || '').trim());
 }
 
-function observedPrices(history) {
-  return (history || []).map((point) => Number(point?.price)).filter((price) => Number.isFinite(price) && price > 0);
-}
-
 export default function DealDetail() {
   const { id } = useParams();
   const [deal, setDeal] = useState(null);
   const [editorial, setEditorial] = useState(null);
-  const [priceHistory, setPriceHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -38,15 +33,11 @@ export default function DealDetail() {
         if (!mounted) return;
         setDeal(data);
         const asin = data?.asin;
-        const dealId = data?.id || asin;
-        const [editorialResult, historyResult] = await Promise.allSettled([
+        const editorialResult = await Promise.allSettled([
           asin ? editorialApi.get(asin) : Promise.resolve(null),
-          dealId ? dealsApi.getPriceHistory(dealId) : Promise.resolve(null),
         ]);
         if (!mounted) return;
-        setEditorial(editorialResult.status === 'fulfilled' ? editorialResult.value : null);
-        const history = historyResult.status === 'fulfilled' ? historyResult.value?.history : [];
-        setPriceHistory(Array.isArray(history) ? history : []);
+        setEditorial(editorialResult[0]?.status === 'fulfilled' ? editorialResult[0].value : null);
       })
       .catch(() => mounted && setDeal(null))
       .finally(() => mounted && setLoading(false));
@@ -100,12 +91,6 @@ export default function DealDetail() {
 
   const freshness = verificationFreshness(deal.priceCheckAt);
   const savings = Math.max(0, Number(deal.originalPrice || 0) - Number(deal.salePrice || 0));
-  const prices = observedPrices(priceHistory);
-  const hasObservedRange = prices.length >= 2;
-  const historyLow = hasObservedRange ? Math.min(...prices) : null;
-  const historyHigh = hasObservedRange ? Math.max(...prices) : null;
-  const firstObservedAt = priceHistory[0]?.date ? new Date(priceHistory[0].date) : null;
-  const recentHistory = priceHistory.slice(-5).reverse();
   const categoryPath = deal.category ? `/category/${categorySlug(deal.category)}` : '/';
 
   return (
@@ -168,36 +153,6 @@ export default function DealDetail() {
               </div>
             </div>
           </section>
-
-          {hasObservedRange && (
-            <section className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 p-5 sm:p-6">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div>
-                  <h2 className="text-lg font-black text-slate-950">Observed price history</h2>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {prices.length} recorded price checks{firstObservedAt && !Number.isNaN(firstObservedAt.getTime()) ? ` since ${firstObservedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}.
-                  </p>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs uppercase tracking-wide font-bold text-slate-400">Observed range</div>
-                  <div className="text-base font-black text-slate-900">{formatPrice(historyLow)} – {formatPrice(historyHigh)}</div>
-                </div>
-              </div>
-
-              <div className="mt-5 divide-y divide-slate-100 border-y border-slate-100">
-                {recentHistory.map((point) => {
-                  const date = point?.date ? new Date(point.date) : null;
-                  return (
-                    <div key={`${point.date}-${point.price}`} className="flex items-center justify-between gap-4 py-2.5 text-sm">
-                      <span className="text-slate-500">{date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recorded check'}</span>
-                      <span className="font-bold text-slate-900">{formatPrice(point.price)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="text-[11px] leading-relaxed text-slate-400 mt-3">History shows prices DealScout actually observed. It is not a guarantee of the current Amazon price.</p>
-            </section>
-          )}
 
           {editorial?.isHumanPick && (
             <section className="bg-emerald-50 border border-emerald-200 rounded-2xl sm:rounded-3xl p-5 sm:p-6">
