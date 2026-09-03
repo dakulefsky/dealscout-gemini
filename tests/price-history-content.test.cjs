@@ -9,9 +9,10 @@ const apiCore = fs.readFileSync(path.join(root, 'src', 'lib', 'apiCore.js'), 'ut
 const shopperApi = fs.readFileSync(path.join(root, 'server', 'routes', 'shopperApi.js'), 'utf8');
 const api = fs.readFileSync(path.join(root, 'src', 'lib', 'api.js'), 'utf8');
 
-test('observed price history is not exposed through the shopper API', () => {
+test('observed price history is absent from both shopper API and deal page UI', () => {
   assert.doesNotMatch(apiCore, /getPriceHistory/);
   assert.doesNotMatch(shopperApi, /require\('\.\/priceHistory'\)/);
+  assert.doesNotMatch(dealDetail, /getPriceHistory|Observed price history|observedPrices|priceHistory|historyLow|historyHigh/);
 });
 
 test('deal pages provide crawlable category links without inventing category slugs', () => {
