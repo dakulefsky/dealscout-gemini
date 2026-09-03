@@ -1,4 +1,5 @@
 const { GoogleGenAI } = require('@google/genai');
+const { reserveRequest } = require('./services/providerBudgetService');
 
 let aiInstance = null;
 
@@ -25,6 +26,11 @@ function requireGemini() {
   return ai;
 }
 
+async function generateGeminiContent(ai, request) {
+  await reserveRequest('gemini');
+  return ai.models.generateContent(request);
+}
+
 async function analyzeDealWithGemini({ title, asin, url, price, originalPrice, rawText, category, imageUrl }) {
   const ai = requireGemini();
   const verifiedDiscount = Number.isFinite(Number(originalPrice)) && Number.isFinite(Number(price)) && Number(originalPrice) > 0 && Number(price) >= 0
@@ -34,7 +40,7 @@ async function analyzeDealWithGemini({ title, asin, url, price, originalPrice, r
   const prompt = `You are DealScout's product-analysis assistant. Analyze only the supplied product context. Do not invent prices, ratings, review counts, customer reviews, certifications, availability, specifications, or verification claims. If a fact is not present in the supplied context, omit it or state that it is unknown. AI output is editorial enrichment and must never be treated as source verification.\n\nProduct context:\n- Title: ${title || 'Unknown'}\n- ASIN: ${asin || 'Unknown'}\n- URL: ${url || 'Unknown'}\n- Verified current price supplied by caller: ${price ?? 'Unknown'}\n- Verified original/list price supplied by caller: ${originalPrice ?? 'Unknown'}\n- Category: ${category || 'Unknown'}\n- Source context/specs: ${rawText || 'None supplied'}\n\nReturn JSON only with this shape:\n{\n  "title": string,\n  "category": string,\n  "shortBio": string,\n  "fullSummary": string,\n  "pros": string[],\n  "cons": string[],\n  "dealScore": number | null,\n  "editorialAssessment": string,\n  "unknowns": string[]\n}\nDo not include reviews, ratings, rating counts, prices, discount percentages, source verification flags, or claims that the deal is verified.`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateGeminiContent(ai, {
       model: process.env.GEMINI_MODEL || 'gemini-3.7-flash',
       contents: prompt,
       config: { responseMimeType: 'application/json' },
@@ -62,7 +68,7 @@ async function askDealAssistantWithGemini({ deal, question }) {
   const prompt = `You are DealScout AI, a shopping advisor. Answer using only the supplied deal record. Do not invent specifications, reviews, prices, availability, warranty terms, or verification claims. Distinguish factual fields in the record from editorial summaries. If the record does not answer the question, say so.\n\nProduct: ${deal.title || 'Unknown'}\nPrice: ${deal.sale_price ?? deal.price ?? 'Unknown'}\nOriginal price: ${deal.original_price ?? deal.originalPrice ?? 'Unknown'}\nCategory: ${deal.category || 'Unknown'}\nSummary: ${deal.full_summary || deal.fullSummary || ''}\nPros: ${deal.pros || ''}\nCons: ${deal.cons || ''}\nSource verified: ${deal.source_verified === 1 || deal.sourceVerified === true}\n\nUser question: ${question}\n\nAnswer in 2-4 concise sentences.`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateGeminiContent(ai, {
       model: process.env.GEMINI_MODEL || 'gemini-3.7-flash',
       contents: prompt,
     });
@@ -73,4 +79,4 @@ async function askDealAssistantWithGemini({ deal, question }) {
   }
 }
 
-module.exports = { getGeminiClient, analyzeDealWithGemini, askDealAssistantWithGemini };
+module.exports = { getGeminiClient, analyzeDealWithGemini, askDealAssistantWithGemini, generateGeminiContent };
