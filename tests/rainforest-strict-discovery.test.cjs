@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 process.env.AMAZON_ASSOCIATE_TAG = 'dankul-20';
-const { normalizeDeal, dedupeDeals, isUnavailableDeal } = require('../server/services/rainforestStrictDiscovery');
+const { normalizeDeal, dedupeDeals, selectBalancedDeals, isUnavailableDeal } = require('../server/services/rainforestStrictDiscovery');
 
 test('normalizes a real discounted Rainforest deal', () => {
   const deal = normalizeDeal({
@@ -49,4 +49,31 @@ test('deduplicates repeated ASINs and keeps the strongest observed deal', () => 
   const result = dedupeDeals(deals);
   assert.equal(result.length, 2);
   assert.equal(result.find((deal) => deal.asin === 'B0GGGQDY9H').discountPercent, 30);
+});
+
+test('one paid discovery pull prefers category breadth before filling remaining slots', () => {
+  const ranked = [
+    { asin: 'E000000001', category: 'Electronics', discountPercent: 60 },
+    { asin: 'E000000002', category: 'Electronics', discountPercent: 59 },
+    { asin: 'E000000003', category: 'Electronics', discountPercent: 58 },
+    { asin: 'E000000004', category: 'Electronics', discountPercent: 57 },
+    { asin: 'H000000001', category: 'Home & Kitchen', discountPercent: 50 },
+    { asin: 'H000000002', category: 'Home & Kitchen', discountPercent: 49 },
+    { asin: 'B000000001', category: 'Baby', discountPercent: 48 },
+    { asin: 'B000000002', category: 'Baby', discountPercent: 47 },
+  ];
+  const result = selectBalancedDeals(ranked, 6);
+  assert.equal(result.length, 6);
+  assert.equal(result.filter((deal) => deal.category === 'Electronics').length, 2);
+  assert.equal(result.filter((deal) => deal.category === 'Home & Kitchen').length, 2);
+  assert.equal(result.filter((deal) => deal.category === 'Baby').length, 2);
+});
+
+test('category balancing is soft and still fills the requested result count', () => {
+  const ranked = Array.from({ length: 6 }, (_, index) => ({
+    asin: `E${String(index + 1).padStart(9, '0')}`,
+    category: 'Electronics',
+    discountPercent: 60 - index,
+  }));
+  assert.equal(selectBalancedDeals(ranked, 6).length, 6);
 });
