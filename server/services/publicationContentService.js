@@ -1,4 +1,4 @@
-const { CHANNELS, evaluateDistribution } = require('./distributionPolicy');
+const { CHANNELS, evaluateDistribution, dealDiscountPercent } = require('./distributionPolicy');
 
 function cleanText(value, maxLength = 180) {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
@@ -15,7 +15,7 @@ function money(value) {
 function publicationFacts(deal = {}) {
   const salePrice = Number(deal.sale_price ?? deal.salePrice);
   const originalPrice = Number(deal.original_price ?? deal.originalPrice);
-  const discountPercent = Number(deal.discount_percent ?? deal.discountPercent);
+  const discountPercent = dealDiscountPercent(deal);
   const checkedAt = Number(deal.price_check_at ?? deal.priceCheckAt) || null;
   const savings = Number.isFinite(originalPrice) && Number.isFinite(salePrice) && originalPrice > salePrice
     ? Number((originalPrice - salePrice).toFixed(2))
@@ -27,7 +27,7 @@ function publicationFacts(deal = {}) {
     category: cleanText(deal.category, 60) || null,
     salePrice: Number.isFinite(salePrice) ? salePrice : null,
     originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
-    discountPercent: Number.isFinite(discountPercent) ? Math.round(discountPercent * 10) / 10 : null,
+    discountPercent: discountPercent > 0 ? Math.round(discountPercent * 10) / 10 : null,
     savings,
     imageUrl: String(deal.image_url ?? deal.imageUrl ?? '').trim() || null,
     productUrl: String(deal.product_url ?? deal.productUrl ?? '').trim() || null,
