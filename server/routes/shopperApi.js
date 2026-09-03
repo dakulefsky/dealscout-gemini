@@ -17,7 +17,6 @@ function buildShopperApi({ version = null } = {}) {
 
   router.use('/auth/register', registrationGate);
   router.use('/auth', require('./auth'));
-  router.use('/deals', require('./priceHistory'));
   router.use('/deals', require('../middleware/verifiedAiIngestGuard').verifiedAiIngestGuard);
   router.use('/deals', require('./deals'));
   router.use('/categories', require('./categories'));

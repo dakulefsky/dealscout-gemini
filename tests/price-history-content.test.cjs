@@ -3,15 +3,15 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const dealDetail = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'DealDetail.jsx'), 'utf8');
-const api = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'api.js'), 'utf8');
+const root = path.join(__dirname, '..');
+const dealDetail = fs.readFileSync(path.join(root, 'src', 'pages', 'DealDetail.jsx'), 'utf8');
+const apiCore = fs.readFileSync(path.join(root, 'src', 'lib', 'apiCore.js'), 'utf8');
+const shopperApi = fs.readFileSync(path.join(root, 'server', 'routes', 'shopperApi.js'), 'utf8');
+const api = fs.readFileSync(path.join(root, 'src', 'lib', 'api.js'), 'utf8');
 
-test('deal detail fetches and displays only observed price history', () => {
-  assert.match(dealDetail, /dealsApi\.getPriceHistory\(dealId\)/);
-  assert.match(dealDetail, /Observed price history/);
-  assert.match(dealDetail, /History shows prices DealScout actually observed/);
-  assert.match(dealDetail, /prices\.length >= 2/);
-  assert.doesNotMatch(dealDetail, /simulated price history|estimated price history/i);
+test('observed price history is not exposed through the shopper API', () => {
+  assert.doesNotMatch(apiCore, /getPriceHistory/);
+  assert.doesNotMatch(shopperApi, /require\('\.\/priceHistory'\)/);
 });
 
 test('deal pages provide crawlable category links without inventing category slugs', () => {
