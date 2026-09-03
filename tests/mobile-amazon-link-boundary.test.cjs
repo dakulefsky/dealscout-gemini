@@ -6,6 +6,7 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const helper = fs.readFileSync(path.join(root, 'apps/mobile/src/amazonUrl.js'), 'utf8');
 const detail = fs.readFileSync(path.join(root, 'apps/mobile/app/deal/[id].jsx'), 'utf8');
+const mobileApi = fs.readFileSync(path.join(root, 'apps/mobile/src/api.js'), 'utf8');
 
 function makeValidator() {
   const source = helper
@@ -31,10 +32,16 @@ test('mobile Amazon URL boundary only accepts HTTPS Amazon-owned hosts', () => {
   assert.equal(isAmazonOwnedUrl('not a url'), false);
 });
 
-test('native deal detail validates stored product URLs before opening them', () => {
+test('native deal detail validates stored and formatted Amazon URLs before opening them', () => {
   assert.match(detail, /import \{ isAmazonOwnedUrl \} from '\.\.\/\.\.\/src\/amazonUrl';/);
-  assert.match(detail, /if \(!isAmazonOwnedUrl\(url\)\) return;/);
-  assert.match(detail, /Linking\.canOpenURL\(url\)/);
-  assert.match(detail, /Linking\.openURL\(url\)/);
+  assert.match(detail, /if \(!isAmazonOwnedUrl\(storedUrl\)\) return;/);
+  assert.match(detail, /functions\.amazonRedirect\(storedUrl\)/);
+  assert.match(detail, /if \(isAmazonOwnedUrl\(result\?\.redirectUrl\)\) targetUrl = result\.redirectUrl;/);
+  assert.match(detail, /Linking\.canOpenURL\(targetUrl\)/);
+  assert.match(detail, /Linking\.openURL\(targetUrl\)/);
   assert.doesNotMatch(detail, /\^https:\\\/\\\//);
+});
+
+test('mobile API exports the shared affiliate redirect helper', () => {
+  assert.match(mobileApi, /export const \{ deals, categories, bookmarks, auth, functions \} = client;/);
 });

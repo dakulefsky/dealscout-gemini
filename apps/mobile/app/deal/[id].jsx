@@ -4,7 +4,7 @@ import * as Linking from 'expo-linking';
 import { useLocalSearchParams } from 'expo-router';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { bookmarks, deals } from '../../src/api';
+import { bookmarks, deals, functions } from '../../src/api';
 import { isAmazonOwnedUrl } from '../../src/amazonUrl';
 import { addCategoryInterest } from '../../src/personalization';
 
@@ -58,11 +58,20 @@ export default function DealDetailScreen() {
   }
 
   async function openAmazon() {
-    const url = field(deal, 'productUrl', 'product_url');
-    if (!isAmazonOwnedUrl(url)) return;
-    const supported = await Linking.canOpenURL(url);
+    const storedUrl = field(deal, 'productUrl', 'product_url');
+    if (!isAmazonOwnedUrl(storedUrl)) return;
+
+    let targetUrl = storedUrl;
+    try {
+      const result = await functions.amazonRedirect(storedUrl);
+      if (isAmazonOwnedUrl(result?.redirectUrl)) targetUrl = result.redirectUrl;
+    } catch {
+      // Keep the shopper path usable if the formatter endpoint is temporarily unavailable.
+    }
+
+    const supported = await Linking.canOpenURL(targetUrl);
     if (!supported) return;
-    await Linking.openURL(url);
+    await Linking.openURL(targetUrl);
     if (deal?.category) await addCategoryInterest(deal.category, 3);
   }
 
