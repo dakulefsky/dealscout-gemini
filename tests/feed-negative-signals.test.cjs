@@ -28,3 +28,12 @@ test('deal cards expose a not interested control in grid and list views', () => 
   assert.match(card, /dismissDeal\(dealId\)/);
   assert.match(card, /if \(dismissed\) return null/);
 });
+
+test('not interested offers a two-second undo that restores the deal and exact removed signal', () => {
+  assert.match(card, /duration: 2000/);
+  assert.match(card, />\s*Undo\s*</s);
+  assert.match(card, /restoreDeal\(dealId\)/);
+  assert.match(card, /previousScore - reducedScore/);
+  assert.match(card, /addCategoryInterest\(deal\.category, removedWeight\)/);
+  assert.match(dismissals, /export function restoreDeal/);
+});

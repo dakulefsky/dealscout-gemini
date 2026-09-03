@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, ArrowRight, Clock, AlertCircle, ShieldCheck, EyeOff } from 'lucide-react';
 import { Image } from '@/components/ui/image';
+import { useToast } from '@/components/ui/use-toast';
 import { useBookmarks } from '@/lib/BookmarksContext';
 import { verificationFreshness } from '@/lib/verificationFreshness';
-import { addCategoryInterest, reduceCategoryInterest, dwellWeight } from '@/lib/feedPersonalization';
-import { dismissDeal, isDealDismissed } from '@/lib/feedDismissals';
+import { addCategoryInterest, reduceCategoryInterest, dwellWeight, loadInterests } from '@/lib/feedPersonalization';
+import { dismissDeal, isDealDismissed, restoreDeal } from '@/lib/feedDismissals';
 
 export function formatPrice(price) {
   if (price == null || isNaN(price)) return '';
@@ -14,6 +15,7 @@ export function formatPrice(price) {
 
 export default function DealCard({ deal, viewMode = 'grid' }) {
   const { isSaved, toggleBookmark } = useBookmarks();
+  const { toast } = useToast();
   const dealId = deal.id || deal.asin;
   const saved = isSaved(dealId);
   const [dismissed, setDismissed] = useState(() => isDealDismissed(dealId));
@@ -31,9 +33,31 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
   }
 
   function handleDismissClick() {
+    const previousScore = Number(loadInterests()?.[deal.category]) || 0;
     dismissDeal(dealId);
-    reduceCategoryInterest(deal.category, 3);
+    const reducedInterests = reduceCategoryInterest(deal.category, 3);
+    const reducedScore = Number(reducedInterests?.[deal.category]) || 0;
+    const removedWeight = Math.max(0, previousScore - reducedScore);
     setDismissed(true);
+
+    toast({
+      title: 'Deal hidden',
+      description: 'We’ll show you fewer deals like this.',
+      duration: 2000,
+      action: (
+        <button
+          type="button"
+          className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border px-3 text-sm font-semibold hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
+          onClick={() => {
+            restoreDeal(dealId);
+            if (removedWeight) addCategoryInterest(deal.category, removedWeight);
+            setDismissed(false);
+          }}
+        >
+          Undo
+        </button>
+      ),
+    });
   }
 
   const finishDwell = useCallback(() => {
