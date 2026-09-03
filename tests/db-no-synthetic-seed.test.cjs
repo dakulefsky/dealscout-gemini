@@ -20,7 +20,7 @@ test('JSON fallback seeds categories only', () => {
   assert.doesNotMatch(dbSource, /uuidv4/);
 });
 
-test('legacy JSON fallback cannot synthesize price history', () => {
-  assert.match(dbSource, /function getDealPriceHistory\(\) \{[\s\S]*?return \[\];/);
+test('legacy JSON fallback has no price history shim or synthetic history', () => {
+  assert.doesNotMatch(dbSource, /getDealPriceHistory/);
   assert.doesNotMatch(dbSource, /simulated 30-day price history/i);
 });
