@@ -21,7 +21,7 @@ test('deal cursors round-trip as opaque base64url payloads and bind to sort orde
 });
 
 test('feed ordering uses deterministic id tie-breakers for every supported sort', () => {
-  assert.match(feedRepo, /discount_percent DESC, created_at DESC, id DESC/);
+  assert.match(feedRepo, /\$\{DISCOUNT_SQL\} DESC, created_at DESC, id DESC/);
   assert.match(feedRepo, /sale_price ASC, created_at DESC, id DESC/);
   assert.match(feedRepo, /sale_price DESC, created_at DESC, id DESC/);
   assert.match(feedRepo, /created_at DESC, id DESC/);
@@ -33,9 +33,15 @@ test('cursor predicates are keyset based instead of offset pagination', () => {
   assert.match(feedRepo, /limit \+ 1/);
 });
 
-test('feed filters are parameterized before the cursor predicate', () => {
+test('feed discount filters and cursors use the price-derived expression', () => {
+  assert.match(feedRepo, /const DISCOUNT_SQL = '\(100\.0 \* \(original_price - sale_price\) \/ original_price\)'/);
+  assert.match(feedRepo, /filters\.minDiscount !== null\) where\.push\(`\$\{DISCOUNT_SQL\} >=/);
+  assert.match(feedRepo, /const field = sort === 'discount_desc' \? DISCOUNT_SQL : 'sale_price'/);
+  assert.match(feedRepo, /sort === 'discount_desc' \? derivedDiscount\(row\)/);
+});
+
+test('feed filters remain parameterized before the cursor predicate', () => {
   assert.match(feedRepo, /LOWER\(COALESCE\(category, ''\)\) = LOWER\(\$\$\{params\.push\(filters\.category\)\}\)/);
-  assert.match(feedRepo, /discount_percent >= \$\$\{params\.push\(filters\.minDiscount\)\}/);
   assert.match(feedRepo, /sale_price >= \$\$\{params\.push\(filters\.minPrice\)\}/);
   assert.match(feedRepo, /sale_price <= \$\$\{params\.push\(filters\.maxPrice\)\}/);
   assert.match(feedRepo, /COALESCE\(title, ''\) ILIKE/);
