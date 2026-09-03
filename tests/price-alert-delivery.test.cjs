@@ -6,12 +6,13 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
-test('verified price observations evaluate alerts without making history writes depend on email', () => {
-  const history = read('server/services/priceHistoryService.js');
-  assert.match(history, /processPriceAlerts/);
-  assert.match(history, /safelyProcessPriceAlerts/);
-  assert.match(history, /Price alert processing skipped/);
-  assert.match(history, /await safelyProcessPriceAlerts\(\{ asin: cleanAsin, salePrice: sale \}\)/);
+test('verified price observations evaluate alerts without retaining shopper history', () => {
+  const observation = read('server/services/priceHistoryService.js');
+  assert.match(observation, /processPriceAlerts/);
+  assert.match(observation, /safelyProcessPriceAlerts/);
+  assert.match(observation, /Price alert processing skipped/);
+  assert.match(observation, /await safelyProcessPriceAlerts\(\{ asin: cleanAsin, salePrice: sale \}\)/);
+  assert.doesNotMatch(observation, /price_history|HISTORY_FILE|getHistory|writeFileSync|INSERT INTO/i);
 });
 
 test('price alerts use a recoverable delivery claim and only trigger at or below target', () => {
