@@ -37,6 +37,16 @@ function normalizeVerifiedAiBody(body = {}, live = {}) {
   };
 }
 
+function providerErrorResponse(res, err) {
+  if (err?.code === 'PROVIDER_BUDGET_EXCEEDED') {
+    return res.status(429).json({ error: 'Provider request budget reached.', code: err.code, scope: err.scope, limit: err.limit });
+  }
+  if (err?.code === 'PROVIDER_COOLDOWN') {
+    return res.status(503).json({ error: 'Provider is temporarily cooling down.', code: err.code, retryAfterMs: err.retryAfterMs });
+  }
+  return null;
+}
+
 async function verifiedAiIngestGuard(req, res, next) {
   if (req.method !== 'POST' || !isAiIngest(req.body)) return next();
 
@@ -51,8 +61,10 @@ async function verifiedAiIngestGuard(req, res, next) {
     next();
   } catch (err) {
     console.warn('[verifiedAiIngestGuard] blocked AI deal save:', err.message);
+    const providerResponse = providerErrorResponse(res, err);
+    if (providerResponse) return providerResponse;
     return res.status(422).json({ error: err.message });
   }
 }
 
-module.exports = { verifiedAiIngestGuard, normalizeVerifiedAiBody, isAiIngest };
+module.exports = { verifiedAiIngestGuard, normalizeVerifiedAiBody, isAiIngest, providerErrorResponse };
