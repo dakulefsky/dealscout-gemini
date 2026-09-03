@@ -43,5 +43,7 @@ test('native deal detail validates stored and formatted Amazon URLs before openi
 });
 
 test('mobile API exports the shared affiliate redirect helper', () => {
-  assert.match(mobileApi, /export const \{ deals, categories, bookmarks, auth, functions \} = client;/);
+  const exportLine = mobileApi.match(/export const \{([^}]+)\} = client;/)?.[1] || '';
+  const exported = new Set(exportLine.split(',').map((name) => name.trim()).filter(Boolean));
+  assert.equal(exported.has('functions'), true);
 });
