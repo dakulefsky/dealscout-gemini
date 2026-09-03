@@ -48,7 +48,7 @@ test('every Gemini generation passes through one durable budget reservation boun
   assert.match(helper, /await reserveRequest\('gemini'\)/);
   assert.match(helper, /ai\.models\.generateContent\(request\)/);
   assert.equal((geminiSource.match(/ai\.models\.generateContent\(/g) || []).length, 1);
-  assert.equal((geminiSource.match(/generateGeminiContent\(ai,/g) || []).length, 2);
+  assert.equal((geminiSource.match(/await generateGeminiContent\(ai,/g) || []).length, 2);
 });
 
 test('AI routes expose budget exhaustion as a bounded 429 response', () => {
