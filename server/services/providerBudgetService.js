@@ -28,11 +28,19 @@ function positiveLimit(value, fallback) {
 
 function limitsFor(provider) {
   const key = cleanProvider(provider);
-  if (key !== 'rainforest') return { daily: Infinity, monthly: Infinity };
-  return {
-    daily: positiveLimit(process.env.RAINFOREST_DAILY_REQUEST_LIMIT, 16),
-    monthly: positiveLimit(process.env.RAINFOREST_MONTHLY_REQUEST_LIMIT, 500),
-  };
+  if (key === 'rainforest') {
+    return {
+      daily: positiveLimit(process.env.RAINFOREST_DAILY_REQUEST_LIMIT, 16),
+      monthly: positiveLimit(process.env.RAINFOREST_MONTHLY_REQUEST_LIMIT, 500),
+    };
+  }
+  if (key === 'gemini') {
+    return {
+      daily: positiveLimit(process.env.GEMINI_DAILY_REQUEST_LIMIT, 200),
+      monthly: positiveLimit(process.env.GEMINI_MONTHLY_REQUEST_LIMIT, 5000),
+    };
+  }
+  return { daily: Infinity, monthly: Infinity };
 }
 
 function dayKey(date = new Date()) { return date.toISOString().slice(0, 10); }
