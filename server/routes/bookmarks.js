@@ -29,14 +29,19 @@ async function getClientIdentity(req) {
 }
 
 function rowToPublicDeal(r) {
+  const originalPrice = Number(r.original_price ?? 0);
+  const salePrice = Number(r.sale_price ?? 0);
+  const discountPercent = Number.isFinite(originalPrice) && Number.isFinite(salePrice) && originalPrice > 0 && salePrice > 0 && salePrice < originalPrice
+    ? Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1))
+    : 0;
   return {
     id: r.id,
     title: r.title,
     asin: r.asin,
     category: r.category,
-    originalPrice: Number(r.original_price ?? 0),
-    salePrice: Number(r.sale_price ?? 0),
-    discountPercent: Number(r.discount_percent ?? 0),
+    originalPrice,
+    salePrice,
+    discountPercent,
     imageUrl: r.image_url,
     productUrl: r.product_url,
     qualityScore: Number(r.quality_score ?? 0),
