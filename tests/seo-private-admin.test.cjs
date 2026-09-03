@@ -53,16 +53,18 @@ test('fresh deal metadata is factual and excludes ratings/reviews', () => {
   assert.equal(meta.jsonLd.offers.availability, 'https://schema.org/InStock');
 });
 
-test('stale deal metadata does not claim recent checking or current stock', () => {
+test('stale deal metadata contains no stale price or offer claim', () => {
   const nowMs = Date.UTC(2026, 7, 28, 9, 0, 0);
   const meta = seo.dealMeta('https://dealscout.example', {
     id: 'B0GGGQDY9H', asin: 'B0GGGQDY9H', title: 'TCL NXTPAPER Phone', original_price: 249.99,
     sale_price: 179.99, discount_percent: 28,
     price_check_at: Math.floor((nowMs - 96 * 3600000) / 1000),
   }, nowMs);
-  assert.match(meta.description, /may be stale/);
-  assert.doesNotMatch(meta.description, /Price checked recently/);
-  assert.equal(meta.jsonLd.offers.availability, undefined);
+  assert.match(meta.description, /waiting for a fresh price check/i);
+  assert.doesNotMatch(meta.title, /179\.99/);
+  assert.doesNotMatch(meta.description, /179\.99|28% off|save \$/i);
+  assert.equal(meta.jsonLd.offers, undefined);
+  assert.equal(meta.robots, 'noindex,follow');
 });
 
 test('public app no longer exposes general login/register or legacy admin operations', () => {

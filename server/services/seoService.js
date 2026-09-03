@@ -94,32 +94,48 @@ function categoryMeta(baseUrl, category) {
 }
 
 function dealMeta(baseUrl, deal, nowMs = Date.now()) {
+  const ageHours = priceCheckAgeHours(deal, nowMs);
+  const fresh = ageHours <= PUBLIC_PRICE_MAX_AGE_HOURS;
+  const canonical = `${baseUrl}/deal/${encodeURIComponent(deal.id || deal.asin)}`;
+  const image = deal.image_url || undefined;
+
+  if (!fresh) {
+    return {
+      title: `${deal.title} | DealScout`,
+      description: 'This deal is waiting for a fresh price check. Confirm the current price and availability on Amazon.',
+      canonical,
+      image,
+      robots: 'noindex,follow',
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'Product',
+        name: deal.title,
+        sku: deal.asin,
+        image,
+      },
+    };
+  }
+
   const savings = Math.max(0, Number(deal.original_price || 0) - Number(deal.sale_price || 0));
   const sale = Number(deal.sale_price || 0).toFixed(2);
   const title = `${deal.title} — $${sale} | DealScout`;
-  const ageHours = priceCheckAgeHours(deal, nowMs);
-  const fresh = ageHours <= PUBLIC_PRICE_MAX_AGE_HOURS;
-  const freshnessText = fresh
-    ? 'Price checked recently within DealScout’s 24-hour public freshness window; confirm final price and availability on Amazon.'
-    : 'Last observed price may be stale because it is outside DealScout’s 24-hour public freshness window; confirm the current price and availability on Amazon.';
-  const description = `${deal.discount_percent || 0}% off${savings > 0 ? `, save $${savings.toFixed(2)}` : ''}. ${freshnessText}`;
-  const canonical = `${baseUrl}/deal/${encodeURIComponent(deal.id || deal.asin)}`;
+  const description = `${deal.discount_percent || 0}% off${savings > 0 ? `, save $${savings.toFixed(2)}` : ''}. Price checked recently within DealScout’s 24-hour public freshness window; confirm final price and availability on Amazon.`;
   const offer = {
     '@type': 'Offer',
     url: canonical,
     priceCurrency: 'USD',
-    price: Number(deal.sale_price || 0).toFixed(2),
+    price: sale,
+    availability: 'https://schema.org/InStock',
   };
-  if (fresh) offer.availability = 'https://schema.org/InStock';
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: deal.title,
     sku: deal.asin,
-    image: deal.image_url || undefined,
+    image,
     offers: offer,
   };
-  return { title, description, canonical, image: deal.image_url || undefined, jsonLd, robots: fresh ? 'index,follow' : 'noindex,follow' };
+  return { title, description, canonical, image, jsonLd, robots: 'index,follow' };
 }
 
 module.exports = { siteBase, priceCheckAgeHours, buildSitemap, buildRobots, replaceMeta, homeMeta, categoryMeta, dealMeta };
