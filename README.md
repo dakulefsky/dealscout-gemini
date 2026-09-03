@@ -1,6 +1,6 @@
 # DealScout
 
-DealScout is an Amazon affiliate deals application focused on verified price drops, recent price checks, observed price history, and selective editorial picks.
+DealScout is an Amazon affiliate deals application focused on verified price drops, recent price checks, price alerts, and selective editorial picks.
 
 ## Current architecture
 
@@ -10,7 +10,7 @@ DealScout is an Amazon affiliate deals application focused on verified price dro
 - **Local fallback:** JSON-backed repositories for development
 - **Auth:** JWT + bcrypt; the shopper site does not expose a general login surface
 - **Deal sources:** Rainforest API and optional Amazon PA-API through a fail-closed provider router
-- **Price history:** real recorded observations, stored in PostgreSQL or the JSON fallback
+- **Price alerts:** verified price observations evaluate active alerts without retaining shopper price history
 - **Email:** SMTP via Nodemailer for verification/reset delivery
 
 The production container can serve the built frontend and API from the same Node process. A separately hosted frontend is also supported when `VITE_API_URL` is set at build time and the frontend origin is present in `CORS_ORIGINS`.
@@ -137,19 +137,19 @@ After the first successful admin login, remove `ADMIN_PASSWORD` from the deploym
 
 DealScout intentionally fails closed:
 
-- Public deals must be approved, source-verified, and not expired.
+- Public deals must be approved, source-verified, not expired, and have a valid positive discount price pair.
+- Shopper-visible price claims expire after 24 hours without a successful provider refresh.
 - Rainforest imports require a verifiable original/sale price pair.
 - Production does not fall back to the legacy scraper or curated demo provider.
-- Shopper-facing API responses omit legacy ratings, reviews, generated summaries, pros/cons, and raw source payloads.
+- Shopper-facing API responses omit legacy ratings, reviews, generated summaries, pros/cons, raw source payloads, and observed price history.
 - Product structured data does not include customer ratings or reviews.
-- `InStock` structured data is only emitted for very recently checked deals.
-- Deals whose successful price check is more than seven days old are omitted from the sitemap until refreshed.
+- Web, app, and WhatsApp Status share the same 24-hour public price freshness ceiling; WhatsApp applies additional quality/image/discount rules.
 
-## Price verification and history
+## Price verification and alerts
 
-The scheduler rotates verification oldest-first so the newest deals cannot monopolize the verification batch. A failed provider attempt advances queue position without pretending that `price_check_at` was refreshed.
+The scheduler runs discovery before single-ASIN verification so one bulk provider request can refresh many existing products before more expensive individual checks are spent. Verification rotates oldest successful price checks first and uses a bounded dynamic batch sized against the 24-hour public freshness target. Provider budget/cooldown conditions stop the remaining verification batch rather than burning requests.
 
-Successful observations are stored in the price-history service. Deal pages only show an observed price-history section when at least two real observations exist; no simulated history is presented to shoppers.
+Successful verified observations evaluate active price alerts. DealScout does not retain or expose shopper price-history curves.
 
 ## SEO endpoints
 
@@ -161,7 +161,7 @@ Production exposes:
 - Product JSON-LD without synthetic ratings/reviews
 - canonical URLs and deal Open Graph images when available
 
-Admin and API routes are excluded from crawling. Technical SEO can improve crawlability and eligibility, but it does not guarantee search ranking.
+Only deals that pass the shared public freshness policy are eligible for deal sitemap entries and price-bearing metadata. Admin and API routes are excluded from crawling. Technical SEO can improve crawlability and eligibility, but it does not guarantee search ranking.
 
 ## Amazon Associates disclosure
 
