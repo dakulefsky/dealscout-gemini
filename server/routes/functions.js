@@ -176,10 +176,50 @@ async function handleSiteStripeImportReq(req, res) {
 router.post('/import-sitestripe', requireAdmin, handleSiteStripeImportReq);
 router.post('/sitestripe-import', requireAdmin, handleSiteStripeImportReq);
 
-router.post('/verify-prices', requireAdmin, async (_req, res) => {
+router.post('/verify-prices', requireAdmin, async (req, res) => {
   try {
-    const result = await dealCron.checkDealPricesAndAvailability();
-    res.json({ success: true, ...result, lifecycle: await deals.lifecycleStats() });
+    const requestedLimit = Math.min(50, Math.max(1, Number(req.body?.limit) || 15));
+    const totals = {
+      checkedCount: 0,
+      expiredCount: 0,
+      deferredCount: 0,
+      itemFailureCount: 0,
+      providerDeferred: false,
+      providerDeferredReason: null,
+      providerRetryAt: null,
+      passes: 0,
+    };
+    let eligibleCount = 0;
+    let lastBatchSize = 0;
+
+    while (totals.checkedCount < requestedLimit) {
+      const result = await dealCron.checkDealPricesAndAvailability();
+      totals.passes += 1;
+      totals.checkedCount += Number(result?.checkedCount || 0);
+      totals.expiredCount += Number(result?.expiredCount || 0);
+      totals.deferredCount += Number(result?.deferredCount || 0);
+      totals.itemFailureCount += Number(result?.itemFailureCount || 0);
+      eligibleCount = Math.max(eligibleCount, Number(result?.eligibleCount || 0));
+      lastBatchSize = Number(result?.batchSize || lastBatchSize || 0);
+
+      if (result?.providerDeferred) {
+        totals.providerDeferred = true;
+        totals.providerDeferredReason = result.providerDeferredReason || null;
+        totals.providerRetryAt = result.providerRetryAt || null;
+        break;
+      }
+      if (result?.skipped || Number(result?.checkedCount || 0) === 0) break;
+      if (totals.passes >= 10) break;
+    }
+
+    res.json({
+      success: true,
+      requestedLimit,
+      ...totals,
+      eligibleCount,
+      batchSize: lastBatchSize,
+      lifecycle: await deals.lifecycleStats(),
+    });
   } catch (err) {
     return providerErrorResponse(res, err, 'Price verification failed.');
   }
