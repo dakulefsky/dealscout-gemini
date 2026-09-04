@@ -28,7 +28,8 @@ test('notification device API validates Expo tokens and platform before persiste
   assert.match(route, /new Set\(\['ios', 'android'\]\)/);
   assert.match(route, /router\.post\('\/devices'/);
   assert.match(route, /pushDevices\.upsertDevice/);
-  assert.match(route, /router\.delete\('\/devices'/);
+  assert.match(route, /router\.delete\('\/devices\/:token'/);
+  assert.match(route, /req\.params\?\.token/);
   assert.match(route, /pushDevices\.disableDevice/);
   assert.match(shopperApi, /router\.use\('\/notifications', require\('\.\/notifications'\)\)/);
 });
