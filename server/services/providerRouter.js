@@ -92,8 +92,34 @@ function cachedRainforestProduct(asin, nowMs = Date.now()) {
   return rainforestBulkCache.get(String(asin || '').trim().toUpperCase()) || null;
 }
 
+async function applyRainforestBulkRefreshes(existingDeals, verifiedItems, verifiedAt = Math.floor(Date.now() / 1000)) {
+  const existingByAsin = new Map((existingDeals || [])
+    .filter((deal) => deal?.asin && deal?.id)
+    .map((deal) => [String(deal.asin).trim().toUpperCase(), deal]));
+  let refreshedCount = 0;
+
+  for (const item of verifiedItems || []) {
+    const normalized = normalizeVerifiedProduct(item, 'RAINFOREST');
+    const existing = normalized ? existingByAsin.get(normalized.asin) : null;
+    if (!existing) continue;
+    await deals.update(existing.id, {
+      sale_price: normalized.salePrice,
+      original_price: normalized.originalPrice,
+      discount_percent: normalized.discountPercent,
+      price_check_at: verifiedAt,
+      last_verify_attempt_at: verifiedAt,
+      source_verified: 1,
+      source_sufficient: 1,
+      source_provider: 'RAINFOREST',
+    });
+    refreshedCount += 1;
+  }
+
+  return refreshedCount;
+}
+
 async function warmRainforestVerificationCache(options = {}) {
-  if (rainforestBulkCacheAt && Date.now() - rainforestBulkCacheAt <= RAINFOREST_BULK_CACHE_TTL_MS) return rainforestBulkCache.size;
+  if (rainforestBulkCacheAt && Date.now() - rainforestBulkCacheAt <= RAINFOREST_BULK_CACHE_TTL_MS) return { cachedCount: rainforestBulkCache.size, refreshedCount: 0 };
   const existing = await deals.listAll();
   const refreshExistingAsins = existing.map((deal) => deal.asin).filter(Boolean);
   const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals({
@@ -102,8 +128,10 @@ async function warmRainforestVerificationCache(options = {}) {
     minDiscount: 0,
     refreshExistingAsins,
   }));
-  cacheRainforestBulkResults(result || []);
-  return rainforestBulkCache.size;
+  const verified = (result || []).map((item) => normalizeVerifiedProduct(item, 'RAINFOREST')).filter(Boolean);
+  cacheRainforestBulkResults(verified);
+  const refreshedCount = await applyRainforestBulkRefreshes(existing, verified);
+  return { cachedCount: rainforestBulkCache.size, refreshedCount };
 }
 
 async function paapiProduct(cleanAsin, options) {
@@ -214,6 +242,7 @@ module.exports = {
   rethrowProviderStop,
   cacheRainforestBulkResults,
   cachedRainforestProduct,
+  applyRainforestBulkRefreshes,
   warmRainforestVerificationCache,
   RAINFOREST_BULK_CACHE_TTL_MS,
 };
