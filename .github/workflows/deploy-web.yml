@@ -1,0 +1,144 @@
+name: Deploy Web
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_smoke:
+        description: Run the public release smoke test after deployment
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-web-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      GCP_WEB_SERVICE: ${{ vars.GCP_WEB_SERVICE }}
+      GCP_IMAGE_REPOSITORY: ${{ vars.GCP_IMAGE_REPOSITORY }}
+      GCP_RUNTIME_SERVICE_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+      CLOUD_SQL_CONNECTION_NAME: ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
+      PUBLIC_WEB_URL: ${{ vars.PUBLIC_WEB_URL }}
+      CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
+      AMAZON_ASSOCIATE_TAG: ${{ vars.AMAZON_ASSOCIATE_TAG }}
+      DEAL_DATA_PROVIDER: ${{ vars.DEAL_DATA_PROVIDER }}
+      RAINFOREST_DOMAIN: ${{ vars.RAINFOREST_DOMAIN }}
+      RAINFOREST_DAILY_REQUEST_LIMIT: ${{ vars.RAINFOREST_DAILY_REQUEST_LIMIT }}
+      RAINFOREST_MONTHLY_REQUEST_LIMIT: ${{ vars.RAINFOREST_MONTHLY_REQUEST_LIMIT }}
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+      GEMINI_DAILY_REQUEST_LIMIT: ${{ vars.GEMINI_DAILY_REQUEST_LIMIT }}
+      GEMINI_MONTHLY_REQUEST_LIMIT: ${{ vars.GEMINI_MONTHLY_REQUEST_LIMIT }}
+      GCP_DB_SECRETS: ${{ vars.GCP_DB_SECRETS }}
+      GCP_WEB_SECRETS: ${{ vars.GCP_WEB_SECRETS }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            GCP_PROJECT_ID GCP_REGION GCP_WEB_SERVICE GCP_IMAGE_REPOSITORY
+            CLOUD_SQL_CONNECTION_NAME PUBLIC_WEB_URL CORS_ORIGINS
+            AMAZON_ASSOCIATE_TAG GCP_DB_SECRETS GCP_WEB_SECRETS
+          )
+          for key in "${required[@]}"; do
+            if [ -z "${!key:-}" ]; then
+              echo "Missing required production repository variable: ${key}" >&2
+              exit 1
+            fi
+          done
+          case "$PUBLIC_WEB_URL" in https://*) ;; *) echo "PUBLIC_WEB_URL must use https://" >&2; exit 1 ;; esac
+
+      - name: Run release quality gate
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+          npm test
+          npm run build
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Build immutable production image
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="${GCP_IMAGE_REPOSITORY}:${GITHUB_SHA}"
+          echo "GCP_IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          gcloud builds submit \
+            --project "$GCP_PROJECT_ID" \
+            --tag "$IMAGE" \
+            .
+
+      - name: Deploy Cloud Run web/API revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROVIDER="${DEAL_DATA_PROVIDER:-auto}"
+          ENV_VARS="^|^NODE_ENV=production|PUBLIC_WEB_URL=${PUBLIC_WEB_URL}|CORS_ORIGINS=${CORS_ORIGINS}|CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME}|AMAZON_ASSOCIATE_TAG=${AMAZON_ASSOCIATE_TAG}|DEAL_DATA_PROVIDER=${PROVIDER}"
+          [ -n "${RAINFOREST_DOMAIN:-}" ] && ENV_VARS+="|RAINFOREST_DOMAIN=${RAINFOREST_DOMAIN}"
+          [ -n "${RAINFOREST_DAILY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|RAINFOREST_DAILY_REQUEST_LIMIT=${RAINFOREST_DAILY_REQUEST_LIMIT}"
+          [ -n "${RAINFOREST_MONTHLY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|RAINFOREST_MONTHLY_REQUEST_LIMIT=${RAINFOREST_MONTHLY_REQUEST_LIMIT}"
+          [ -n "${GEMINI_MODEL:-}" ] && ENV_VARS+="|GEMINI_MODEL=${GEMINI_MODEL}"
+          [ -n "${GEMINI_DAILY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|GEMINI_DAILY_REQUEST_LIMIT=${GEMINI_DAILY_REQUEST_LIMIT}"
+          [ -n "${GEMINI_MONTHLY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|GEMINI_MONTHLY_REQUEST_LIMIT=${GEMINI_MONTHLY_REQUEST_LIMIT}"
+
+          ARGS=(
+            run deploy "$GCP_WEB_SERVICE"
+            --project "$GCP_PROJECT_ID"
+            --region "$GCP_REGION"
+            --image "$GCP_IMAGE"
+            --platform managed
+            --allow-unauthenticated
+            --set-cloudsql-instances "$CLOUD_SQL_CONNECTION_NAME"
+            --set-env-vars "$ENV_VARS"
+            --set-secrets "${GCP_DB_SECRETS},${GCP_WEB_SECRETS}"
+            --quiet
+          )
+          if [ -n "${GCP_RUNTIME_SERVICE_ACCOUNT:-}" ]; then
+            ARGS+=(--service-account "$GCP_RUNTIME_SERVICE_ACCOUNT")
+          fi
+          gcloud "${ARGS[@]}"
+
+      - name: Verify deployed revision
+        if: ${{ inputs.run_smoke }}
+        env:
+          DEALSCOUT_SMOKE_URL: ${{ vars.PUBLIC_WEB_URL }}
+        run: npm run smoke:release
+
+      - name: Deployment summary
+        shell: bash
+        run: |
+          {
+            echo "### DealScout web deployment"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Image: \`${GCP_IMAGE}\`"
+            echo "- Service: \`${GCP_WEB_SERVICE}\`"
+            echo "- Region: \`${GCP_REGION}\`"
+            echo "- Public URL: ${PUBLIC_WEB_URL}"
+          } >> "$GITHUB_STEP_SUMMARY"
