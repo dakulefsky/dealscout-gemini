@@ -6,6 +6,44 @@ function dealId(deal) {
   return String(deal?.id || deal?.asin || '').trim();
 }
 
+function categoryKey(deal) {
+  return String(deal?.category || 'other').trim().toLowerCase();
+}
+
+function titleTokens(deal) {
+  return new Set(String(deal?.title || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 4 && !['with', 'from', 'pack', 'size', 'amazon'].includes(token)));
+}
+
+function looksLikeSameProductFamily(left, right) {
+  const a = titleTokens(left);
+  const b = titleTokens(right);
+  if (!a.size || !b.size) return false;
+  let overlap = 0;
+  for (const token of a) if (b.has(token)) overlap += 1;
+  return overlap >= 2 && overlap / Math.min(a.size, b.size) >= 0.5;
+}
+
+function diverseOrder(deals, limit) {
+  const source = [...(deals || [])];
+  const picked = [];
+  const categoryCounts = new Map();
+  while (source.length && picked.length < limit) {
+    let index = source.findIndex((deal) => (categoryCounts.get(categoryKey(deal)) || 0) === 0
+      && !picked.some((chosen) => looksLikeSameProductFamily(chosen, deal)));
+    if (index < 0) index = source.findIndex((deal) => !picked.some((chosen) => looksLikeSameProductFamily(chosen, deal)));
+    if (index < 0) index = 0;
+    const [deal] = source.splice(index, 1);
+    picked.push(deal);
+    const key = categoryKey(deal);
+    categoryCounts.set(key, (categoryCounts.get(key) || 0) + 1);
+  }
+  return picked;
+}
+
 export function loadSeenDealDrop(now = Date.now()) {
   if (typeof window === 'undefined') return {};
   try {
@@ -46,7 +84,7 @@ export function freshDealDrop(deals, seen = {}, limit = 8, lookahead = QUALITY_L
     if (seen[dealId(deal)]) recentlySeen.push(deal);
     else unseen.push(deal);
   }
-  return [...unseen, ...recentlySeen].slice(0, safeLimit);
+  return diverseOrder([...unseen, ...recentlySeen], safeLimit);
 }
 
-export { SEEN_KEY, SEEN_TTL_MS, QUALITY_LOOKAHEAD };
+export { SEEN_KEY, SEEN_TTL_MS, QUALITY_LOOKAHEAD, looksLikeSameProductFamily };
