@@ -1,5 +1,6 @@
 const db = require('../db');
 const postgres = require('../storage/postgres');
+const { isPublicDeal, freshPriceThreshold } = require('../services/publicDealPolicy');
 
 let schemaReady = false;
 
@@ -53,19 +54,63 @@ function localCategories() {
   return CANONICAL_CATEGORIES.map((category) => ({ ...category, created_at: createdAt }));
 }
 
-async function list({ slug } = {}) {
+function sortWithInventory(rows, activeOnly) {
+  return rows.sort((a, b) => {
+    if (activeOnly) {
+      const countDiff = Number(b.liveCount || 0) - Number(a.liveCount || 0);
+      if (countDiff) return countDiff;
+    }
+    return String(a.name).localeCompare(String(b.name));
+  });
+}
+
+async function list({ slug, activeOnly = false } = {}) {
   if (!postgres.isConfigured()) {
-    let rows = localCategories();
+    const counts = new Map();
+    for (const deal of db.tables.deals || []) {
+      if (!isPublicDeal(deal)) continue;
+      const key = String(deal.category || '').trim().toLowerCase();
+      if (key) counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    let rows = localCategories().map((category) => ({
+      ...category,
+      liveCount: counts.get(String(category.name).toLowerCase()) || 0,
+    }));
     if (slug) rows = rows.filter((c) => c.slug === slug);
-    return rows.sort((a, b) => String(a.name).localeCompare(String(b.name))).map((c) => ({ ...c }));
+    if (activeOnly) rows = rows.filter((c) => c.liveCount > 0);
+    return sortWithInventory(rows, activeOnly).map((c) => ({ ...c }));
   }
+
   await ensureSchema();
-  if (slug) {
-    const result = await postgres.query('SELECT * FROM categories WHERE slug = $1 ORDER BY name ASC', [slug]);
-    return result.rows;
-  }
-  const result = await postgres.query('SELECT * FROM categories ORDER BY name ASC');
-  return result.rows;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const params = [freshPriceThreshold(nowSeconds), nowSeconds];
+  const where = [];
+  if (slug) where.push(`c.slug = $${params.push(slug)}`);
+  const having = activeOnly ? 'HAVING COUNT(d.id) > 0' : '';
+  const order = activeOnly ? 'live_count DESC, c.name ASC' : 'c.name ASC';
+  const result = await postgres.query(`
+    SELECT c.*, COUNT(d.id)::int AS live_count
+      FROM categories c
+      LEFT JOIN deals d
+        ON LOWER(COALESCE(d.category, '')) = LOWER(c.name)
+       AND d.status = 'APPROVED'
+       AND d.is_expired <> 1
+       AND d.source_verified = 1
+       AND d.original_price > 0
+       AND d.sale_price > 0
+       AND d.sale_price < d.original_price
+       AND d.price_check_at IS NOT NULL
+       AND d.price_check_at >= $1
+       AND d.price_check_at <= $2
+     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+     GROUP BY c.id, c.name, c.slug, c.description, c.created_at
+     ${having}
+     ORDER BY ${order}
+  `, params);
+  return result.rows.map((row) => {
+    const { live_count: liveCount, ...category } = row;
+    return { ...category, liveCount: Number(liveCount || 0) };
+  });
 }
 
 async function getById(id) {

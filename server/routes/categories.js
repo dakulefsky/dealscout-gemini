@@ -10,7 +10,10 @@ function normalizeSlug(value) {
 
 router.get('/', async (req, res) => {
   try {
-    res.json(await categories.list({ slug: req.query.slug }));
+    res.json(await categories.list({
+      slug: req.query.slug,
+      activeOnly: req.query.activeOnly === '1' || req.query.activeOnly === 'true',
+    }));
   } catch (err) {
     console.error('[categories] list failed:', err.message);
     res.status(503).json({ error: 'Categories are temporarily unavailable' });
