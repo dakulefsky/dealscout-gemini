@@ -7,6 +7,9 @@ const { usageStatus } = require('./providerBudgetService');
 
 const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
 const PROVIDER_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
+const RAINFOREST_BULK_CACHE_TTL_MS = 5 * 60 * 1000;
+const rainforestBulkCache = new Map();
+let rainforestBulkCacheAt = 0;
 
 function getConfiguredProvider() {
   const configured = String(process.env.DEAL_DATA_PROVIDER || 'auto').trim().toLowerCase();
@@ -75,6 +78,62 @@ function normalizeVerifiedProduct(product, provider) {
   };
 }
 
+function cacheRainforestBulkResults(items, nowMs = Date.now()) {
+  rainforestBulkCache.clear();
+  for (const item of items || []) {
+    const normalized = normalizeVerifiedProduct(item, 'RAINFOREST');
+    if (normalized?.asin) rainforestBulkCache.set(normalized.asin, normalized);
+  }
+  rainforestBulkCacheAt = Number(nowMs);
+}
+
+function cachedRainforestProduct(asin, nowMs = Date.now()) {
+  if (!rainforestBulkCacheAt || Number(nowMs) - rainforestBulkCacheAt > RAINFOREST_BULK_CACHE_TTL_MS) return null;
+  return rainforestBulkCache.get(String(asin || '').trim().toUpperCase()) || null;
+}
+
+async function applyRainforestBulkRefreshes(existingDeals, verifiedItems, verifiedAt = Math.floor(Date.now() / 1000)) {
+  const existingByAsin = new Map((existingDeals || [])
+    .filter((deal) => deal?.asin && deal?.id)
+    .map((deal) => [String(deal.asin).trim().toUpperCase(), deal]));
+  let refreshedCount = 0;
+
+  for (const item of verifiedItems || []) {
+    const normalized = normalizeVerifiedProduct(item, 'RAINFOREST');
+    const existing = normalized ? existingByAsin.get(normalized.asin) : null;
+    if (!existing) continue;
+    await deals.update(existing.id, {
+      sale_price: normalized.salePrice,
+      original_price: normalized.originalPrice,
+      discount_percent: normalized.discountPercent,
+      price_check_at: verifiedAt,
+      last_verify_attempt_at: verifiedAt,
+      source_verified: 1,
+      source_sufficient: 1,
+      source_provider: 'RAINFOREST',
+    });
+    refreshedCount += 1;
+  }
+
+  return refreshedCount;
+}
+
+async function warmRainforestVerificationCache(options = {}) {
+  if (rainforestBulkCacheAt && Date.now() - rainforestBulkCacheAt <= RAINFOREST_BULK_CACHE_TTL_MS) return { cachedCount: rainforestBulkCache.size, refreshedCount: 0 };
+  const existing = await deals.listAll();
+  const refreshExistingAsins = existing.map((deal) => deal.asin).filter(Boolean);
+  const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals({
+    amazonDomain: options.amazonDomain || 'amazon.com',
+    maxResults: 1,
+    minDiscount: 0,
+    refreshExistingAsins,
+  }));
+  const verified = (result || []).map((item) => normalizeVerifiedProduct(item, 'RAINFOREST')).filter(Boolean);
+  cacheRainforestBulkResults(verified);
+  const refreshedCount = await applyRainforestBulkRefreshes(existing, verified);
+  return { cachedCount: rainforestBulkCache.size, refreshedCount };
+}
+
 async function paapiProduct(cleanAsin, options) {
   return runProviderCall('amazon_paapi', async () => {
     const items = await strictGetItems([cleanAsin], { allowNonDeal: options.allowNonDeal === true });
@@ -109,7 +168,19 @@ async function fetchProductByAsin(asin, options = {}) {
 
   if (status.effectiveProvider === 'rainforest' || (configuredProvider === 'auto' && status.rainforest.isConfigured)) {
     try {
-      const verified = await rainforestProduct(cleanAsin, options);
+      let verified = cachedRainforestProduct(cleanAsin);
+      if (!verified && options.allowNonDeal === true) {
+        try {
+          await warmRainforestVerificationCache(options);
+          verified = cachedRainforestProduct(cleanAsin);
+        } catch (bulkError) {
+          rethrowProviderStop(bulkError);
+          console.warn('[ProviderRouter Rainforest bulk verification notice]:', bulkError.message);
+        }
+      }
+      if (verified) return verified;
+
+      verified = await rainforestProduct(cleanAsin, options);
       if (verified) return verified;
       if (configuredProvider === 'rainforest') {
         console.warn(`[ProviderRouter Rainforest notice for ${cleanAsin}]: Rainforest returned product data but no verifiable original/sale price pair.`);
@@ -149,6 +220,7 @@ async function fetchDealsList(options = {}) {
       const refreshExistingAsins = existing.map((deal) => deal.asin).filter(Boolean);
       const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals({ ...options, refreshExistingAsins }));
       const verified = (result || []).map((item) => normalizeVerifiedProduct(item, 'RAINFOREST')).filter(Boolean);
+      cacheRainforestBulkResults(verified);
       if (verified.length) return verified;
       if (configuredProvider === 'rainforest') return [];
     } catch (err) {
@@ -162,4 +234,15 @@ async function fetchDealsList(options = {}) {
   return [];
 }
 
-module.exports = { getConfiguredProvider, getProviderStatus, fetchProductByAsin, fetchDealsList, rethrowProviderStop };
+module.exports = {
+  getConfiguredProvider,
+  getProviderStatus,
+  fetchProductByAsin,
+  fetchDealsList,
+  rethrowProviderStop,
+  cacheRainforestBulkResults,
+  cachedRainforestProduct,
+  applyRainforestBulkRefreshes,
+  warmRainforestVerificationCache,
+  RAINFOREST_BULK_CACHE_TTL_MS,
+};
