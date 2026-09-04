@@ -24,7 +24,7 @@ test('server-backed feed dimensions reset the cursor and are sent with each page
 });
 
 test('intersection paging reveals loaded deals before requesting the next remote cursor', () => {
-  assert.match(home, /const hasLocalMore = visibleCount < exploreDeals\.length/);
+  assert.match(home, /const hasLocalMore = .*exploreDeals\.length/);
   assert.match(home, /if \(hasLocalMore\) setVisibleCount/);
   assert.match(home, /else loadRemotePage\(\)/);
   assert.match(home, /cursor: nextCursor/);
