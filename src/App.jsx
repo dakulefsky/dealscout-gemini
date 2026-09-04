@@ -17,6 +17,7 @@ const Support = lazy(() => import('@/pages/Support'));
 const Login = lazy(() => import('@/pages/Login'));
 const ResetPassword = lazy(() => import('@/pages/ResetPassword'));
 const AdminHome = lazy(() => import('@/pages/AdminHome'));
+const AddDeal = lazy(() => import('@/pages/AddDeal'));
 const EditorialReview = lazy(() => import('@/pages/EditorialReview'));
 
 function RouteFallback() {
@@ -57,6 +58,7 @@ export default function App() {
                   <Route path="/admin/access" element={<Login />} />
                   <Route path="/admin/reset-password" element={<ResetPassword />} />
                   <Route path="/admin" element={<ProtectedRoute adminOnly><AdminHome /></ProtectedRoute>} />
+                  <Route path="/admin/add-deal" element={<ProtectedRoute adminOnly><AddDeal /></ProtectedRoute>} />
                   <Route path="/admin/editorial" element={<ProtectedRoute adminOnly><EditorialReview /></ProtectedRoute>} />
                   <Route path="/admin/operations" element={<Navigate to="/admin" replace />} />
 
