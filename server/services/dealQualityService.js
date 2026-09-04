@@ -12,20 +12,25 @@ function scoreVerifiedDeal(item = {}) {
   if (/out of stock|unavailable/.test(availability)) return { score: 0, decision: 'REJECT', reasons: ['unavailable'] };
 
   const discount = ((original - sale) / original) * 100;
-  if (discount < 15) return { score: 0, decision: 'REJECT', reasons: ['discount below 15%'] };
+  if (discount < 12) return { score: 0, decision: 'REJECT', reasons: ['discount below 12%'] };
 
   let score = 45;
   const reasons = ['verified live pricing'];
   if (discount >= 40) { score += 25; reasons.push('40%+ discount'); }
   else if (discount >= 30) { score += 20; reasons.push('30%+ discount'); }
   else if (discount >= 20) { score += 14; reasons.push('20%+ discount'); }
-  else { score += 8; reasons.push('15%+ discount'); }
+  else if (discount >= 15) { score += 8; reasons.push('15%+ discount'); }
+  else { score += 4; reasons.push('12%+ discount'); }
 
   if (hasImage) { score += 5; reasons.push('product image'); }
   if (item.isPrime === true || item.is_prime === true) { score += 3; reasons.push('Prime'); }
   if (item.dealBadge || item.deal_badge) { score += 5; reasons.push('Amazon deal badge'); }
   score = Math.max(0, Math.min(100, Math.round(score)));
 
+  if (discount < 15) {
+    reasons.push('modest discount requires review');
+    return { score, decision: 'PENDING_REVIEW', reasons };
+  }
   if (discount >= 80) {
     reasons.push('extreme discount requires review');
     return { score, decision: 'PENDING_REVIEW', reasons };
