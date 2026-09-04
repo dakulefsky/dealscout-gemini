@@ -16,6 +16,14 @@ test('Rainforest verification warms one short-lived bulk cache before single-ASI
   assert.match(source, /verified = await rainforestProduct\(cleanAsin, options\)/);
 });
 
+test('bulk verification immediately refreshes every existing ASIN observed in the paid response', () => {
+  assert.match(source, /async function applyRainforestBulkRefreshes/);
+  assert.match(source, /await deals\.update\(existing\.id, \{/);
+  assert.match(source, /price_check_at: verifiedAt/);
+  assert.match(source, /last_verify_attempt_at: verifiedAt/);
+  assert.match(source, /const refreshedCount = await applyRainforestBulkRefreshes\(existing, verified\)/);
+});
+
 test('normal Rainforest discovery seeds the same cache for later verification', () => {
   assert.match(source, /cacheRainforestBulkResults\(verified\);/);
   assert.match(source, /function cachedRainforestProduct/);
