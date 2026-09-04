@@ -122,6 +122,7 @@ async function fetchProductByAsin(asin, options = {}) {
     }
   }
 
+  // Fail closed. Never fall back to legacy scraper, curated, or synthetic metadata.
   return null;
 }
 
@@ -157,6 +158,7 @@ async function fetchDealsList(options = {}) {
     }
   }
 
+  // Fail closed. Never fall back to legacy scraper, curated, or synthetic metadata.
   return [];
 }
 
