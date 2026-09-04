@@ -52,8 +52,8 @@ router.post('/devices', async (req, res) => {
   }
 });
 
-router.delete('/devices', async (req, res) => {
-  const token = String(req.body?.token || '').trim();
+router.delete('/devices/:token', async (req, res) => {
+  const token = String(req.params?.token || '').trim();
   if (!EXPO_TOKEN_RE.test(token)) return res.status(400).json({ error: 'A valid Expo push token is required' });
   try {
     const disabled = await pushDevices.disableDevice(req.clientIdentity.id, token);
