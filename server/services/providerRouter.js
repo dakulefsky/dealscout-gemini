@@ -1,3 +1,4 @@
+const deals = require('../repositories/dealRepository');
 const { strictGetItems, strictSearchItems, getPaapiConfig } = require('./amazonPaapiStrictAdapter');
 const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
@@ -121,7 +122,6 @@ async function fetchProductByAsin(asin, options = {}) {
     }
   }
 
-  // Fail closed. Never fall back to legacy scraper, curated, or synthetic metadata.
   return null;
 }
 
@@ -144,7 +144,9 @@ async function fetchDealsList(options = {}) {
 
   if (status.effectiveProvider === 'rainforest' || (configuredProvider === 'auto' && status.rainforest.isConfigured)) {
     try {
-      const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals(options));
+      const existing = await deals.listAll();
+      const refreshExistingAsins = existing.map((deal) => deal.asin).filter(Boolean);
+      const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals({ ...options, refreshExistingAsins }));
       const verified = (result || []).map((item) => normalizeVerifiedProduct(item, 'RAINFOREST')).filter(Boolean);
       if (verified.length) return verified;
       if (configuredProvider === 'rainforest') return [];
@@ -155,7 +157,6 @@ async function fetchDealsList(options = {}) {
     }
   }
 
-  // Fail closed. Never fall back to legacy scraper, curated, or synthetic metadata.
   return [];
 }
 
