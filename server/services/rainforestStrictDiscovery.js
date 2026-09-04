@@ -3,6 +3,8 @@ const { imageCandidates } = require('./rainforestImage');
 const { classifyCategory, normalizeCategory } = require('./categoryClassifier');
 
 const ENDPOINT = 'https://api.rainforestapi.com/request';
+const SINGLE_PAGE_NEW_DEAL_FLOOR = 25;
+const REVIEWABLE_DISCOUNT_FLOOR = 12;
 
 function moneyValue(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -137,14 +139,27 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
   const data = response.data || {};
   if (data.request_info?.success === false) throw new Error(data.request_info.message || 'Rainforest deals request failed');
 
+  // Keep this to one paid deals page. Broaden only what we retain from that already-paid response.
+  const effectiveMaxResults = Math.max(SINGLE_PAGE_NEW_DEAL_FLOOR, Number(maxResults) || 0);
+  const effectiveMinDiscount = Math.min(REVIEWABLE_DISCOUNT_FLOOR, Math.max(0, Number(minDiscount) || 0));
   const items = Array.isArray(data.deals_results) ? data.deals_results : (Array.isArray(data.deals) ? data.deals : []);
   const normalized = items
     .map(normalizeDeal)
     .filter(Boolean)
     .filter((deal) => !isUnavailableDeal(deal))
-    .filter((deal) => deal.discountPercent >= minDiscount);
+    .filter((deal) => deal.discountPercent >= effectiveMinDiscount);
   const ranked = dedupeDeals(normalized).sort((a, b) => b.discountPercent - a.discountPercent || b.savingsAmount - a.savingsAmount);
-  return selectDealsForIngestion(ranked, maxResults, refreshExistingAsins);
+  return selectDealsForIngestion(ranked, effectiveMaxResults, refreshExistingAsins);
 }
 
-module.exports = { fetchStrictRainforestDeals, normalizeDeal, normalizeCategory, dedupeDeals, selectBalancedDeals, selectDealsForIngestion, isUnavailableDeal };
+module.exports = {
+  fetchStrictRainforestDeals,
+  normalizeDeal,
+  normalizeCategory,
+  dedupeDeals,
+  selectBalancedDeals,
+  selectDealsForIngestion,
+  isUnavailableDeal,
+  SINGLE_PAGE_NEW_DEAL_FLOOR,
+  REVIEWABLE_DISCOUNT_FLOOR,
+};
