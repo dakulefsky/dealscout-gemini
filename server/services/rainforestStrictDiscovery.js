@@ -84,11 +84,6 @@ function dedupeDeals(items) {
 function selectBalancedDeals(rankedDeals = [], maxResults = 15) {
   const limit = Math.max(1, Number.parseInt(maxResults, 10) || 15);
   if (rankedDeals.length <= limit) return rankedDeals.slice(0, limit);
-
-  // Keep the one paid discovery pull broad enough to seed multiple shopper
-  // categories without making extra category-specific provider requests. This is
-  // a soft cap: a second pass fills every remaining slot with the next strongest
-  // deals when the provider feed itself is concentrated in only a few categories.
   const maxPerCategory = Math.max(2, Math.ceil(limit / 4));
   const counts = new Map();
   const selected = [];
@@ -116,7 +111,16 @@ function selectBalancedDeals(rankedDeals = [], maxResults = 15) {
   return selected;
 }
 
-async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealType = null, categoryId = null, maxResults = 15, minDiscount = 10 } = {}) {
+function selectDealsForIngestion(rankedDeals = [], maxNewResults = 15, refreshExistingAsins = []) {
+  const existingSet = new Set((refreshExistingAsins || []).map((asin) => String(asin || '').trim().toUpperCase()).filter(Boolean));
+  const refreshMatches = rankedDeals.filter((deal) => existingSet.has(deal.asin));
+  const refreshIds = new Set(refreshMatches.map((deal) => deal.asin));
+  const newCandidates = rankedDeals.filter((deal) => !refreshIds.has(deal.asin));
+  const selectedNew = selectBalancedDeals(newCandidates, maxNewResults);
+  return [...refreshMatches, ...selectedNew];
+}
+
+async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealType = null, categoryId = null, maxResults = 15, minDiscount = 10, refreshExistingAsins = [] } = {}) {
   const apiKey = process.env.RAINFOREST_API_KEY;
   if (!apiKey) throw new Error('RAINFOREST_API_KEY is not configured');
 
@@ -140,7 +144,7 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
     .filter((deal) => !isUnavailableDeal(deal))
     .filter((deal) => deal.discountPercent >= minDiscount);
   const ranked = dedupeDeals(normalized).sort((a, b) => b.discountPercent - a.discountPercent || b.savingsAmount - a.savingsAmount);
-  return selectBalancedDeals(ranked, maxResults);
+  return selectDealsForIngestion(ranked, maxResults, refreshExistingAsins);
 }
 
-module.exports = { fetchStrictRainforestDeals, normalizeDeal, normalizeCategory, dedupeDeals, selectBalancedDeals, isUnavailableDeal };
+module.exports = { fetchStrictRainforestDeals, normalizeDeal, normalizeCategory, dedupeDeals, selectBalancedDeals, selectDealsForIngestion, isUnavailableDeal };
