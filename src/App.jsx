@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/lib/AuthContext';
 import { BookmarksProvider } from '@/lib/BookmarksContext';
 import Layout from '@/components/Layout';
@@ -38,6 +38,21 @@ function LegacyResetRedirect() {
   return <Navigate to={`/admin/reset-password${location.search}`} replace />;
 }
 
+function AdminDashboard() {
+  return (
+    <>
+      <AdminHome />
+      <Link
+        to="/admin/add-deal"
+        className="fixed right-5 bottom-5 z-40 inline-flex items-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-xl shadow-emerald-900/20 transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+        aria-label="Add a deal"
+      >
+        <span className="text-lg leading-none">+</span> Add deal
+      </Link>
+    </>
+  );
+}
+
 export default function App() {
   return (
     <AppErrorBoundary>
@@ -57,7 +72,7 @@ export default function App() {
 
                   <Route path="/admin/access" element={<Login />} />
                   <Route path="/admin/reset-password" element={<ResetPassword />} />
-                  <Route path="/admin" element={<ProtectedRoute adminOnly><AdminHome /></ProtectedRoute>} />
+                  <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
                   <Route path="/admin/add-deal" element={<ProtectedRoute adminOnly><AddDeal /></ProtectedRoute>} />
                   <Route path="/admin/editorial" element={<ProtectedRoute adminOnly><EditorialReview /></ProtectedRoute>} />
                   <Route path="/admin/operations" element={<Navigate to="/admin" replace />} />
