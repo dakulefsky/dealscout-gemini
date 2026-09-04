@@ -85,14 +85,27 @@ function dedupeDeals(items) {
 
 function selectBalancedDeals(rankedDeals = [], maxResults = 15) {
   const limit = Math.max(1, Number.parseInt(maxResults, 10) || 15);
-  if (rankedDeals.length <= limit) return rankedDeals.slice(0, limit);
   const maxPerCategory = Math.max(2, Math.ceil(limit / 4));
   const counts = new Map();
   const selected = [];
   const selectedAsins = new Set();
 
+  // First give each represented category one strong slot. This keeps the top of
+  // a single paid response from looking like one repeated product aisle.
   for (const deal of rankedDeals) {
     if (selected.length >= limit) break;
+    const category = normalizeCategory(deal.category) || 'Other';
+    if (counts.has(category)) continue;
+    selected.push(deal);
+    selectedAsins.add(deal.asin);
+    counts.set(category, 1);
+  }
+
+  // Then add more strong deals while keeping one category from consuming the
+  // useful part of the response before other categories get represented.
+  for (const deal of rankedDeals) {
+    if (selected.length >= limit) break;
+    if (selectedAsins.has(deal.asin)) continue;
     const category = normalizeCategory(deal.category) || 'Other';
     const count = counts.get(category) || 0;
     if (count >= maxPerCategory) continue;
@@ -101,7 +114,9 @@ function selectBalancedDeals(rankedDeals = [], maxResults = 15) {
     counts.set(category, count + 1);
   }
 
-  if (selected.length < limit) {
+  // Balancing is deliberately soft: if one category is all the provider has,
+  // still use the already-paid response instead of leaving result slots empty.
+  if (selected.length < Math.min(limit, rankedDeals.length)) {
     for (const deal of rankedDeals) {
       if (selected.length >= limit) break;
       if (selectedAsins.has(deal.asin)) continue;

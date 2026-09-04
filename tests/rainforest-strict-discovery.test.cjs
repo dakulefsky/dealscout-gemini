@@ -64,9 +64,24 @@ test('one paid discovery pull prefers category breadth before filling remaining 
   ];
   const result = selectBalancedDeals(ranked, 6);
   assert.equal(result.length, 6);
+  assert.deepEqual(result.slice(0, 3).map((deal) => deal.category), ['Electronics', 'Home & Kitchen', 'Baby']);
   assert.equal(result.filter((deal) => deal.category === 'Electronics').length, 2);
   assert.equal(result.filter((deal) => deal.category === 'Home & Kitchen').length, 2);
   assert.equal(result.filter((deal) => deal.category === 'Baby').length, 2);
+});
+
+test('category breadth still applies when the whole provider page fits under the cap', () => {
+  const ranked = [
+    { asin: 'E000000001', category: 'Electronics', discountPercent: 60 },
+    { asin: 'E000000002', category: 'Electronics', discountPercent: 59 },
+    { asin: 'E000000003', category: 'Electronics', discountPercent: 58 },
+    { asin: 'H000000001', category: 'Home & Kitchen', discountPercent: 50 },
+    { asin: 'B000000001', category: 'Baby', discountPercent: 48 },
+  ];
+  const result = selectBalancedDeals(ranked, 10);
+  assert.equal(result.length, 5);
+  assert.deepEqual(result.slice(0, 3).map((deal) => deal.category), ['Electronics', 'Home & Kitchen', 'Baby']);
+  assert.deepEqual(new Set(result.map((deal) => deal.asin)).size, 5);
 });
 
 test('category balancing is soft and still fills the requested result count', () => {
