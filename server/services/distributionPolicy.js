@@ -3,13 +3,27 @@ const { PUBLIC_PRICE_MAX_AGE_SECONDS, hasValidPricePair } = require('./publicDea
 const CHANNELS = Object.freeze({
   WEB: 'web',
   APP: 'app',
+  WHATSAPP_GROUP: 'whatsapp_group',
   WHATSAPP_STATUS: 'whatsapp_status',
 });
 
+const WHATSAPP_AUDIENCE_EXCLUDED_PATTERNS = Object.freeze([
+  /\bwomen(?:'s|s)?\b/i,
+  /\bwomenswear\b/i,
+  /\bwoman(?:'s|s)?\b/i,
+  /\blad(?:y|ies)\b/i,
+  /\bfemale\b/i,
+  /\bmaternity\b/i,
+]);
+
 const CHANNEL_POLICY = Object.freeze({
-  [CHANNELS.WEB]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false }),
-  [CHANNELS.APP]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false }),
-  [CHANNELS.WHATSAPP_STATUS]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 20, minQualityScore: 75, requireImage: true }),
+  [CHANNELS.WEB]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false, jewishAudience: false }),
+  [CHANNELS.APP]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false, jewishAudience: false }),
+  // The admin-only WhatsApp group is curated, but intentionally has more inventory
+  // than Status. Members receive outbound deal posts; this is not a chatbot.
+  [CHANNELS.WHATSAPP_GROUP]: Object.freeze({ maxFreshnessSeconds: 18 * 60 * 60, minDiscountPercent: 20, minQualityScore: 78, requireImage: true, jewishAudience: true }),
+  // Status is the showcase surface: only the cream of the crop should reach it.
+  [CHANNELS.WHATSAPP_STATUS]: Object.freeze({ maxFreshnessSeconds: 12 * 60 * 60, minDiscountPercent: 25, minQualityScore: 85, requireImage: true, jewishAudience: true }),
 });
 
 function asUnixSeconds(value) {
@@ -31,6 +45,13 @@ function isVerifiedActiveDeal(deal = {}) {
   return Boolean(verified && !expired && deal.status === 'APPROVED' && deal.asin && deal.title);
 }
 
+function isWhatsAppAudienceExcluded(deal = {}) {
+  const category = String(deal.category || '').trim();
+  const title = String(deal.title || '').trim();
+  const haystack = `${category} ${title}`;
+  return WHATSAPP_AUDIENCE_EXCLUDED_PATTERNS.some((pattern) => pattern.test(haystack));
+}
+
 function evaluateDistribution(deal = {}, channel, nowUnix = Math.floor(Date.now() / 1000)) {
   const policy = CHANNEL_POLICY[channel];
   if (!policy) throw new Error(`Unsupported distribution channel: ${channel}`);
@@ -47,6 +68,7 @@ function evaluateDistribution(deal = {}, channel, nowUnix = Math.floor(Date.now(
 
   const imageUrl = String(deal.image_url ?? deal.imageUrl ?? '').trim();
   if (policy.requireImage && !/^https?:\/\//i.test(imageUrl)) reasons.push('image_required');
+  if (policy.jewishAudience && isWhatsAppAudienceExcluded(deal)) reasons.push('whatsapp_audience_excluded');
 
   const checkedAt = asUnixSeconds(deal.price_check_at ?? deal.priceCheckAt);
   const now = asUnixSeconds(nowUnix);
@@ -99,9 +121,11 @@ function selectChannelDeals(deals = [], channel, options = {}) {
 module.exports = {
   CHANNELS,
   CHANNEL_POLICY,
+  WHATSAPP_AUDIENCE_EXCLUDED_PATTERNS,
   evaluateDistribution,
   selectChannelDeals,
   distributionScore,
   dealDiscountPercent,
   isVerifiedActiveDeal,
+  isWhatsAppAudienceExcluded,
 };
