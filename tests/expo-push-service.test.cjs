@@ -1,9 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-
-async function loadService() {
-  return import('../server/services/expoPushService.js');
-}
+const { sendExpoPush } = require('../server/services/expoPushService.js');
 
 function okResponse(data) {
   return {
@@ -14,7 +11,6 @@ function okResponse(data) {
 }
 
 test('normalizes and sends an Expo push message', async () => {
-  const { sendExpoPush } = await loadService();
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({ url, options });
@@ -36,7 +32,6 @@ test('normalizes and sends an Expo push message', async () => {
 });
 
 test('chunks Expo requests at 100 messages', async () => {
-  const { sendExpoPush } = await loadService();
   const sizes = [];
   const fetchImpl = async (_url, options) => {
     const batch = JSON.parse(options.body);
@@ -55,7 +50,6 @@ test('chunks Expo requests at 100 messages', async () => {
 });
 
 test('surfaces DeviceNotRegistered tokens for cleanup', async () => {
-  const { sendExpoPush } = await loadService();
   const fetchImpl = async () => okResponse([
     { status: 'ok', id: 'ticket-1' },
     { status: 'error', message: 'Device no longer registered', details: { error: 'DeviceNotRegistered' } },
@@ -71,7 +65,6 @@ test('surfaces DeviceNotRegistered tokens for cleanup', async () => {
 });
 
 test('rejects invalid Expo tokens before any network call', async () => {
-  const { sendExpoPush } = await loadService();
   let called = false;
   await assert.rejects(
     sendExpoPush({ to: 'not-an-expo-token', body: 'Nope' }, { fetchImpl: async () => { called = true; } }),
@@ -81,7 +74,6 @@ test('rejects invalid Expo tokens before any network call', async () => {
 });
 
 test('throws a useful error on Expo HTTP failure', async () => {
-  const { sendExpoPush } = await loadService();
   const fetchImpl = async () => ({
     ok: false,
     status: 429,
