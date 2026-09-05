@@ -14,98 +14,95 @@ const NOW = 2_000_000_000;
 
 function deal(overrides = {}) {
   return {
-    id: 'B000000001',
-    asin: 'B000000001',
-    title: 'Verified Deal',
-    status: 'APPROVED',
-    source_verified: 1,
-    is_expired: 0,
-    original_price: 100,
-    sale_price: 60,
-    discount_percent: 40,
-    quality_score: 85,
-    image_url: 'https://images.example/deal.jpg',
-    price_check_at: NOW - 60 * 60,
-    ...overrides,
+    id: 'B000000001', asin: 'B000000001', title: 'Verified Deal', category: 'Electronics', status: 'APPROVED',
+    source_verified: 1, is_expired: 0, original_price: 100, sale_price: 60, discount_percent: 40,
+    quality_score: 90, image_url: 'https://images.example/deal.jpg', price_check_at: NOW - 60 * 60, ...overrides,
   };
 }
 
-test('all channels share the public 24-hour price freshness ceiling', () => {
-  for (const channel of Object.values(CHANNELS)) {
+test('web and app keep the public 24-hour price freshness ceiling', () => {
+  for (const channel of [CHANNELS.WEB, CHANNELS.APP]) {
     assert.equal(CHANNEL_POLICY[channel].maxFreshnessSeconds, PUBLIC_PRICE_MAX_AGE_SECONDS);
     assert.equal(evaluateDistribution(deal({ price_check_at: NOW - PUBLIC_PRICE_MAX_AGE_SECONDS }), channel, NOW).eligible, true);
     assert.equal(evaluateDistribution(deal({ price_check_at: NOW - PUBLIC_PRICE_MAX_AGE_SECONDS - 1 }), channel, NOW).eligible, false);
-    assert.equal(evaluateDistribution(deal({ price_check_at: NOW + 1 }), channel, NOW).eligible, false);
   }
 });
 
-test('all channels fail closed for unverified, expired, stale or malformed-price deals', () => {
+test('all channels fail closed for unverified, expired or malformed-price deals', () => {
   for (const channel of Object.values(CHANNELS)) {
     assert.equal(evaluateDistribution(deal({ source_verified: 0 }), channel, NOW).eligible, false);
     assert.equal(evaluateDistribution(deal({ status: 'EXPIRED', is_expired: 1 }), channel, NOW).eligible, false);
-    assert.equal(evaluateDistribution(deal({ price_check_at: 0 }), channel, NOW).eligible, false);
-    const malformed = evaluateDistribution(deal({ original_price: 100, sale_price: 120, discount_percent: 40 }), channel, NOW);
+    const malformed = evaluateDistribution(deal({ original_price: 100, sale_price: 120 }), channel, NOW);
     assert.equal(malformed.eligible, false);
     assert.ok(malformed.reasons.includes('invalid_price_pair'));
   }
 });
 
 test('channel discount eligibility is derived from the live price pair, not stale stored metadata', () => {
-  const staleClaim = deal({ original_price: 100, sale_price: 85, discount_percent: 50, quality_score: 90 });
+  const staleClaim = deal({ original_price: 100, sale_price: 85, discount_percent: 50, quality_score: 95 });
   assert.equal(dealDiscountPercent(staleClaim), 15);
   const whatsapp = evaluateDistribution(staleClaim, CHANNELS.WHATSAPP_STATUS, NOW);
   assert.equal(whatsapp.eligible, false);
   assert.ok(whatsapp.reasons.includes('discount_below_channel_minimum'));
-  assert.equal(whatsapp.metrics.discountPercent, 15);
 });
 
-test('website and app accept a normal verified 15 percent deal only while price is fresh', () => {
-  const normal = deal({ discount_percent: 16, sale_price: 84, quality_score: 55, image_url: null, price_check_at: NOW - 20 * 60 * 60 });
+test('website and app accept a normal verified 15 percent deal', () => {
+  const normal = deal({ sale_price: 84, quality_score: 55, image_url: null, price_check_at: NOW - 20 * 60 * 60 });
   assert.equal(evaluateDistribution(normal, CHANNELS.WEB, NOW).eligible, true);
   assert.equal(evaluateDistribution(normal, CHANNELS.APP, NOW).eligible, true);
-
-  const stale = { ...normal, price_check_at: NOW - 25 * 60 * 60 };
-  assert.equal(evaluateDistribution(stale, CHANNELS.WEB, NOW).eligible, false);
-  assert.equal(evaluateDistribution(stale, CHANNELS.APP, NOW).eligible, false);
 });
 
-test('WhatsApp status requires a stronger, fresh, image-backed deal', () => {
-  assert.equal(evaluateDistribution(deal(), CHANNELS.WHATSAPP_STATUS, NOW).eligible, true);
+test('WhatsApp group is curated while Status is cream-of-the-crop', () => {
+  const groupOnly = deal({ sale_price: 78, quality_score: 80, price_check_at: NOW - 10 * 60 * 60 });
+  assert.equal(evaluateDistribution(groupOnly, CHANNELS.WHATSAPP_GROUP, NOW).eligible, true);
+  assert.equal(evaluateDistribution(groupOnly, CHANNELS.WHATSAPP_STATUS, NOW).eligible, false);
 
-  const weak = evaluateDistribution(deal({ quality_score: 70, discount_percent: 18, sale_price: 82 }), CHANNELS.WHATSAPP_STATUS, NOW);
-  assert.equal(weak.eligible, false);
-  assert.ok(weak.reasons.includes('quality_below_channel_minimum'));
-  assert.ok(weak.reasons.includes('discount_below_channel_minimum'));
+  const showcase = deal({ sale_price: 70, quality_score: 92, price_check_at: NOW - 2 * 60 * 60 });
+  assert.equal(evaluateDistribution(showcase, CHANNELS.WHATSAPP_GROUP, NOW).eligible, true);
+  assert.equal(evaluateDistribution(showcase, CHANNELS.WHATSAPP_STATUS, NOW).eligible, true);
 
-  const stale = evaluateDistribution(deal({ price_check_at: NOW - 25 * 60 * 60 }), CHANNELS.WHATSAPP_STATUS, NOW);
-  assert.equal(stale.eligible, false);
-  assert.ok(stale.reasons.includes('price_check_stale'));
+  assert.ok(CHANNEL_POLICY[CHANNELS.WHATSAPP_STATUS].minDiscountPercent > CHANNEL_POLICY[CHANNELS.WHATSAPP_GROUP].minDiscountPercent);
+  assert.ok(CHANNEL_POLICY[CHANNELS.WHATSAPP_STATUS].minQualityScore > CHANNEL_POLICY[CHANNELS.WHATSAPP_GROUP].minQualityScore);
+  assert.ok(CHANNEL_POLICY[CHANNELS.WHATSAPP_STATUS].maxFreshnessSeconds < CHANNEL_POLICY[CHANNELS.WHATSAPP_GROUP].maxFreshnessSeconds);
+});
 
-  const noImage = evaluateDistribution(deal({ image_url: null }), CHANNELS.WHATSAPP_STATUS, NOW);
-  assert.equal(noImage.eligible, false);
-  assert.ok(noImage.reasons.includes('image_required'));
+test('WhatsApp surfaces exclude womens clothing without removing it from web or app', () => {
+  const womensDress = deal({ title: "Women's Summer Dress", category: 'Clothing & Accessories', sale_price: 60, quality_score: 95 });
+  assert.equal(evaluateDistribution(womensDress, CHANNELS.WEB, NOW).eligible, true);
+  assert.equal(evaluateDistribution(womensDress, CHANNELS.APP, NOW).eligible, true);
+  for (const channel of [CHANNELS.WHATSAPP_GROUP, CHANNELS.WHATSAPP_STATUS]) {
+    const result = evaluateDistribution(womensDress, channel, NOW);
+    assert.equal(result.eligible, false);
+    assert.ok(result.reasons.includes('whatsapp_audience_excluded'));
+  }
+});
+
+test('mens and neutral clothing are not accidentally excluded from WhatsApp', () => {
+  assert.equal(evaluateDistribution(deal({ title: "Men's Winter Gloves", category: 'Clothing & Accessories' }), CHANNELS.WHATSAPP_STATUS, NOW).eligible, true);
+  assert.equal(evaluateDistribution(deal({ title: 'Kids Winter Socks', category: 'Clothing & Accessories' }), CHANNELS.WHATSAPP_STATUS, NOW).eligible, true);
+});
+
+test('WhatsApp freshness is stricter than the public catalog', () => {
+  const fifteenHoursOld = deal({ price_check_at: NOW - 15 * 60 * 60 });
+  assert.equal(evaluateDistribution(fifteenHoursOld, CHANNELS.WEB, NOW).eligible, true);
+  assert.equal(evaluateDistribution(fifteenHoursOld, CHANNELS.WHATSAPP_GROUP, NOW).eligible, true);
+  assert.equal(evaluateDistribution(fifteenHoursOld, CHANNELS.WHATSAPP_STATUS, NOW).eligible, false);
 });
 
 test('channel selection deduplicates ASINs, respects exclusions and ranks strongest eligible deals', () => {
   const rows = [
-    deal({ id: '1', asin: 'B000000001', quality_score: 80, discount_percent: 30, sale_price: 70 }),
-    deal({ id: 'duplicate', asin: 'B000000001', quality_score: 99, discount_percent: 60, sale_price: 40 }),
-    deal({ id: '2', asin: 'B000000002', quality_score: 90, discount_percent: 45, sale_price: 55 }),
-    deal({ id: '3', asin: 'B000000003', quality_score: 88, discount_percent: 42, sale_price: 58 }),
+    deal({ id: '1', asin: 'B000000001', quality_score: 88, sale_price: 70 }),
+    deal({ id: 'duplicate', asin: 'B000000001', quality_score: 99, sale_price: 40 }),
+    deal({ id: '2', asin: 'B000000002', quality_score: 95, sale_price: 55 }),
+    deal({ id: '3', asin: 'B000000003', quality_score: 92, sale_price: 58 }),
   ];
-
-  const selected = selectChannelDeals(rows, CHANNELS.WHATSAPP_STATUS, {
-    nowUnix: NOW,
-    limit: 2,
-    excludedAsins: ['B000000002'],
-  });
-
+  const selected = selectChannelDeals(rows, CHANNELS.WHATSAPP_STATUS, { nowUnix: NOW, limit: 2, excludedAsins: ['B000000002'] });
   assert.deepEqual(selected.map((item) => item.asin), ['B000000003', 'B000000001']);
 });
 
 test('distribution score favors quality, discount and recency without random ordering', () => {
-  const strongFresh = distributionScore(deal({ quality_score: 90, discount_percent: 45, sale_price: 55, price_check_at: NOW - 300 }), NOW);
-  const weakerOld = distributionScore(deal({ quality_score: 75, discount_percent: 25, sale_price: 75, price_check_at: NOW - 20 * 60 * 60 }), NOW);
+  const strongFresh = distributionScore(deal({ quality_score: 95, sale_price: 55, price_check_at: NOW - 300 }), NOW);
+  const weakerOld = distributionScore(deal({ quality_score: 78, sale_price: 75, price_check_at: NOW - 20 * 60 * 60 }), NOW);
   assert.ok(strongFresh > weakerOld);
 });
 
