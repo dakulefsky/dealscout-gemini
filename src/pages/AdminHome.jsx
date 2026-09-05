@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock3, Eraser, Glob
 import { Button } from '@/components/ui/button';
 import { deals as dealsApi, functions } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
+import { describePriceCheck } from '@/lib/priceCheckFeedback';
 
 function Stat({ label, value, hint }) {
   return <div className="bg-white border border-slate-200 rounded-2xl p-4"><div className="text-xs font-semibold text-slate-500">{label}</div><div className="text-2xl font-black text-slate-900 mt-1">{value ?? '—'}</div>{hint && <div className="text-[11px] text-slate-400 mt-1">{hint}</div>}</div>;
@@ -240,7 +241,7 @@ export default function AdminHome() {
       <section className="bg-white border border-slate-200 rounded-3xl p-6">
         <div className="flex items-center gap-2 mb-4"><ShieldCheck className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">Maintenance actions</h2></div>
         <div className="grid sm:grid-cols-2 gap-2">
-          <Button disabled={actionInFlight} onClick={() => run('verify', () => functions.verifyPrices(25), 'Prices checked')} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'verify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check prices</Button>
+          <Button disabled={actionInFlight} onClick={() => run('verify', () => functions.verifyPrices(25), 'Prices checked', describePriceCheck)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'verify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check prices</Button>
           <Button disabled={actionInFlight} onClick={() => run('images', () => functions.repairImages(30), 'Image repair complete', (result) => `${result?.repaired || 0} repaired.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'images' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />} Repair images</Button>
           {cleanupCandidates > 0 && <Button disabled={actionInFlight} onClick={() => run('cleanup', () => functions.cleanupLegacyEnrichment(), 'Legacy copy cleaned', (result) => `${result?.cleaned || 0} rows cleaned.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-2 border-amber-200 text-amber-800 hover:bg-amber-50">{busy === 'cleanup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />} Clean {cleanupCandidates} known legacy {cleanupCandidates === 1 ? 'row' : 'rows'}</Button>}
         </div>
