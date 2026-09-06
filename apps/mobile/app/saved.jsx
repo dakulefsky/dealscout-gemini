@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DealCard from '../src/components/DealCard';
 import { bookmarks } from '../src/api';
@@ -51,23 +52,46 @@ export default function SavedDealsScreen() {
         data={items}
         keyExtractor={idOf}
         numColumns={2}
-        columnWrapperStyle={styles.row}
+        columnWrapperStyle={items.length ? styles.row : undefined}
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load({ refresh: true })} />}
+        ListHeaderComponent={items.length ? (
+          <View style={styles.header}>
+            <Text style={styles.eyebrow}>YOUR SHORTLIST</Text>
+            <Text style={styles.heading}>Saved deals</Text>
+            <Text style={styles.subheading}>{items.length} {items.length === 1 ? 'deal' : 'deals'} worth another look.</Text>
+          </View>
+        ) : null}
         renderItem={({ item }) => <View style={styles.cell}><DealCard deal={item} saved onSave={remove} /></View>}
-        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyTitle}>No saved deals yet</Text><Text style={styles.emptyBody}>{error || 'Save a deal and it’ll show up here.'}</Text></View>}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyEyebrow}>{error ? 'COULD NOT LOAD' : 'YOUR SHORTLIST'}</Text>
+            <Text style={styles.emptyTitle}>{error ? 'Saved deals are unavailable' : 'Nothing saved yet'}</Text>
+            <Text style={styles.emptyBody}>{error || 'Keep the deals you want to compare or come back to.'}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={error ? 'Try loading saved deals again' : 'Browse deals'} onPress={error ? () => load() : () => router.push('/')} style={styles.emptyButton}>
+              <Text style={styles.emptyButtonText}>{error ? 'Try again' : 'Browse deals'}</Text>
+            </Pressable>
+          </View>
+        }
       />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f8fafc' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' },
-  content: { paddingVertical: 12, paddingBottom: 30, flexGrow: 1 },
+  safe: { flex: 1, backgroundColor: '#f7f4ec' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f7f4ec' },
+  content: { paddingBottom: 34, flexGrow: 1 },
+  header: { paddingHorizontal: 16, paddingTop: 22, paddingBottom: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#cfc8ba', marginBottom: 12 },
+  eyebrow: { fontSize: 10, letterSpacing: 1.4, fontWeight: '900', color: '#166534' },
+  heading: { marginTop: 5, fontSize: 29, lineHeight: 34, fontWeight: '900', color: '#17201b' },
+  subheading: { marginTop: 5, color: '#746f65', fontSize: 13 },
   row: { paddingHorizontal: 9 },
   cell: { width: '50%', paddingHorizontal: 5, marginBottom: 10 },
-  empty: { flex: 1, minHeight: 400, alignItems: 'center', justifyContent: 'center', padding: 28 },
-  emptyTitle: { fontSize: 21, color: '#0f172a', fontWeight: '900' },
-  emptyBody: { marginTop: 7, color: '#64748b', textAlign: 'center' },
+  empty: { flex: 1, minHeight: 520, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  emptyEyebrow: { fontSize: 10, letterSpacing: 1.4, fontWeight: '900', color: '#166534', marginBottom: 7 },
+  emptyTitle: { fontSize: 25, color: '#17201b', fontWeight: '900', textAlign: 'center' },
+  emptyBody: { maxWidth: 290, marginTop: 8, color: '#746f65', lineHeight: 19, textAlign: 'center' },
+  emptyButton: { marginTop: 22, minWidth: 150, paddingVertical: 13, paddingHorizontal: 20, backgroundColor: '#174b32', alignItems: 'center' },
+  emptyButtonText: { color: '#fff', fontWeight: '900' },
 });
