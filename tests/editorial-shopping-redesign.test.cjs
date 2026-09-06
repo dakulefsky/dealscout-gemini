@@ -16,6 +16,12 @@ test('homepage uses editorial shopping hierarchy instead of SaaS hero cards', ()
   assert.doesNotMatch(home, /rounded-2xl sm:rounded-3xl border border-orange-200/);
 });
 
+test('homepage does not immediately repeat hero merchandise in Today’s Top Deals', () => {
+  assert.match(home, /heroSideDeals = showCuratedHome \? dropDeals\.slice\(1, 4\) : \[\]/);
+  assert.match(home, /topDeals = showCuratedHome \? dropDeals\.slice\(4, 8\) : \[\]/);
+  assert.doesNotMatch(home, /topDeals = showCuratedHome \? dropDeals\.slice\(0, 6\)/);
+});
+
 test('consumer shell has brand masthead, retail search, and category navigation', () => {
   assert.match(layout, /Good deals\. No digging\./);
   assert.match(layout, /Search products, brands, or categories/);
