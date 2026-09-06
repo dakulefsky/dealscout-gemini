@@ -14,20 +14,36 @@ test('provider API pause is durable and enforced before budget reservation', () 
   assert.ok(throttle.indexOf("channelSettings.get('provider_api')") < throttle.indexOf('reserveRequest(key)'), 'pause check must happen before provider budget reservation');
 });
 
-test('admin exposes API pause and Jerusalem closure calendar controls', () => {
-  const endpoint = read('server/middleware/channelSettingsEndpoint.js');
+test('admin exposes API pause plus Jerusalem and New York closure validation', () => {
+  const endpoint = read('server/middleware/jewishCalendarEndpoint.js');
   const client = read('src/lib/apiCore.js');
   const ui = read('src/components/AdminOperationsControls.jsx');
-  assert.match(endpoint, /providerApiEnabled/);
+  const preferences = read('server/services/siteRuntimeSettingsService.js');
   assert.match(client, /setProviderApiEnabled/);
-  assert.match(client, /jewishCalendar/);
+  assert.match(client, /setJewishCalendarLocation/);
   assert.match(ui, /Pause provider API/);
-  assert.match(ui, /Asia\/Jerusalem/);
+  assert.match(ui, /Jerusalem/);
+  assert.match(ui, /New York/);
+  assert.match(endpoint, /siteSettings\.set\('closure_location'/);
+  assert.match(preferences, /closure_location: 'jerusalem'/);
 });
 
-test('production shopper HTML fails closed during Jerusalem melacha-prohibited time', () => {
+test('location configs use Israel schedule in Jerusalem and Diaspora schedule in New York', () => {
+  const { LOCATIONS } = require('../server/services/jewishClosureService');
+  assert.equal(LOCATIONS.jerusalem.timezone, 'Asia/Jerusalem');
+  assert.equal(LOCATIONS.jerusalem.israel, true);
+  assert.equal(LOCATIONS.jerusalem.candleMinutes, 40);
+  assert.equal(LOCATIONS.new_york.timezone, 'America/New_York');
+  assert.equal(LOCATIONS.new_york.israel, false);
+  assert.equal(LOCATIONS.new_york.candleMinutes, 18);
+  assert.equal(LOCATIONS.new_york.havdalahMinutes, 50);
+});
+
+test('production shopper HTML validates closure using the saved location and fails closed on calendar errors', () => {
   const server = read('server.js');
+  const closure = read('server/services/jewishClosureService.js');
   assert.match(server, /jewishClosure\.currentStatus\(\)/);
+  assert.match(closure, /siteSettings\.get\('closure_location'\)/);
   assert.match(server, /closure\.closed/);
   assert.match(server, /status\(503\)/);
   assert.match(server, /Retry-After/);
