@@ -9,8 +9,7 @@ import { deals as dealsApi, functions, editorial as editorialApi } from '@/lib/a
 import { useBookmarks } from '@/lib/BookmarksContext';
 import SidebarAds from '@/components/SidebarAds';
 import AdSensePlaceholder from '@/components/AdSensePlaceholder';
-import { ArrowLeft, TrendingDown, ShoppingBag, Loader2, Heart, Share2, CheckCircle2, ExternalLink, ShieldCheck, Clock, AlertTriangle, Star } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ArrowLeft, ShoppingBag, Loader2, Heart, Share2, CheckCircle2, ExternalLink, ShieldCheck, Clock, AlertTriangle, Star, ArrowRight } from 'lucide-react';
 
 function categorySlug(value) {
   return encodeURIComponent(String(value || '').trim());
@@ -49,8 +48,6 @@ export default function DealDetail() {
 
   async function handleBuy() {
     if (!deal) return;
-    // Open synchronously from the user gesture so browsers do not block the new tab
-    // while the affiliate redirect endpoint is resolving.
     const amazonTab = window.open('about:blank', '_blank');
     if (!amazonTab) {
       toast({ title: 'Could not open Amazon', description: 'Please allow pop-ups for DealScout and try again.', variant: 'destructive' });
@@ -89,14 +86,15 @@ export default function DealDetail() {
     setTimeout(() => setCopiedLink(false), 2500);
   }
 
-  if (loading) return <div className="max-w-7xl mx-auto px-4 py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-600" /></div>;
+  if (loading) return <div className="ds-shell py-24 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-800" /></div>;
 
   if (!deal) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-24 text-center">
-        <h2 className="text-xl font-bold text-slate-900">Deal not found</h2>
-        <p className="text-slate-500 mt-2 text-sm">This deal may have ended or is no longer available.</p>
-        <Link to="/" className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-600"><ArrowLeft className="w-4 h-4" /> Back to deals</Link>
+      <div className="ds-shell py-24 text-center">
+        <div className="ds-kicker">No longer available</div>
+        <h2 className="font-heading text-3xl font-bold text-emerald-950 mt-2">Deal not found</h2>
+        <p className="text-slate-500 mt-3 text-sm">This deal may have ended or is no longer available.</p>
+        <Link to="/" className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1"><ArrowLeft className="w-4 h-4" /> Back to deals</Link>
       </div>
     );
   }
@@ -106,86 +104,78 @@ export default function DealDetail() {
   const categoryPath = deal.category ? `/category/${categorySlug(deal.category)}` : '/';
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-5 sm:py-8 pb-28 lg:pb-8 space-y-6 sm:space-y-8">
-      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-slate-500">
-        <Link to="/" className="font-medium hover:text-slate-900">Deals</Link>
+    <div className="ds-shell py-6 sm:py-9 pb-28 lg:pb-14">
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-slate-500 border-b border-emerald-950/10 pb-4">
+        <Link to="/" className="font-semibold hover:text-emerald-900">Deals</Link>
         <span aria-hidden="true">/</span>
-        <Link to={categoryPath} className="font-medium hover:text-slate-900">{deal.category || 'All deals'}</Link>
+        <Link to={categoryPath} className="font-semibold hover:text-emerald-900">{deal.category || 'All deals'}</Link>
       </nav>
 
-      <div className="flex items-center justify-between gap-4">
-        <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Back</Link>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleShare} className="rounded-xl text-xs font-semibold gap-1.5">{copiedLink ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5" />}{copiedLink ? 'Copied' : 'Share'}</Button>
-          <Button variant={saved ? 'default' : 'outline'} size="sm" onClick={handleSave} className={`rounded-xl text-xs font-semibold gap-1.5 ${saved ? 'bg-rose-600 hover:bg-rose-700 text-white' : ''}`}><Heart className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} />{saved ? 'Saved' : 'Save'}</Button>
-        </div>
-      </div>
-
       {deal.isExpired && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-amber-900">
-          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-          <div><p className="font-bold">This deal has ended</p><p className="text-xs mt-1">The discount ended or the item became unavailable. Amazon may have a different offer now.</p></div>
+        <div className="border-b border-amber-300 bg-amber-50 py-3 px-1 flex items-start gap-3 text-amber-900">
+          <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+          <div><p className="text-sm font-bold">This deal has ended</p><p className="text-xs mt-0.5">Amazon may now show a different price or offer.</p></div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-        <main className="lg:col-span-8 space-y-6">
-          <section className={`grid md:grid-cols-2 gap-5 sm:gap-7 bg-white rounded-3xl p-4 sm:p-7 border border-slate-200 shadow-xs ${deal.isExpired ? 'opacity-85' : ''}`}>
-            <div className={`relative aspect-[4/3] md:aspect-square bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 flex items-center justify-center p-5 ${deal.isExpired ? 'grayscale-[0.8]' : ''}`}>
-              <Image src={deal.imageUrl} fittingType="contain" className="w-full h-full" alt={deal.title} />
-              {deal.isExpired ? (
-                <span className="absolute top-3 left-3 inline-flex items-center gap-1 bg-slate-800 text-white text-xs font-bold px-3 py-1 rounded-full"><Clock className="w-3.5 h-3.5 text-amber-400" /> Ended</span>
-              ) : deal.discountPercent > 0 ? (
-                <span className="absolute top-3 left-3 inline-flex items-center gap-1 bg-emerald-600 text-white text-xs font-bold px-3 py-1 rounded-full"><TrendingDown className="h-3.5 w-3.5" /> {deal.discountPercent}% OFF</span>
-              ) : null}
-            </div>
-
-            <div className="flex flex-col justify-between gap-5 min-w-0">
-              <div>
-                <div className="flex items-center gap-2 flex-wrap mb-3">
-                  <Link to={categoryPath} className="text-[11px] uppercase tracking-wider text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg hover:bg-emerald-100">{deal.category || 'Deal'}</Link>
-                  {deal.sourceVerified && <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg ${freshness.stale ? 'text-amber-800 bg-amber-50' : 'text-slate-600 bg-slate-50'}`}><ShieldCheck className={`w-3.5 h-3.5 ${freshness.stale ? 'text-amber-600' : 'text-emerald-600'}`} /> {freshness.label}</span>}
-                </div>
-
-                <h1 className="font-heading text-xl sm:text-2xl font-black leading-snug text-slate-950">{deal.title}</h1>
-
-                <div className="mt-5 flex items-end gap-2.5 flex-wrap">
-                  <span className={`text-3xl sm:text-4xl font-black tracking-tight ${deal.isExpired ? 'text-slate-500 line-through' : 'text-emerald-700'}`}>{formatPrice(deal.salePrice)}</span>
-                  {deal.originalPrice > deal.salePrice && <span className="text-sm sm:text-base text-slate-400 line-through mb-1">{formatPrice(deal.originalPrice)}</span>}
-                </div>
-                {!deal.isExpired && savings > 0 && <p className="text-sm font-bold text-emerald-700 mt-1">You save {formatPrice(savings)} ({deal.discountPercent}% off)</p>}
-                {freshness.stale && !deal.isExpired && <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 mt-4">Price check is older than usual. Confirm the current offer on Amazon.</p>}
-              </div>
-
-              <div className="space-y-2 hidden lg:block">
-                <button onClick={handleBuy} disabled={redirecting} className={`inline-flex items-center justify-center gap-2 w-full py-3.5 font-bold text-base rounded-2xl shadow-xs transition disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-amber-500 hover:bg-amber-600 text-slate-950'}`}>
-                  {redirecting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShoppingBag className="h-5 w-5" />}{redirecting ? 'Opening Amazon…' : deal.isExpired ? 'Check current price' : 'View deal on Amazon'}<ExternalLink className="w-4 h-4 ml-1 opacity-70" />
-                </button>
-                <p className="text-[10px] leading-relaxed text-slate-400">As an Amazon Associate I earn from qualifying purchases. Final price and availability are determined on Amazon.</p>
-              </div>
-            </div>
-          </section>
+      <div className="grid lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.8fr)] gap-8 lg:gap-12 pt-7 sm:pt-10 items-start">
+        <main className="min-w-0">
+          <div className={`bg-[#f4f1e9] border border-emerald-950/10 aspect-[4/3] sm:aspect-[16/10] lg:aspect-[4/3] flex items-center justify-center p-7 sm:p-12 ${deal.isExpired ? 'grayscale-[0.75]' : ''}`}>
+            <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} fittingType="contain" className="w-full h-full" alt={deal.title} />
+          </div>
 
           {editorial?.isHumanPick && (
-            <section className="bg-emerald-50 border border-emerald-200 rounded-2xl sm:rounded-3xl p-5 sm:p-6">
-              <div className="flex items-center gap-2 text-emerald-900 font-black"><Star className="w-5 h-5 fill-emerald-600 text-emerald-600" /> DealScout Pick</div>
-              {editorial.editorialNote && <p className="text-sm text-emerald-950 leading-relaxed mt-3">{editorial.editorialNote}</p>}
+            <section className="mt-8 border-y border-emerald-950/10 py-6 sm:py-7">
+              <div className="ds-kicker inline-flex items-center gap-1.5"><Star className="w-3.5 h-3.5 fill-emerald-800" /> DealScout pick</div>
+              <h2 className="font-heading text-2xl font-bold text-emerald-950 mt-2">Why this one stood out</h2>
+              {editorial.editorialNote && <p className="text-sm text-slate-600 leading-relaxed mt-3 max-w-2xl">{editorial.editorialNote}</p>}
             </section>
           )}
 
-          <AdSensePlaceholder format="in-content" slotId="5432109876" label="Advertisement" className="w-full" />
-          <p className="text-xs text-slate-500 text-center">Product details and customer feedback are available on the current Amazon listing.</p>
+          <div className="mt-9">
+            <AdSensePlaceholder format="in-content" slotId="5432109876" label="Advertisement" className="w-full" />
+            <p className="text-[11px] text-slate-400 text-center mt-4">Product details and customer feedback are available on the current Amazon listing.</p>
+          </div>
         </main>
 
-        <aside className="lg:col-span-4 lg:sticky lg:top-20"><SidebarAds category={deal.category || 'Electronics'} /></aside>
+        <aside className="lg:sticky lg:top-24 min-w-0">
+          <div className="flex items-center justify-between gap-4">
+            <Link to={categoryPath} className="ds-kicker hover:text-emerald-700">{deal.category || 'Deal'}</Link>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={handleShare} aria-label="Share deal" className="w-9 h-9 border border-emerald-950/15 flex items-center justify-center text-slate-500 hover:text-emerald-900 focus-visible:ring-2 focus-visible:ring-emerald-800">{copiedLink ? <CheckCircle2 className="w-4 h-4 text-emerald-700" /> : <Share2 className="w-4 h-4" />}</button>
+              <button type="button" onClick={handleSave} aria-label={saved ? `Remove ${deal.title} from saved deals` : `Save ${deal.title}`} className={`w-9 h-9 border flex items-center justify-center focus-visible:ring-2 focus-visible:ring-emerald-800 ${saved ? 'bg-emerald-950 text-white border-emerald-950' : 'border-emerald-950/15 text-slate-500 hover:text-emerald-900'}`}><Heart className={`w-4 h-4 ${saved ? 'fill-white' : ''}`} /></button>
+            </div>
+          </div>
+
+          <h1 className="font-heading text-3xl sm:text-4xl lg:text-[42px] font-bold leading-[1.03] text-emerald-950 mt-4">{deal.title}</h1>
+
+          <div className="mt-7 flex items-baseline gap-3 flex-wrap border-b border-emerald-950/10 pb-5">
+            <span className={`text-4xl sm:text-5xl font-black tracking-tight ${deal.isExpired ? 'text-slate-500 line-through' : 'text-emerald-950'}`}>{formatPrice(deal.salePrice)}</span>
+            {deal.originalPrice > deal.salePrice && <span className="text-sm text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}
+            {deal.discountPercent > 0 && !deal.isExpired && <span className="text-xs font-black text-emerald-800">{deal.discountPercent}% OFF</span>}
+          </div>
+
+          {!deal.isExpired && savings > 0 && <p className="text-sm font-bold text-emerald-800 mt-4">Save {formatPrice(savings)} on the current verified price.</p>}
+
+          {deal.sourceVerified && <div className={`mt-4 flex items-center gap-2 text-xs font-semibold ${freshness.stale ? 'text-amber-800' : 'text-slate-600'}`}><ShieldCheck className={`w-4 h-4 ${freshness.stale ? 'text-amber-600' : 'text-emerald-700'}`} /><span>{freshness.stale ? 'Price check is older than usual' : freshness.label}</span></div>}
+          {freshness.stale && !deal.isExpired && <p className="text-xs text-amber-800 mt-2">Confirm the current offer on Amazon before buying.</p>}
+
+          <button onClick={handleBuy} disabled={redirecting} className={`mt-7 inline-flex items-center justify-between gap-3 w-full px-5 py-4 font-bold text-sm transition disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-emerald-950 hover:bg-emerald-900 text-white'}`}>
+            <span className="inline-flex items-center gap-2">{redirecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}{redirecting ? 'Opening Amazon…' : deal.isExpired ? 'Check current price' : 'View deal on Amazon'}</span><ExternalLink className="w-4 h-4 opacity-70" />
+          </button>
+          <p className="text-[10px] leading-relaxed text-slate-400 mt-2">As an Amazon Associate I earn from qualifying purchases. Final price and availability are determined on Amazon.</p>
+
+          <Link to={categoryPath} className="mt-7 border-t border-emerald-950/10 pt-4 flex items-center justify-between text-sm font-bold text-emerald-950 hover:text-emerald-700"><span>More {String(deal.category || 'deal').toLowerCase()} deals</span><ArrowRight className="w-4 h-4" /></Link>
+
+          <div className="mt-9"><SidebarAds category={deal.category || 'Electronics'} /></div>
+        </aside>
       </div>
 
-      <div className="fixed lg:hidden bottom-0 inset-x-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(15,23,42,0.08)]">
-        <div className="max-w-7xl mx-auto flex items-center gap-3">
-          <div className="min-w-0 flex-1"><div className="text-lg font-black text-emerald-700 truncate">{formatPrice(deal.salePrice)}</div>{savings > 0 && !deal.isExpired && <div className="text-[10px] text-slate-500">Save {formatPrice(savings)}</div>}</div>
-          <button onClick={handleBuy} disabled={redirecting} className={`shrink-0 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-black text-sm disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 text-white' : 'bg-amber-500 text-slate-950'}`}>{redirecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingBag className="w-4 h-4" />}{deal.isExpired ? 'Check Amazon' : 'View on Amazon'}</button>
+      <div className="fixed lg:hidden bottom-0 inset-x-0 z-40 border-t border-emerald-950/15 bg-[#fbfaf7]/95 backdrop-blur px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(13,63,45,0.08)]">
+        <div className="ds-shell !px-0 flex items-center gap-3">
+          <div className="min-w-0 flex-1"><div className="text-xl font-black text-emerald-950 truncate">{formatPrice(deal.salePrice)}</div>{savings > 0 && !deal.isExpired && <div className="text-[10px] text-emerald-700 font-bold">Save {formatPrice(savings)}</div>}</div>
+          <button onClick={handleBuy} disabled={redirecting} className={`shrink-0 inline-flex items-center justify-center gap-2 px-5 py-3 font-black text-sm disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 text-white' : 'bg-emerald-950 text-white'}`}>{redirecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingBag className="w-4 h-4" />}{deal.isExpired ? 'Check Amazon' : 'View on Amazon'}</button>
         </div>
-        <p className="text-[9px] text-slate-400 text-center mt-1.5">As an Amazon Associate I earn from qualifying purchases.</p>
       </div>
     </div>
   );
