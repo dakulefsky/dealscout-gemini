@@ -43,7 +43,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
       title: 'Deal hidden',
       description: 'We’ll show you fewer deals like this.',
       duration: 2000,
-      action: <button type="button" className="inline-flex h-8 items-center justify-center border border-slate-300 px-3 text-sm font-semibold hover:bg-slate-100" onClick={() => { restoreDeal(dealId); if (removedWeight) addCategoryInterest(deal.category, removedWeight); setDismissed(false); }}>Undo</button>,
+      action: <button type="button" className="inline-flex h-8 items-center justify-center border border-slate-300 px-3 text-sm font-semibold hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2" onClick={() => { restoreDeal(dealId); if (removedWeight) addCategoryInterest(deal.category, removedWeight); setDismissed(false); }}>Undo</button>,
     });
   }
 
@@ -76,17 +76,17 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
     </span>
   ) : null;
 
-  const actions = (
+  const actionButtons = (
     <div className="flex items-center gap-1">
-      <button type="button" onClick={handleDismissClick} title="Not interested" aria-label={`Not interested in ${deal.title}`} className="w-8 h-8 flex items-center justify-center bg-white/90 text-slate-400 hover:text-slate-800 border border-slate-200"><EyeOff className="w-3.5 h-3.5" /></button>
-      <button type="button" onClick={handleBookmarkClick} title={saved ? 'Remove from Saved' : 'Save Deal'} aria-label={saved ? `Remove ${deal.title} from saved deals` : `Save ${deal.title}`} className={`w-8 h-8 flex items-center justify-center border ${saved ? 'bg-emerald-950 text-white border-emerald-950' : 'bg-white/90 text-slate-500 border-slate-200 hover:text-emerald-900'}`}><Heart className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} /></button>
+      <button type="button" onClick={handleDismissClick} title="Not interested" aria-label={`Not interested in ${deal.title}`} className="w-8 h-8 flex items-center justify-center bg-white/90 text-slate-400 hover:text-slate-800 border border-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"><EyeOff className="w-3.5 h-3.5" /></button>
+      <button type="button" onClick={handleBookmarkClick} title={saved ? 'Remove from Saved' : 'Save Deal'} aria-label={saved ? `Remove ${deal.title} from saved deals` : `Save ${deal.title}`} className={`w-8 h-8 flex items-center justify-center border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2 ${saved ? 'bg-emerald-950 text-white border-emerald-950' : 'bg-white/90 text-slate-500 border-slate-200 hover:text-emerald-900'}`}><Heart className={`w-3.5 h-3.5 ${saved ? 'fill-white' : ''}`} /></button>
     </div>
   );
 
   if (viewMode === 'list') {
     return (
-      <article ref={cardRef} className={`group border-t border-emerald-950/10 py-4 flex gap-4 items-center relative ${isExpired ? 'opacity-65' : ''}`}>
-        <Link to={`/deal/${dealId}`} onClick={handleDealClick} className="flex gap-4 items-center flex-1 min-w-0">
+      <div ref={cardRef} className={`group border-t border-emerald-950/10 py-4 flex gap-4 items-center relative ${isExpired ? 'opacity-65' : ''}`}>
+        <Link to={`/deal/${dealId}`} onClick={handleDealClick} aria-label={`View deal: ${deal.title}`} className="flex gap-4 items-center flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2">
           <div className={`relative w-28 h-24 sm:w-36 sm:h-28 shrink-0 p-2 bg-white ${isExpired ? 'grayscale-[0.8]' : ''}`}>
             <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-[1.03] transition-transform duration-200" />
             {isExpired ? <span className="absolute top-1 left-1 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5">Ended</span> : deal.discountPercent > 0 ? <span className="absolute top-1 left-1 bg-emerald-100 text-emerald-950 text-[10px] font-black px-1.5 py-0.5">{deal.discountPercent}% OFF</span> : null}
@@ -97,14 +97,14 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
             <div className="flex items-baseline gap-2 mt-2"><span className="ds-price text-xl">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}{!isExpired && savings > 0 && <span className="text-[10px] font-bold text-emerald-700">Save {formatPrice(savings)}</span>}</div>
           </div>
         </Link>
-        <div className="absolute right-0 top-4 sm:static">{actions}</div>
-      </article>
+        <div className="absolute right-3 top-3 sm:static">{actionButtons}</div>
+      </div>
     );
   }
 
   return (
-    <article ref={cardRef} className={`group relative h-full flex flex-col bg-white border border-emerald-950/10 ${isExpired ? 'opacity-65' : 'hover:border-emerald-950/20 hover:shadow-[0_8px_28px_rgba(13,63,45,0.08)]'} transition-all`}>
-      <Link to={`/deal/${dealId}`} onClick={handleDealClick} className="flex flex-col flex-1 min-h-0">
+    <div ref={cardRef} className={`group relative h-full flex flex-col bg-white border border-emerald-950/10 ${isExpired ? 'opacity-65' : 'hover:border-emerald-950/20 hover:shadow-[0_8px_28px_rgba(13,63,45,0.08)]'} transition-all`}>
+      <Link to={`/deal/${dealId}`} onClick={handleDealClick} aria-label={`View deal: ${deal.title}`} className="flex flex-col flex-1 min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700">
         <div className={`relative aspect-[4/3] w-full overflow-hidden p-4 bg-[#f7f5f0] border-b border-emerald-950/5 ${isExpired ? 'grayscale-[0.8]' : ''}`}>
           <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-[1.035] transition-transform duration-300" />
           {isExpired ? <span className="absolute top-2 left-2 bg-slate-900 text-white text-[9px] font-bold px-2 py-1"><Clock className="w-2.5 h-2.5 inline mr-1" />Ended</span> : deal.discountPercent > 0 ? <span className="absolute top-2 left-2 bg-[#dfeee2] text-emerald-950 text-[10px] font-black px-2 py-1">{deal.discountPercent}% OFF</span> : null}
@@ -118,7 +118,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
           </div>
         </div>
       </Link>
-      <div className="absolute top-2 right-2 z-10">{actions}</div>
-    </article>
+      <div className="absolute top-2 right-2 z-10">{actionButtons}</div>
+    </div>
   );
 }
