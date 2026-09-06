@@ -32,6 +32,17 @@ test('product detail makes verified savings and price status first class', () =>
   assert.match(source, /View deal on Amazon/);
 });
 
+test('product detail renders the core deal before editorial and recommendation requests finish', () => {
+  const setDealIndex = source.indexOf('setDeal(data);');
+  const stopLoadingIndex = source.indexOf('setLoading(false);', setDealIndex);
+  const secondaryIndex = source.indexOf('const primaryFeedRequest', setDealIndex);
+  assert.ok(setDealIndex >= 0);
+  assert.ok(stopLoadingIndex > setDealIndex);
+  assert.ok(secondaryIndex > stopLoadingIndex);
+  assert.doesNotMatch(source, /\.finally\(\(\) => mounted && setLoading\(false\)\)/);
+  assert.match(source, /setEditorial\(null\);\s*setRecommendations\(\[\]\);/);
+});
+
 test('product share uses native sharing when available and only claims clipboard success after awaiting it', () => {
   assert.match(source, /async function handleShare\(\)/);
   assert.match(source, /typeof navigator\.share === 'function'/);
