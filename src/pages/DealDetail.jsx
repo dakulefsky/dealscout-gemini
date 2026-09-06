@@ -64,12 +64,15 @@ export default function DealDetail() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
+    setEditorial(null);
     setRecommendations([]);
 
     dealsApi.get(id)
       .then(async (data) => {
         if (!mounted) return;
         setDeal(data);
+        setLoading(false);
+
         const asin = data?.asin;
         const primaryFeedRequest = data?.category
           ? dealsApi.page({ category: data.category, limit: 16, sort: '-discount_percent' })
@@ -93,8 +96,11 @@ export default function DealDetail() {
         }
         setRecommendations(rankRecommendations(rows, data));
       })
-      .catch(() => mounted && setDeal(null))
-      .finally(() => mounted && setLoading(false));
+      .catch(() => {
+        if (!mounted) return;
+        setDeal(null);
+        setLoading(false);
+      });
 
     return () => { mounted = false; };
   }, [id]);
