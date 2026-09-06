@@ -29,7 +29,7 @@ export default function DealCard({ deal, onSave, onOpen, onDismiss, saved = fals
       <Pressable accessibilityRole="button" accessibilityLabel={`Open ${deal?.title || 'deal'}`} onPress={openDeal}>
         <Image source={imageUrl ? { uri: imageUrl } : undefined} style={styles.image} contentFit="contain" transition={150} />
         <View style={styles.body}>
-          {discount > 0 && <Text style={styles.discount}>{Math.round(discount)}% OFF</Text>}
+          <Text style={styles.meta}>{discount > 0 ? `${Math.round(discount)}% OFF` : (deal?.category || 'DEAL')}</Text>
           <Text numberOfLines={2} style={styles.title}>{deal?.title || 'Amazon deal'}</Text>
           <View style={styles.priceRow}>
             {money(salePrice) && <Text style={styles.sale}>{money(salePrice)}</Text>}
@@ -37,40 +37,36 @@ export default function DealCard({ deal, onSave, onOpen, onDismiss, saved = fals
           </View>
         </View>
       </Pressable>
-      <View style={styles.actions}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Not interested in ${deal?.title || 'deal'}`}
-          onPress={() => onDismiss?.(deal)}
-          style={styles.dismissButton}
-        >
-          <Text style={styles.dismissText}>Not interested</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={saved ? `Remove ${deal?.title || 'deal'} from saved deals` : `Save ${deal?.title || 'deal'}`}
-          onPress={() => onSave?.(deal)}
-          style={styles.saveButton}
-        >
-          <Text style={styles.saveText}>{saved ? 'Saved' : 'Save'}</Text>
-        </Pressable>
-      </View>
+      {(onDismiss || onSave) && (
+        <View style={styles.actions}>
+          {onDismiss && (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Not interested in ${deal?.title || 'deal'}`} onPress={() => onDismiss(deal)} style={styles.dismissButton}>
+              <Text style={styles.dismissText}>Not interested</Text>
+            </Pressable>
+          )}
+          {onSave && (
+            <Pressable accessibilityRole="button" accessibilityLabel={saved ? `Remove ${deal?.title || 'deal'} from saved deals` : `Save ${deal?.title || 'deal'}`} onPress={() => onSave(deal)} style={styles.saveButton}>
+              <Text style={styles.saveText}>{saved ? 'Saved' : 'Save'}</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { flex: 1, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 18, overflow: 'hidden', backgroundColor: '#fff' },
-  image: { width: '100%', aspectRatio: 1.25, backgroundColor: '#fff' },
-  body: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8 },
-  discount: { alignSelf: 'flex-start', fontSize: 11, fontWeight: '900', color: '#047857', backgroundColor: '#ecfdf5', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, marginBottom: 7 },
-  title: { minHeight: 38, color: '#0f172a', fontSize: 14, lineHeight: 19, fontWeight: '700' },
+  card: { flex: 1, borderWidth: 1, borderColor: '#d8d2c5', overflow: 'hidden', backgroundColor: '#fff' },
+  image: { width: '100%', aspectRatio: 1.2, backgroundColor: '#fff', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e4dfd5' },
+  body: { paddingHorizontal: 11, paddingTop: 10, paddingBottom: 11 },
+  meta: { fontSize: 9, letterSpacing: 1, fontWeight: '900', color: '#166534', marginBottom: 6, textTransform: 'uppercase' },
+  title: { minHeight: 38, color: '#17201b', fontSize: 14, lineHeight: 19, fontWeight: '700' },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginTop: 8 },
-  sale: { fontSize: 17, color: '#0f172a', fontWeight: '900' },
-  original: { fontSize: 12, color: '#94a3b8', textDecorationLine: 'line-through' },
-  actions: { flexDirection: 'row', gap: 7, marginHorizontal: 10, marginBottom: 10 },
-  dismissButton: { flex: 1.3, paddingVertical: 9, borderRadius: 11, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#fff' },
-  dismissText: { fontSize: 10, fontWeight: '800', color: '#64748b' },
-  saveButton: { flex: 1, paddingVertical: 9, borderRadius: 11, alignItems: 'center', backgroundColor: '#f1f5f9' },
-  saveText: { fontSize: 12, fontWeight: '800', color: '#334155' },
+  sale: { fontSize: 18, color: '#17201b', fontWeight: '900' },
+  original: { fontSize: 12, color: '#8b857a', textDecorationLine: 'line-through' },
+  actions: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#e4dfd5' },
+  dismissButton: { flex: 1.3, paddingVertical: 10, alignItems: 'center', backgroundColor: '#fff' },
+  dismissText: { fontSize: 10, fontWeight: '800', color: '#716b61' },
+  saveButton: { flex: 1, paddingVertical: 10, alignItems: 'center', borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: '#e4dfd5', backgroundColor: '#f7f4ec' },
+  saveText: { fontSize: 11, fontWeight: '900', color: '#174b32' },
 });
