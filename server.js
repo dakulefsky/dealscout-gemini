@@ -9,6 +9,38 @@ const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function escapeHtml(value = '') {
+  return String(value).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+function injectInitialContent(html, content = '') {
+  if (!content) return html;
+  return html.replace('<div id="root"></div>', `<div id="root">${content}</div>`);
+}
+
+function dealInitialContent(deal) {
+  const title = escapeHtml(deal.title || 'Amazon deal');
+  const current = Number(deal.sale_price || 0);
+  const original = Number(deal.original_price || 0);
+  const savings = Math.max(0, original - current);
+  const category = escapeHtml(deal.category || 'Deals');
+  const image = deal.image_url ? `<img src="${escapeHtml(deal.image_url)}" alt="${title}" width="320" height="320" />` : '';
+  const productUrl = deal.product_url ? `<p><a href="${escapeHtml(deal.product_url)}" rel="nofollow sponsored">View current deal on Amazon</a></p>` : '';
+  return `<main data-server-crawl-content="deal"><article>${image}<p>${category}</p><h1>${title}</h1><p><strong>$${current.toFixed(2)}</strong>${original > current ? ` <del>$${original.toFixed(2)}</del>` : ''}</p>${savings > 0 ? `<p>Save $${savings.toFixed(2)} while this verified price is current.</p>` : ''}${productUrl}<p><a href="/">Browse more current deals</a></p></article></main>`;
+}
+
+function categoryInitialContent(category) {
+  const name = escapeHtml(category.name || 'Deals');
+  const description = escapeHtml(category.description || `Current ${name} deals and price drops.`);
+  const count = Number(category.liveCount || 0);
+  return `<main data-server-crawl-content="category"><h1>${name} deals &amp; price drops</h1><p>${description}</p><p>${count} current ${count === 1 ? 'deal' : 'deals'} available.</p><p><a href="/">Browse all current deals</a></p></main>`;
+}
+
+function homeInitialContent(categories = []) {
+  const links = categories.slice(0, 12).map((category) => `<li><a href="/category/${encodeURIComponent(category.slug)}">${escapeHtml(category.name)}</a></li>`).join('');
+  return `<main data-server-crawl-content="home"><h1>Amazon deals &amp; price drops worth checking</h1><p>DealScout surfaces current Amazon discounts with recently verified prices and clear savings.</p>${links ? `<nav aria-label="Deal categories"><h2>Browse current deal categories</h2><ul>${links}</ul></nav>` : ''}</main>`;
+}
+
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT || 3000);
@@ -60,7 +92,6 @@ async function startServer() {
 
   app.use('/api/v1', buildShopperApi({ version: 1 }));
   app.use('/api', buildShopperApi());
-
   app.use('/api/editorial', require('./server/routes/editorial.js'));
   app.use('/api/functions', require('./server/middleware/imageRepairEndpoint.js').imageRepairEndpoint);
   app.use('/api/functions', require('./server/middleware/integrityHealthEndpoint.js').integrityHealthEndpoint);
@@ -71,13 +102,8 @@ async function startServer() {
   app.use('/api/functions', require('./server/routes/functions.js'));
   app.use('/api/ai', require('./server/routes/ai.js'));
 
-  try {
-    dealCron.start();
-  } catch (cronErr) { console.warn('[DealScout] Scheduler initialization warning:', cronErr.message); }
-
-  app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok' });
-  });
+  try { dealCron.start(); } catch (cronErr) { console.warn('[DealScout] Scheduler initialization warning:', cronErr.message); }
+  app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
   app.get('/api/ready', runtimeBootstrap.readinessEndpoint);
 
   let vite = null;
@@ -96,6 +122,7 @@ async function startServer() {
         const baseUrl = seo.siteBase(req, publicWebUrl);
         let meta = seo.homeMeta(baseUrl);
         let status = 200;
+        let initialContent = '';
         const dealMatch = req.path.match(/^\/deal\/([^/]+)$/);
         const categoryMatch = req.path.match(/^\/category\/([^/]+)$/);
         if (req.path.startsWith('/admin')) {
@@ -104,6 +131,7 @@ async function startServer() {
           const deal = await dealRepository.findByIdOrAsin(decodeURIComponent(dealMatch[1]));
           if (deal && deal.status === 'APPROVED' && deal.source_verified === 1 && deal.is_expired !== 1) {
             meta = seo.dealMeta(baseUrl, deal);
+            if (meta.robots !== 'noindex,follow') initialContent = dealInitialContent(deal);
           } else {
             status = 404;
             meta = { title: 'Deal not found — DealScout', description: 'This deal is no longer available.', canonical: null, robots: 'noindex,follow' };
@@ -112,10 +140,14 @@ async function startServer() {
           const rows = await categoryRepository.list({ slug: decodeURIComponent(categoryMatch[1]), activeOnly: true });
           if (rows[0]) {
             meta = seo.categoryMeta(baseUrl, rows[0]);
+            initialContent = categoryInitialContent(rows[0]);
           } else {
             status = 404;
             meta = { title: 'Category not found — DealScout', description: 'This deal category is not currently available.', canonical: null, robots: 'noindex,follow' };
           }
+        } else if (req.path === '/') {
+          const categories = await categoryRepository.list({ activeOnly: true });
+          initialContent = homeInitialContent(categories);
         } else if (req.path === '/disclosure') {
           meta = { title: 'Affiliate Disclosure — DealScout', description: 'How DealScout uses Amazon affiliate links and how deal pricing is presented.', canonical: `${baseUrl}/disclosure` };
         } else if (req.path === '/privacy') {
@@ -124,11 +156,12 @@ async function startServer() {
           meta = { title: 'Support — DealScout', description: 'Help with DealScout prices, saved deals, links, and the mobile app.', canonical: `${baseUrl}/support` };
         } else if (req.path === '/saved') {
           meta = { ...seo.homeMeta(baseUrl), title: 'Saved Deals — DealScout', description: 'Your saved DealScout deals.', canonical: null, robots: 'noindex,follow' };
-        } else if (req.path !== '/') {
+        } else {
           status = 404;
           meta = { title: 'Page not found — DealScout', description: 'The page you requested could not be found.', canonical: null, robots: 'noindex,follow' };
         }
-        res.status(status).type('html').send(seo.replaceMeta(indexTemplate, { ...meta, nonce: res.locals.cspNonce }));
+        const rendered = seo.replaceMeta(indexTemplate, { ...meta, nonce: res.locals.cspNonce });
+        res.status(status).type('html').send(injectInitialContent(rendered, initialContent));
       } catch (err) {
         console.warn('[DealScout] SEO render fallback:', err.message);
         res.status(503).type('html').send(indexTemplate);
@@ -144,25 +177,15 @@ async function startServer() {
 
   const httpServer = app.listen(PORT, '0.0.0.0', () => console.log(`[DealScout] Server running on port ${PORT}`));
   let shuttingDown = false;
-
   async function shutdown(signal) {
     if (shuttingDown) return;
     shuttingDown = true;
     console.log(`[DealScout] ${signal} received; shutting down cleanly`);
-
-    const forceExit = setTimeout(() => {
-      console.error('[DealScout] Graceful shutdown timed out; forcing exit');
-      httpServer.closeAllConnections?.();
-      process.exit(1);
-    }, 10_000);
+    const forceExit = setTimeout(() => { console.error('[DealScout] Graceful shutdown timed out; forcing exit'); httpServer.closeAllConnections?.(); process.exit(1); }, 10_000);
     forceExit.unref?.();
-
     dealCron.stop();
-
     try {
-      await new Promise((resolve, reject) => {
-        httpServer.close((error) => error ? reject(error) : resolve());
-      });
+      await new Promise((resolve, reject) => httpServer.close((error) => error ? reject(error) : resolve()));
       if (vite) await vite.close();
       await postgres.closePool();
       clearTimeout(forceExit);
@@ -174,12 +197,8 @@ async function startServer() {
       process.exit(1);
     }
   }
-
   process.once('SIGTERM', () => shutdown('SIGTERM'));
   process.once('SIGINT', () => shutdown('SIGINT'));
 }
 
-startServer().catch((err) => {
-  console.error('[DealScout] Fatal startup error:', err);
-  process.exit(1);
-});
+startServer().catch((err) => { console.error('[DealScout] Fatal startup error:', err); process.exit(1); });
