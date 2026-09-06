@@ -5,6 +5,7 @@ import { BookmarksProvider } from '@/lib/BookmarksContext';
 import Layout from '@/components/Layout';
 import AppErrorBoundary from '@/components/AppErrorBoundary';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import AdminOperationsControls from '@/components/AdminOperationsControls';
 import { Toaster } from '@/components/ui/toaster';
 import Home from '@/pages/Home';
 
@@ -41,6 +42,7 @@ function LegacyResetRedirect() {
 function AdminDashboard() {
   return (
     <>
+      <AdminOperationsControls />
       <AdminHome />
       <Link
         to="/admin/add-deal"

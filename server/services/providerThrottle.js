@@ -1,4 +1,5 @@
 const { reserveRequest } = require('./providerBudgetService');
+const channelSettings = require('./channelSettingsService');
 
 const DEFAULTS = Object.freeze({
   slowLatencyMs: 1500,
@@ -17,6 +18,16 @@ class ProviderCooldownError extends Error {
     this.code = 'PROVIDER_COOLDOWN';
     this.provider = provider;
     this.retryAfterMs = Math.max(0, Number(retryAfterMs) || 0);
+    this.statusCode = 503;
+  }
+}
+
+class ProviderPausedError extends Error {
+  constructor(provider) {
+    super('External deal-provider API calls are paused by an administrator');
+    this.name = 'ProviderPausedError';
+    this.code = 'PROVIDER_PAUSED';
+    this.provider = provider;
     this.statusCode = 503;
   }
 }
@@ -100,6 +111,9 @@ function delay(ms) { return ms > 0 ? new Promise((resolve) => setTimeout(resolve
 async function runProviderCall(provider, task, options = {}) {
   if (typeof task !== 'function') throw new TypeError('runProviderCall requires a task function');
   const key = cleanProvider(provider);
+  const apiSetting = await channelSettings.get('provider_api');
+  if (apiSetting.enabled === false) throw new ProviderPausedError(key);
+
   const remaining = retryAfterMs(key);
   if (remaining > 0) throw new ProviderCooldownError(key, remaining);
 
@@ -107,7 +121,7 @@ async function runProviderCall(provider, task, options = {}) {
   if (pacingDelay > 0) await delay(pacingDelay);
 
   // Reserve immediately before the outbound task. Failed network attempts still
-  // consume the provider allowance, while cooldown-blocked calls do not.
+  // consume the provider allowance, while paused/cooldown-blocked calls do not.
   await reserveRequest(key);
 
   const startedAt = nowMs();
@@ -143,7 +157,7 @@ function resetProviderThrottle(provider) {
 }
 
 module.exports = {
-  DEFAULTS, ProviderCooldownError, statusCodeFromError, isTransientProviderFailure,
+  DEFAULTS, ProviderCooldownError, ProviderPausedError, statusCodeFromError, isTransientProviderFailure,
   recordSuccess, recordFailure, recommendedDelayMs, retryAfterMs, isCoolingDown,
   runProviderCall, getProviderThrottleStatus, resetProviderThrottle,
 };

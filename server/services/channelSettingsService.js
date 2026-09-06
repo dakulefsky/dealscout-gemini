@@ -2,6 +2,7 @@ const postgres = require('../storage/postgres');
 
 const DEFAULTS = Object.freeze({
   whatsapp_status: Object.freeze({ enabled: true }),
+  provider_api: Object.freeze({ enabled: true }),
 });
 
 const local = new Map();

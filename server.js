@@ -18,6 +18,11 @@ function injectInitialContent(html, content = '') {
   return html.replace('<div id="root"></div>', `<div id="root">${content}</div>`);
 }
 
+function closureHtml(reason = 'Shabbat or Yom Tov') {
+  const safeReason = escapeHtml(reason);
+  return `<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="robots" content="noindex,nofollow"/><title>DealScout is closed right now</title><style>body{margin:0;background:#f7f3e8;color:#17231b;font-family:Arial,sans-serif;display:grid;min-height:100vh;place-items:center}.box{max-width:620px;padding:48px 28px;text-align:center}h1{font-family:Georgia,serif;font-size:42px;margin:0 0 18px}p{font-size:17px;line-height:1.6;color:#536158}.small{font-size:13px;margin-top:28px;color:#7b837e}</style></head><body><main class="box"><div>✦</div><h1>We’re closed right now.</h1><p>DealScout pauses the shopper website during ${safeReason} according to the closure location selected in Admin. Please come back after the work-forbidden period ends.</p><p class="small">Shabbat &amp; Yom Tov closure calendar</p></main></body></html>`;
+}
+
 function dealInitialContent(deal) {
   const title = escapeHtml(deal.title || 'Amazon deal');
   const current = Number(deal.sale_price || 0);
@@ -53,6 +58,7 @@ async function startServer() {
   const categoryRepository = require('./server/repositories/categoryRepository.js');
   const seo = require('./server/services/seoService.js');
   const dealCron = require('./server/services/cronService.js');
+  const jewishClosure = require('./server/services/jewishClosureService.js');
   const { resolveTrustProxy } = require('./server/config/trustProxy.js');
   const { resolvePublicWebUrl, resolveCorsOrigins, createCorsOriginPolicy } = require('./server/config/publicSurface.js');
   const { buildShopperApi } = require('./server/routes/shopperApi.js');
@@ -99,6 +105,7 @@ async function startServer() {
   app.use('/api/functions', require('./server/middleware/adminActivityEndpoint.js').adminActivityEndpoint);
   app.use('/api/functions', require('./server/middleware/publicationHealthEndpoint.js').publicationHealthEndpoint);
   app.use('/api/functions', require('./server/middleware/channelSettingsEndpoint.js').channelSettingsEndpoint);
+  app.use('/api/functions', require('./server/middleware/jewishCalendarEndpoint.js').jewishCalendarEndpoint);
   app.use('/api/functions', require('./server/routes/functions.js'));
   app.use('/api/ai', require('./server/routes/ai.js'));
 
@@ -118,6 +125,19 @@ async function startServer() {
     app.use(express.static(distPath, { index: false }));
     app.use(async (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
+      if (!req.path.startsWith('/admin')) {
+        try {
+          const closure = await jewishClosure.currentStatus();
+          if (closure.closed) {
+            res.set('Retry-After', '3600');
+            return res.status(503).type('html').send(closureHtml('Shabbat or Yom Tov'));
+          }
+        } catch (error) {
+          console.warn('[DealScout] Jewish closure calendar unavailable; failing closed:', error.message);
+          res.set('Retry-After', '300');
+          return res.status(503).type('html').send(closureHtml('the Jewish closure calendar'));
+        }
+      }
       try {
         const baseUrl = seo.siteBase(req, publicWebUrl);
         let meta = seo.homeMeta(baseUrl);
