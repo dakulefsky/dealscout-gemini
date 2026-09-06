@@ -49,7 +49,7 @@ async function startServer() {
     try {
       const [liveDeals, categories] = await Promise.all([
         sitemapRepository.listFreshPublicDeals(),
-        categoryRepository.list(),
+        categoryRepository.list({ activeOnly: true }),
       ]);
       res.type('application/xml').send(seo.buildSitemap({ baseUrl: seo.siteBase(req, publicWebUrl), deals: liveDeals, categories }));
     } catch (err) {
@@ -95,16 +95,27 @@ async function startServer() {
       try {
         const baseUrl = seo.siteBase(req, publicWebUrl);
         let meta = seo.homeMeta(baseUrl);
+        let status = 200;
         const dealMatch = req.path.match(/^\/deal\/([^/]+)$/);
         const categoryMatch = req.path.match(/^\/category\/([^/]+)$/);
         if (req.path.startsWith('/admin')) {
           meta = { ...seo.homeMeta(baseUrl), title: 'DealScout Admin', description: 'Private DealScout administration.', canonical: null, robots: 'noindex,nofollow' };
         } else if (dealMatch) {
           const deal = await dealRepository.findByIdOrAsin(decodeURIComponent(dealMatch[1]));
-          if (deal && deal.status === 'APPROVED' && deal.source_verified === 1 && deal.is_expired !== 1) meta = seo.dealMeta(baseUrl, deal);
+          if (deal && deal.status === 'APPROVED' && deal.source_verified === 1 && deal.is_expired !== 1) {
+            meta = seo.dealMeta(baseUrl, deal);
+          } else {
+            status = 404;
+            meta = { title: 'Deal not found — DealScout', description: 'This deal is no longer available.', canonical: null, robots: 'noindex,follow' };
+          }
         } else if (categoryMatch) {
-          const rows = await categoryRepository.list({ slug: decodeURIComponent(categoryMatch[1]) });
-          if (rows[0]) meta = seo.categoryMeta(baseUrl, rows[0]);
+          const rows = await categoryRepository.list({ slug: decodeURIComponent(categoryMatch[1]), activeOnly: true });
+          if (rows[0]) {
+            meta = seo.categoryMeta(baseUrl, rows[0]);
+          } else {
+            status = 404;
+            meta = { title: 'Category not found — DealScout', description: 'This deal category is not currently available.', canonical: null, robots: 'noindex,follow' };
+          }
         } else if (req.path === '/disclosure') {
           meta = { title: 'Affiliate Disclosure — DealScout', description: 'How DealScout uses Amazon affiliate links and how deal pricing is presented.', canonical: `${baseUrl}/disclosure` };
         } else if (req.path === '/privacy') {
@@ -113,11 +124,14 @@ async function startServer() {
           meta = { title: 'Support — DealScout', description: 'Help with DealScout prices, saved deals, links, and the mobile app.', canonical: `${baseUrl}/support` };
         } else if (req.path === '/saved') {
           meta = { ...seo.homeMeta(baseUrl), title: 'Saved Deals — DealScout', description: 'Your saved DealScout deals.', canonical: null, robots: 'noindex,follow' };
+        } else if (req.path !== '/') {
+          status = 404;
+          meta = { title: 'Page not found — DealScout', description: 'The page you requested could not be found.', canonical: null, robots: 'noindex,follow' };
         }
-        res.type('html').send(seo.replaceMeta(indexTemplate, { ...meta, nonce: res.locals.cspNonce }));
+        res.status(status).type('html').send(seo.replaceMeta(indexTemplate, { ...meta, nonce: res.locals.cspNonce }));
       } catch (err) {
         console.warn('[DealScout] SEO render fallback:', err.message);
-        res.type('html').send(indexTemplate);
+        res.status(503).type('html').send(indexTemplate);
       }
     });
   }
