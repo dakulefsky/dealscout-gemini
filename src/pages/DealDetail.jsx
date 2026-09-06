@@ -134,12 +134,34 @@ export default function DealDetail() {
     toggleBookmark(deal);
   }
 
-  function handleShare() {
-    if (!navigator.clipboard) return;
-    navigator.clipboard.writeText(window.location.href);
-    setCopiedLink(true);
-    toast({ title: 'Link copied' });
-    setTimeout(() => setCopiedLink(false), 2500);
+  async function handleShare() {
+    const url = window.location.href;
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: deal?.title || 'DealScout deal', url });
+        return;
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+      }
+    }
+
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopiedLink(true);
+        toast({ title: 'Link copied' });
+        setTimeout(() => setCopiedLink(false), 2500);
+        return;
+      } catch {
+        // Fall through to an explicit error instead of claiming the link was copied.
+      }
+    }
+
+    toast({
+      title: 'Could not share link',
+      description: 'Copy the page address from your browser and share it from there.',
+      variant: 'destructive',
+    });
   }
 
   if (loading) return <div className="ds-shell py-24 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-800" /></div>;

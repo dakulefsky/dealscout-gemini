@@ -31,3 +31,14 @@ test('product detail makes verified savings and price status first class', () =>
   assert.match(source, /Price status/);
   assert.match(source, /View deal on Amazon/);
 });
+
+test('product share uses native sharing when available and only claims clipboard success after awaiting it', () => {
+  assert.match(source, /async function handleShare\(\)/);
+  assert.match(source, /typeof navigator\.share === 'function'/);
+  assert.match(source, /await navigator\.share\(\{ title: deal\?\.title \|\| 'DealScout deal', url \}\)/);
+  assert.match(source, /if \(error\?\.name === 'AbortError'\) return/);
+  assert.match(source, /await navigator\.clipboard\.writeText\(url\)/);
+  assert.match(source, /toast\(\{ title: 'Link copied' \}\)/);
+  assert.match(source, /Could not share link/);
+  assert.doesNotMatch(source, /navigator\.clipboard\.writeText\(window\.location\.href\);\s*setCopiedLink\(true\)/);
+});
