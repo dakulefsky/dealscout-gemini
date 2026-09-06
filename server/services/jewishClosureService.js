@@ -1,3 +1,5 @@
+const siteSettings = require('./siteRuntimeSettingsService');
+
 const JERUSALEM_GEONAME_ID = 281184;
 const NEW_YORK_GEONAME_ID = 5128581;
 const CURRENT_TTL_MS = 60 * 1000;
@@ -35,14 +37,19 @@ function locationConfig(location = 'jerusalem') {
   return LOCATIONS[key];
 }
 
+async function selectedLocation() {
+  const setting = await siteSettings.get('closure_location');
+  return locationConfig(setting.value || 'jerusalem');
+}
+
 async function fetchJson(url) {
   const response = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'DealScout/1.0 jewish-closure-calendar' } });
   if (!response.ok) throw new Error(`Hebcal request failed with HTTP ${response.status}`);
   return response.json();
 }
 
-async function currentStatus(now = new Date(), { location = 'jerusalem' } = {}) {
-  const config = locationConfig(location);
+async function currentStatus(now = new Date(), options = {}) {
+  const config = options.location ? locationConfig(options.location) : await selectedLocation();
   const nowMs = now.getTime();
   const cached = currentCache.get(config.key);
   if (cached?.value && nowMs - cached.at < CURRENT_TTL_MS) return cached.value;
@@ -130,4 +137,4 @@ function resetCaches() {
   calendarCache.clear();
 }
 
-module.exports = { JERUSALEM_GEONAME_ID, NEW_YORK_GEONAME_ID, LOCATIONS, locationConfig, currentStatus, upcomingClosures, pairClosures, resetCaches };
+module.exports = { JERUSALEM_GEONAME_ID, NEW_YORK_GEONAME_ID, LOCATIONS, locationConfig, selectedLocation, currentStatus, upcomingClosures, pairClosures, resetCaches };
