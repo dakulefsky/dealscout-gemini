@@ -23,6 +23,7 @@ function deal(overrides = {}) {
 test('web and app keep the public 24-hour price freshness ceiling', () => {
   for (const channel of [CHANNELS.WEB, CHANNELS.APP]) {
     assert.equal(CHANNEL_POLICY[channel].maxFreshnessSeconds, PUBLIC_PRICE_MAX_AGE_SECONDS);
+    assert.equal(CHANNEL_POLICY[channel].requireFreshPriceCheck, true);
     assert.equal(evaluateDistribution(deal({ price_check_at: NOW - PUBLIC_PRICE_MAX_AGE_SECONDS }), channel, NOW).eligible, true);
     assert.equal(evaluateDistribution(deal({ price_check_at: NOW - PUBLIC_PRICE_MAX_AGE_SECONDS - 1 }), channel, NOW).eligible, false);
   }
@@ -53,17 +54,25 @@ test('website and app accept a normal verified 15 percent deal', () => {
 });
 
 test('WhatsApp group is curated while Status is cream-of-the-crop', () => {
-  const groupOnly = deal({ sale_price: 78, quality_score: 80, price_check_at: NOW - 10 * 60 * 60 });
+  const groupOnly = deal({ sale_price: 78, quality_score: 80 });
   assert.equal(evaluateDistribution(groupOnly, CHANNELS.WHATSAPP_GROUP, NOW).eligible, true);
   assert.equal(evaluateDistribution(groupOnly, CHANNELS.WHATSAPP_STATUS, NOW).eligible, false);
 
-  const showcase = deal({ sale_price: 70, quality_score: 92, price_check_at: NOW - 2 * 60 * 60 });
+  const showcase = deal({ sale_price: 70, quality_score: 92 });
   assert.equal(evaluateDistribution(showcase, CHANNELS.WHATSAPP_GROUP, NOW).eligible, true);
   assert.equal(evaluateDistribution(showcase, CHANNELS.WHATSAPP_STATUS, NOW).eligible, true);
 
   assert.ok(CHANNEL_POLICY[CHANNELS.WHATSAPP_STATUS].minDiscountPercent > CHANNEL_POLICY[CHANNELS.WHATSAPP_GROUP].minDiscountPercent);
   assert.ok(CHANNEL_POLICY[CHANNELS.WHATSAPP_STATUS].minQualityScore > CHANNEL_POLICY[CHANNELS.WHATSAPP_GROUP].minQualityScore);
-  assert.ok(CHANNEL_POLICY[CHANNELS.WHATSAPP_STATUS].maxFreshnessSeconds < CHANNEL_POLICY[CHANNELS.WHATSAPP_GROUP].maxFreshnessSeconds);
+});
+
+test('WhatsApp group and Status do not require a price freshness check at publish time', () => {
+  for (const channel of [CHANNELS.WHATSAPP_GROUP, CHANNELS.WHATSAPP_STATUS]) {
+    assert.equal(CHANNEL_POLICY[channel].requireFreshPriceCheck, false);
+    assert.equal(CHANNEL_POLICY[channel].maxFreshnessSeconds, null);
+    assert.equal(evaluateDistribution(deal({ price_check_at: 0 }), channel, NOW).eligible, true);
+    assert.equal(evaluateDistribution(deal({ price_check_at: NOW - 30 * 24 * 60 * 60 }), channel, NOW).eligible, true);
+  }
 });
 
 test('WhatsApp surfaces exclude womens clothing without removing it from web or app', () => {
@@ -80,13 +89,6 @@ test('WhatsApp surfaces exclude womens clothing without removing it from web or 
 test('mens and neutral clothing are not accidentally excluded from WhatsApp', () => {
   assert.equal(evaluateDistribution(deal({ title: "Men's Winter Gloves", category: 'Clothing & Accessories' }), CHANNELS.WHATSAPP_STATUS, NOW).eligible, true);
   assert.equal(evaluateDistribution(deal({ title: 'Kids Winter Socks', category: 'Clothing & Accessories' }), CHANNELS.WHATSAPP_STATUS, NOW).eligible, true);
-});
-
-test('WhatsApp freshness is stricter than the public catalog', () => {
-  const fifteenHoursOld = deal({ price_check_at: NOW - 15 * 60 * 60 });
-  assert.equal(evaluateDistribution(fifteenHoursOld, CHANNELS.WEB, NOW).eligible, true);
-  assert.equal(evaluateDistribution(fifteenHoursOld, CHANNELS.WHATSAPP_GROUP, NOW).eligible, true);
-  assert.equal(evaluateDistribution(fifteenHoursOld, CHANNELS.WHATSAPP_STATUS, NOW).eligible, false);
 });
 
 test('channel selection deduplicates ASINs, respects exclusions and ranks strongest eligible deals', () => {
