@@ -4,58 +4,87 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    --background: 42 33% 98%;
+    --foreground: 157 35% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 157 35% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
+    --popover-foreground: 157 35% 10%;
+    --primary: 157 55% 16%;
+    --primary-foreground: 42 33% 98%;
+    --secondary: 42 28% 95%;
+    --secondary-foreground: 157 35% 14%;
+    --muted: 42 22% 95%;
+    --muted-foreground: 155 7% 42%;
+    --accent: 145 28% 92%;
+    --accent-foreground: 157 55% 16%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --radius: 0.5rem;
-    --font-heading: ui-sans-serif, system-ui, sans-serif;
-    --font-body: ui-sans-serif, system-ui, sans-serif;
+    --border: 150 10% 86%;
+    --input: 150 10% 86%;
+    --ring: 157 55% 22%;
+    --radius: 0.375rem;
+    --font-heading: Georgia, 'Times New Roman', serif;
+    --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
 
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 62.8% 30.6%;
+    --background: 158 32% 7%;
+    --foreground: 42 33% 96%;
+    --card: 157 25% 10%;
+    --card-foreground: 42 33% 96%;
+    --popover: 157 25% 10%;
+    --popover-foreground: 42 33% 96%;
+    --primary: 142 46% 72%;
+    --primary-foreground: 158 32% 7%;
+    --secondary: 157 18% 16%;
+    --secondary-foreground: 42 33% 96%;
+    --muted: 157 18% 16%;
+    --muted-foreground: 145 8% 66%;
+    --accent: 157 20% 18%;
+    --accent-foreground: 42 33% 96%;
+    --destructive: 0 62% 42%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
+    --border: 157 15% 22%;
+    --input: 157 15% 22%;
+    --ring: 142 46% 72%;
   }
-}
 
-@layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
+  html {
+    text-rendering: optimizeLegibility;
+  }
+
   body {
-    @apply bg-background text-foreground font-body;
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3, .font-heading {
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  .ds-shell {
+    @apply max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .ds-kicker {
+    @apply text-[10px] font-black uppercase tracking-[0.18em] text-emerald-800;
+  }
+
+  .ds-rule {
+    @apply border-t border-emerald-950/10;
+  }
+
+  .ds-section-title {
+    @apply font-heading text-2xl sm:text-3xl font-bold text-emerald-950;
+  }
+
+  .ds-price {
+    @apply font-black tracking-[-0.03em] text-emerald-950;
   }
 }
