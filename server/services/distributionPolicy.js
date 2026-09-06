@@ -17,13 +17,14 @@ const WHATSAPP_AUDIENCE_EXCLUDED_PATTERNS = Object.freeze([
 ]);
 
 const CHANNEL_POLICY = Object.freeze({
-  [CHANNELS.WEB]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false, jewishAudience: false }),
-  [CHANNELS.APP]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false, jewishAudience: false }),
+  [CHANNELS.WEB]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false, jewishAudience: false, requireFreshPriceCheck: true }),
+  [CHANNELS.APP]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false, jewishAudience: false, requireFreshPriceCheck: true }),
   // The admin-only WhatsApp group is curated, but intentionally has more inventory
-  // than Status. Members receive outbound deal posts; this is not a chatbot.
-  [CHANNELS.WHATSAPP_GROUP]: Object.freeze({ maxFreshnessSeconds: 18 * 60 * 60, minDiscountPercent: 20, minQualityScore: 78, requireImage: true, jewishAudience: true }),
+  // than Status. It does not require an additional price-freshness check at publish time.
+  [CHANNELS.WHATSAPP_GROUP]: Object.freeze({ maxFreshnessSeconds: null, minDiscountPercent: 20, minQualityScore: 78, requireImage: true, jewishAudience: true, requireFreshPriceCheck: false }),
   // Status is the showcase surface: only the cream of the crop should reach it.
-  [CHANNELS.WHATSAPP_STATUS]: Object.freeze({ maxFreshnessSeconds: 12 * 60 * 60, minDiscountPercent: 25, minQualityScore: 85, requireImage: true, jewishAudience: true }),
+  // It also does not require an additional price-freshness check at publish time.
+  [CHANNELS.WHATSAPP_STATUS]: Object.freeze({ maxFreshnessSeconds: null, minDiscountPercent: 25, minQualityScore: 85, requireImage: true, jewishAudience: true, requireFreshPriceCheck: false }),
 });
 
 function asUnixSeconds(value) {
@@ -73,7 +74,7 @@ function evaluateDistribution(deal = {}, channel, nowUnix = Math.floor(Date.now(
   const checkedAt = asUnixSeconds(deal.price_check_at ?? deal.priceCheckAt);
   const now = asUnixSeconds(nowUnix);
   const ageSeconds = checkedAt && now ? Math.max(0, now - checkedAt) : Number.POSITIVE_INFINITY;
-  if (!checkedAt || checkedAt > now || ageSeconds > policy.maxFreshnessSeconds) reasons.push('price_check_stale');
+  if (policy.requireFreshPriceCheck && (!checkedAt || checkedAt > now || ageSeconds > policy.maxFreshnessSeconds)) reasons.push('price_check_stale');
 
   return {
     channel,
