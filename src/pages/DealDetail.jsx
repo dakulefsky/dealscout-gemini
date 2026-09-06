@@ -68,33 +68,37 @@ export default function DealDetail() {
     setRecommendations([]);
 
     dealsApi.get(id)
-      .then(async (data) => {
+      .then((data) => {
         if (!mounted) return;
         setDeal(data);
         setLoading(false);
 
-        const asin = data?.asin;
-        const primaryFeedRequest = data?.category
-          ? dealsApi.page({ category: data.category, limit: 16, sort: '-discount_percent' })
-          : dealsApi.page({ limit: 24, sort: '-discount_percent' });
-        const [editorialResult, primaryFeedResult] = await Promise.allSettled([
-          asin ? editorialApi.get(asin) : Promise.resolve(null),
-          primaryFeedRequest,
-        ]);
-        if (!mounted) return;
-        setEditorial(editorialResult.status === 'fulfilled' ? editorialResult.value : null);
-        const primaryRows = primaryFeedResult.status === 'fulfilled' ? feedRows(primaryFeedResult.value) : [];
-        let rows = primaryRows;
-        if (data?.category && primaryRows.length < 9) {
-          try {
-            const fallbackFeed = await dealsApi.page({ limit: 24, sort: '-discount_percent' });
-            if (!mounted) return;
-            rows = [...primaryRows, ...feedRows(fallbackFeed)];
-          } catch {
-            // Same-category recommendations are still useful when the broad fallback fails.
+        void (async () => {
+          const asin = data?.asin;
+          const primaryFeedRequest = data?.category
+            ? dealsApi.page({ category: data.category, limit: 16, sort: '-discount_percent' })
+            : dealsApi.page({ limit: 24, sort: '-discount_percent' });
+          const [editorialResult, primaryFeedResult] = await Promise.allSettled([
+            asin ? editorialApi.get(asin) : Promise.resolve(null),
+            primaryFeedRequest,
+          ]);
+          if (!mounted) return;
+          setEditorial(editorialResult.status === 'fulfilled' ? editorialResult.value : null);
+          const primaryRows = primaryFeedResult.status === 'fulfilled' ? feedRows(primaryFeedResult.value) : [];
+          let rows = primaryRows;
+          if (data?.category && primaryRows.length < 9) {
+            try {
+              const fallbackFeed = await dealsApi.page({ limit: 24, sort: '-discount_percent' });
+              if (!mounted) return;
+              rows = [...primaryRows, ...feedRows(fallbackFeed)];
+            } catch {
+              // Same-category recommendations are still useful when the broad fallback fails.
+            }
           }
-        }
-        setRecommendations(rankRecommendations(rows, data));
+          setRecommendations(rankRecommendations(rows, data));
+        })().catch(() => {
+          // Secondary content must never turn a valid core product into a not-found page.
+        });
       })
       .catch(() => {
         if (!mounted) return;
