@@ -19,6 +19,10 @@ function dealIdentity(deal) {
   return String(deal?.id || deal?.asin || '').trim();
 }
 
+function feedRows(feed) {
+  return Array.isArray(feed) ? feed : (feed?.items || feed?.deals || []);
+}
+
 function recommendationScore(item, currentDeal, interests) {
   const sameCategory = item?.category && currentDeal?.category && item.category === currentDeal.category ? 1000 : 0;
   const interest = Number(interests?.[item?.category]) || 0;
@@ -30,9 +34,12 @@ function recommendationScore(item, currentDeal, interests) {
 function rankRecommendations(items, currentDeal) {
   const currentId = dealIdentity(currentDeal);
   const interests = loadInterests();
+  const seen = new Set();
   const eligible = (items || []).filter((item) => {
     const itemId = dealIdentity(item);
-    return itemId && itemId !== currentId && !item?.isExpired && item?.status !== 'EXPIRED';
+    if (!itemId || itemId === currentId || item?.isExpired || item?.status === 'EXPIRED' || seen.has(itemId)) return false;
+    seen.add(itemId);
+    return true;
   });
   const ranked = personalizedRank(eligible, interests)
     .map((item, index) => ({ item, index, score: recommendationScore(item, currentDeal, interests) }))
@@ -64,14 +71,26 @@ export default function DealDetail() {
         if (!mounted) return;
         setDeal(data);
         const asin = data?.asin;
-        const [editorialResult, feedResult] = await Promise.allSettled([
+        const primaryFeedRequest = data?.category
+          ? dealsApi.page({ category: data.category, limit: 16, sort: '-discount_percent' })
+          : dealsApi.page({ limit: 24, sort: '-discount_percent' });
+        const [editorialResult, primaryFeedResult] = await Promise.allSettled([
           asin ? editorialApi.get(asin) : Promise.resolve(null),
-          dealsApi.page({ limit: 24, sort: '-discount_percent' }),
+          primaryFeedRequest,
         ]);
         if (!mounted) return;
         setEditorial(editorialResult.status === 'fulfilled' ? editorialResult.value : null);
-        const feed = feedResult.status === 'fulfilled' ? feedResult.value : null;
-        const rows = Array.isArray(feed) ? feed : (feed?.items || feed?.deals || []);
+        const primaryRows = primaryFeedResult.status === 'fulfilled' ? feedRows(primaryFeedResult.value) : [];
+        let rows = primaryRows;
+        if (data?.category && primaryRows.length < 9) {
+          try {
+            const fallbackFeed = await dealsApi.page({ limit: 24, sort: '-discount_percent' });
+            if (!mounted) return;
+            rows = [...primaryRows, ...feedRows(fallbackFeed)];
+          } catch {
+            // Same-category recommendations are still useful when the broad fallback fails.
+          }
+        }
         setRecommendations(rankRecommendations(rows, data));
       })
       .catch(() => mounted && setDeal(null))
