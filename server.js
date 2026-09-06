@@ -20,7 +20,7 @@ function injectInitialContent(html, content = '') {
 
 function closureHtml(reason = 'Shabbat or Yom Tov') {
   const safeReason = escapeHtml(reason);
-  return `<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="robots" content="noindex,nofollow"/><title>DealScout is closed right now</title><style>body{margin:0;background:#f7f3e8;color:#17231b;font-family:Arial,sans-serif;display:grid;min-height:100vh;place-items:center}.box{max-width:620px;padding:48px 28px;text-align:center}h1{font-family:Georgia,serif;font-size:42px;margin:0 0 18px}p{font-size:17px;line-height:1.6;color:#536158}.small{font-size:13px;margin-top:28px;color:#7b837e}</style></head><body><main class="box"><div>✦</div><h1>We’re closed right now.</h1><p>DealScout pauses the shopper website during ${safeReason} according to Jerusalem time. Please come back after the work-forbidden period ends.</p><p class="small">Jerusalem · Israel holiday schedule</p></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="robots" content="noindex,nofollow"/><title>DealScout is closed right now</title><style>body{margin:0;background:#f7f3e8;color:#17231b;font-family:Arial,sans-serif;display:grid;min-height:100vh;place-items:center}.box{max-width:620px;padding:48px 28px;text-align:center}h1{font-family:Georgia,serif;font-size:42px;margin:0 0 18px}p{font-size:17px;line-height:1.6;color:#536158}.small{font-size:13px;margin-top:28px;color:#7b837e}</style></head><body><main class="box"><div>✦</div><h1>We’re closed right now.</h1><p>DealScout pauses the shopper website during ${safeReason} according to the closure location selected in Admin. Please come back after the work-forbidden period ends.</p><p class="small">Shabbat &amp; Yom Tov closure calendar</p></main></body></html>`;
 }
 
 function dealInitialContent(deal) {
@@ -133,9 +133,9 @@ async function startServer() {
             return res.status(503).type('html').send(closureHtml('Shabbat or Yom Tov'));
           }
         } catch (error) {
-          console.warn('[DealScout] Jerusalem closure calendar unavailable; failing closed:', error.message);
+          console.warn('[DealScout] Jewish closure calendar unavailable; failing closed:', error.message);
           res.set('Retry-After', '300');
-          return res.status(503).type('html').send(closureHtml('the Jerusalem closure calendar'));
+          return res.status(503).type('html').send(closureHtml('the Jewish closure calendar'));
         }
       }
       try {
