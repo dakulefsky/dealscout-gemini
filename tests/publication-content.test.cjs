@@ -55,13 +55,16 @@ test('WhatsApp content is concise factual copy with price disclaimer and verifie
   assert.match(content.caption, /Amazon pricing can change at any time/);
 });
 
-test('content composition fails closed if a deal is no longer eligible for the channel', () => {
+test('content composition still fails closed on invalid eligibility while WhatsApp has no extra freshness gate', () => {
   assert.throws(
     () => composePublicationContent(CHANNELS.WHATSAPP_STATUS, deal({ source_verified: 0 }), { nowUnix: NOW }),
     /not eligible/,
   );
-  assert.throws(
+  assert.doesNotThrow(
     () => composePublicationContent(CHANNELS.WHATSAPP_STATUS, deal({ price_check_at: NOW - 90_000 }), { nowUnix: NOW }),
+  );
+  assert.throws(
+    () => composePublicationContent(CHANNELS.WEB, deal({ price_check_at: NOW - 90_000 }), { nowUnix: NOW }),
     /price_check_stale/,
   );
 });
