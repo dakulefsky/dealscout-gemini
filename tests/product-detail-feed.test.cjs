@@ -43,6 +43,14 @@ test('product detail renders the core deal before editorial and recommendation r
   assert.match(source, /setEditorial\(null\);\s*setRecommendations\(\[\]\);/);
 });
 
+test('secondary product content failures cannot erase a valid core deal', () => {
+  assert.match(source, /void \(async \(\) => \{/);
+  assert.match(source, /Secondary content must never turn a valid core product into a not-found page/);
+  const primaryCatchIndex = source.lastIndexOf(".catch(() => {\n        if (!mounted) return;\n        setDeal(null);");
+  const secondaryCatchIndex = source.indexOf('Secondary content must never turn a valid core product into a not-found page');
+  assert.ok(primaryCatchIndex > secondaryCatchIndex);
+});
+
 test('product share uses native sharing when available and only claims clipboard success after awaiting it', () => {
   assert.match(source, /async function handleShare\(\)/);
   assert.match(source, /typeof navigator\.share === 'function'/);
