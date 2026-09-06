@@ -157,7 +157,7 @@ export default function CategoryPage() {
           </div>
           <div className="lg:border-l lg:border-emerald-950/10 lg:pl-8">
             <div className="ds-kicker">Keep browsing</div>
-            <h2 className="font-heading text-xl font-bold text-emerald-950 mt-2">Related edits</h2>
+            <h2 className="font-heading text-xl font-bold text-emerald-950 mt-2">Related deal categories</h2>
             <div className="mt-4 border-t border-emerald-950/10">{relatedCategories.map((item) => <Link key={item.slug} to={`/category/${item.slug}`} className="flex items-center justify-between gap-3 border-b border-emerald-950/10 py-3 text-sm font-bold text-slate-800 hover:text-emerald-800 transition"><span>{item.name} deals</span><ArrowRight className="w-4 h-4" /></Link>)}</div>
           </div>
         </section>
