@@ -89,7 +89,7 @@ export default function Home() {
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
   const heroDeal = showCuratedHome ? dropDeals[0] : null;
   const heroSideDeals = showCuratedHome ? dropDeals.slice(1, 4) : [];
-  const topDeals = showCuratedHome ? dropDeals.slice(0, 6) : [];
+  const topDeals = showCuratedHome ? dropDeals.slice(4, 8) : [];
 
   const feedGrid = (items) => viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr items-stretch">{items.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" />)}</div> : <div>{items.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" />)}</div>;
 
@@ -132,7 +132,7 @@ export default function Home() {
       </section>
     )}
 
-    {showCuratedHome && topDeals.length > 0 && <section className="ds-shell py-9 sm:py-12"><div className="flex items-end justify-between gap-4 mb-5"><div><div className="ds-kicker">Freshly checked · Today’s best finds</div><h2 className="ds-section-title mt-1">Today’s Top Deals</h2></div><Link to="/?category=all" className="text-xs font-bold text-emerald-900 inline-flex items-center gap-1">See all deals <ArrowRight className="w-3.5 h-3.5" /></Link></div><div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">{topDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} />)}</div></section>}
+    {showCuratedHome && topDeals.length > 0 && <section className="ds-shell py-9 sm:py-12"><div className="flex items-end justify-between gap-4 mb-5"><div><div className="ds-kicker">Freshly checked · Today’s best finds</div><h2 className="ds-section-title mt-1">Today’s Top Deals</h2></div><Link to="/?category=all" className="text-xs font-bold text-emerald-900 inline-flex items-center gap-1">See all deals <ArrowRight className="w-3.5 h-3.5" /></Link></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{topDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} />)}</div></section>}
 
     {showCuratedHome && filteredPicks.length > 0 && <section className="border-y border-emerald-950/10 bg-white"><div className="ds-shell py-9 sm:py-12"><div className="mb-5"><div className="ds-kicker"><Star className="w-3.5 h-3.5 inline mr-1.5 fill-emerald-800" />Standout finds</div><h2 className="ds-section-title mt-1">DealScout Picks</h2></div><div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">{filteredPicks.map((pick) => <div key={pick.asin}><DealCard deal={pick.deal} />{pick.editorialNote && <p className="hidden sm:block mt-2 text-[11px] leading-relaxed text-slate-600 border-t border-emerald-950/10 pt-2"><strong className="text-emerald-900">Why we picked it:</strong> {pick.editorialNote}</p>}</div>)}</div></div></section>}
 
