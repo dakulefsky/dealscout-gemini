@@ -3,14 +3,33 @@ const { PUBLIC_PRICE_MAX_AGE_SECONDS, hasValidPricePair } = require('./publicDea
 const CHANNELS = Object.freeze({
   WEB: 'web',
   APP: 'app',
+  WHATSAPP_GROUP: 'whatsapp_group',
   WHATSAPP_STATUS: 'whatsapp_status',
 });
 
 const CHANNEL_POLICY = Object.freeze({
-  [CHANNELS.WEB]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false }),
-  [CHANNELS.APP]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false }),
-  [CHANNELS.WHATSAPP_STATUS]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 20, minQualityScore: 75, requireImage: true }),
+  [CHANNELS.WEB]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false, requireFreshPriceCheck: true, applyWhatsAppAudienceRules: false }),
+  [CHANNELS.APP]: Object.freeze({ maxFreshnessSeconds: PUBLIC_PRICE_MAX_AGE_SECONDS, minDiscountPercent: 15, minQualityScore: 0, requireImage: false, requireFreshPriceCheck: true, applyWhatsAppAudienceRules: false }),
+  [CHANNELS.WHATSAPP_GROUP]: Object.freeze({ maxFreshnessSeconds: null, minDiscountPercent: 20, minQualityScore: 78, requireImage: true, requireFreshPriceCheck: false, applyWhatsAppAudienceRules: true }),
+  [CHANNELS.WHATSAPP_STATUS]: Object.freeze({ maxFreshnessSeconds: null, minDiscountPercent: 25, minQualityScore: 85, requireImage: true, requireFreshPriceCheck: false, applyWhatsAppAudienceRules: true }),
 });
+
+const WOMENS_AUDIENCE_PATTERNS = Object.freeze([
+  /\bwomen(?:'s|s)?\b/i,
+  /\bwomenswear\b/i,
+  /\bwoman(?:'s|s)?\b/i,
+  /\blad(?:y|ies)\b/i,
+  /\bfemale\b/i,
+  /\bmaternity\b/i,
+]);
+
+const APPAREL_PATTERNS = Object.freeze([
+  /\bclothing\b/i, /\bapparel\b/i, /\bdress(?:es)?\b/i, /\bskirt(?:s)?\b/i, /\bblouse(?:s)?\b/i,
+  /\bshirt(?:s)?\b/i, /\btop(?:s)?\b/i, /\bsweater(?:s)?\b/i, /\bcardigan(?:s)?\b/i, /\bcoat(?:s)?\b/i,
+  /\bjacket(?:s)?\b/i, /\bpants?\b/i, /\btrousers?\b/i, /\bleggings?\b/i, /\bjeans?\b/i, /\bshorts?\b/i,
+  /\bswimsuits?\b/i, /\bswimwear\b/i, /\blingerie\b/i, /\bbras?\b/i, /\bunderwear\b/i, /\bsleepwear\b/i,
+  /\bpajamas?\b/i, /\bpyjamas?\b/i, /\brobes?\b/i,
+]);
 
 function asUnixSeconds(value) {
   const numeric = Number(value);
@@ -31,6 +50,13 @@ function isVerifiedActiveDeal(deal = {}) {
   return Boolean(verified && !expired && deal.status === 'APPROVED' && deal.asin && deal.title);
 }
 
+function isWhatsAppAudienceExcluded(deal = {}) {
+  const haystack = `${String(deal.category || '')} ${String(deal.title || '')}`;
+  const womensAudience = WOMENS_AUDIENCE_PATTERNS.some((pattern) => pattern.test(haystack));
+  const apparel = APPAREL_PATTERNS.some((pattern) => pattern.test(haystack));
+  return womensAudience && apparel;
+}
+
 function evaluateDistribution(deal = {}, channel, nowUnix = Math.floor(Date.now() / 1000)) {
   const policy = CHANNEL_POLICY[channel];
   if (!policy) throw new Error(`Unsupported distribution channel: ${channel}`);
@@ -47,11 +73,12 @@ function evaluateDistribution(deal = {}, channel, nowUnix = Math.floor(Date.now(
 
   const imageUrl = String(deal.image_url ?? deal.imageUrl ?? '').trim();
   if (policy.requireImage && !/^https?:\/\//i.test(imageUrl)) reasons.push('image_required');
+  if (policy.applyWhatsAppAudienceRules && isWhatsAppAudienceExcluded(deal)) reasons.push('whatsapp_audience_excluded');
 
   const checkedAt = asUnixSeconds(deal.price_check_at ?? deal.priceCheckAt);
   const now = asUnixSeconds(nowUnix);
   const ageSeconds = checkedAt && now ? Math.max(0, now - checkedAt) : Number.POSITIVE_INFINITY;
-  if (!checkedAt || checkedAt > now || ageSeconds > policy.maxFreshnessSeconds) reasons.push('price_check_stale');
+  if (policy.requireFreshPriceCheck && (!checkedAt || checkedAt > now || ageSeconds > policy.maxFreshnessSeconds)) reasons.push('price_check_stale');
 
   return {
     channel,
@@ -99,9 +126,12 @@ function selectChannelDeals(deals = [], channel, options = {}) {
 module.exports = {
   CHANNELS,
   CHANNEL_POLICY,
+  WOMENS_AUDIENCE_PATTERNS,
+  APPAREL_PATTERNS,
   evaluateDistribution,
   selectChannelDeals,
   distributionScore,
   dealDiscountPercent,
   isVerifiedActiveDeal,
+  isWhatsAppAudienceExcluded,
 };
