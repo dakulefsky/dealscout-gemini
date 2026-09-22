@@ -6,6 +6,7 @@ import DealCard, { formatPrice } from '@/components/DealCard';
 import { verificationFreshness } from '@/lib/verificationFreshness';
 import { categoryPathFromName } from '@/lib/categoryRoutes';
 import { addCategoryInterest, loadInterests, personalizedRank } from '@/lib/feedPersonalization';
+import { dealRankScore } from '@/lib/dealRanking';
 import { deals as dealsApi, functions, editorial as editorialApi } from '@/lib/api';
 import { useBookmarks } from '@/lib/BookmarksContext';
 import SidebarAds from '@/components/SidebarAds';
@@ -23,9 +24,7 @@ function feedRows(feed) {
 function recommendationScore(item, currentDeal, interests) {
   const sameCategory = item?.category && currentDeal?.category && item.category === currentDeal.category ? 1000 : 0;
   const interest = Number(interests?.[item?.category]) || 0;
-  const quality = Number(item?.qualityScore ?? item?.quality_score ?? 0) || 0;
-  const discount = Number(item?.discountPercent ?? item?.discount_percent ?? 0) || 0;
-  return sameCategory + interest * 20 + quality + discount;
+  return sameCategory + interest * 20 + dealRankScore(item);
 }
 
 function rankRecommendations(items, currentDeal) {
