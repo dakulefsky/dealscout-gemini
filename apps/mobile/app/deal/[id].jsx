@@ -9,6 +9,7 @@ import { bookmarks, deals, functions } from '../../src/api';
 import { isAmazonOwnedUrl } from '../../src/amazonUrl';
 import { addCategoryInterest, loadInterests } from '../../src/personalization';
 import { personalizedRank } from '../../../../src/lib/personalizationCore';
+import { dealRankScore } from '../../../../src/lib/dealRanking';
 
 function field(deal, camel, snake) {
   return deal?.[camel] ?? deal?.[snake];
@@ -31,9 +32,7 @@ function recommendationScore(candidate, current, interests) {
   const category = String(candidate?.category || '').trim();
   const sameCategory = category && category === String(current?.category || '').trim() ? 1000 : 0;
   const interest = Number(interests?.[category] || 0) * 20;
-  const quality = Number(field(candidate, 'qualityScore', 'quality_score') || 0);
-  const discount = Number(field(candidate, 'discountPercent', 'discount_percent') || 0);
-  return sameCategory + interest + quality + discount;
+  return sameCategory + interest + dealRankScore(candidate);
 }
 
 export default function DealDetailScreen() {
@@ -127,7 +126,7 @@ export default function DealDetailScreen() {
           <Image source={imageUrl ? { uri: imageUrl } : undefined} style={styles.image} contentFit="contain" transition={150} />
         </View>
         <View style={styles.body}>
-          <Text style={styles.eyebrow}>DEALSCOUT PICK</Text>
+          <Text style={styles.eyebrow}>{String(deal.category || 'DEAL').toUpperCase()}</Text>
           <Text style={styles.title}>{deal.title}</Text>
           <View style={styles.priceRow}>
             {money(salePrice) && <Text style={styles.sale}>{money(salePrice)}</Text>}

@@ -27,6 +27,12 @@ function publicSurfaceOnly(req, res, next) {
     return res.status(404).json({ error: 'Not found' });
   }
 
+  // The dormant AI endpoints are not part of the current shopper UI and can
+  // consume paid model quota, so keep them on the private service.
+  if (path.startsWith('/api/ai')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
   // Editorial content can be read publicly, but writes stay private.
   if (path.startsWith('/api/editorial') && !['GET', 'HEAD'].includes(method)) {
     return res.status(404).json({ error: 'Not found' });

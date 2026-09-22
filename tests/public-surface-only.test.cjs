@@ -44,4 +44,6 @@ test('public shopper service still blocks every other operational function endpo
   assert.equal(run('/api/functions/provider-status').statusCode, 404);
   assert.equal(run('/api/functions/fetch-deals', 'POST').statusCode, 404);
   assert.equal(run('/api/functions/verify-prices', 'POST').statusCode, 404);
+  assert.equal(run('/api/ai/ask-deal-assistant', 'POST').statusCode, 404);
+  assert.equal(run('/api/ai/analyze-deal', 'POST').statusCode, 404);
 });
