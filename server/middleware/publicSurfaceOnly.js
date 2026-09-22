@@ -8,8 +8,10 @@ function publicSurfaceOnly(req, res, next) {
     return res.status(404).type('text/plain').send('Not found');
   }
 
-  // Operational/admin function endpoints belong only on the private service.
-  if (path.startsWith('/api/functions')) {
+  // The affiliate redirect is a shopper action used by every "View on Amazon"
+  // button. All other function endpoints are operational/admin-only.
+  const isPublicAffiliateRedirect = path === '/api/functions/amazon-redirect' && String(req.method || 'GET').toUpperCase() === 'POST';
+  if (path.startsWith('/api/functions') && !isPublicAffiliateRedirect) {
     return res.status(404).json({ error: 'Not found' });
   }
 

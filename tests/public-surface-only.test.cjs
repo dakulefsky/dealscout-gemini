@@ -26,14 +26,22 @@ test('public shopper service hides private admin surfaces', () => {
   assert.equal(run('/api/functions/provider-status').statusCode, 404);
 });
 
-test('public shopper service keeps shopper reads and guest features available', () => {
+test('public shopper service keeps shopper reads, guest features, and affiliate redirect available', () => {
   assert.equal(run('/api/v1/deals/feed').nextCalled, true);
   assert.equal(run('/api/v1/categories').nextCalled, true);
   assert.equal(run('/api/v1/bookmarks/toggle', 'POST').nextCalled, true);
+  assert.equal(run('/api/functions/amazon-redirect', 'POST').nextCalled, true);
 });
 
 test('public shopper service blocks admin catalog mutations', () => {
   assert.equal(run('/api/v1/deals/abc', 'PATCH').statusCode, 404);
   assert.equal(run('/api/v1/categories/cat-electronics', 'PATCH').statusCode, 404);
   assert.equal(run('/api/editorial/B000000001', 'PUT').statusCode, 404);
+});
+
+
+test('public shopper service still blocks every other operational function endpoint', () => {
+  assert.equal(run('/api/functions/provider-status').statusCode, 404);
+  assert.equal(run('/api/functions/fetch-deals', 'POST').statusCode, 404);
+  assert.equal(run('/api/functions/verify-prices', 'POST').statusCode, 404);
 });
