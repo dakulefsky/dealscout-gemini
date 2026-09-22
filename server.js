@@ -157,7 +157,7 @@ async function startServer() {
             meta = { title: 'Deal not found — DealScout', description: 'This deal is no longer available.', canonical: null, robots: 'noindex,follow' };
           }
         } else if (categoryMatch) {
-          const rows = await categoryRepository.list({ slug: decodeURIComponent(categoryMatch[1]), activeOnly: true });
+          const rows = await categoryRepository.list({ slug: decodeURIComponent(categoryMatch[1]), activeOnly: false });
           if (rows[0]) {
             meta = seo.categoryMeta(baseUrl, rows[0]);
             initialContent = categoryInitialContent(rows[0]);

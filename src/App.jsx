@@ -20,6 +20,7 @@ const ResetPassword = lazy(() => import('@/pages/ResetPassword'));
 const AdminHome = lazy(() => import('@/pages/AdminHome'));
 const AddDeal = lazy(() => import('@/pages/AddDeal'));
 const EditorialReview = lazy(() => import('@/pages/EditorialReview'));
+const NotFound = lazy(() => import('@/pages/NotFound'));
 
 function RouteFallback() {
   return (
@@ -83,7 +84,7 @@ export default function App() {
                   <Route path="/register" element={<Navigate to="/" replace />} />
                   <Route path="/forgot-password" element={<Navigate to="/admin/access" replace />} />
                   <Route path="/reset-password" element={<LegacyResetRedirect />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
+                  <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>
             </Layout>
