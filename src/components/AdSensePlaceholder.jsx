@@ -18,7 +18,7 @@ function validAdSenseSlot(value) {
 export default function AdSensePlaceholder({
   format = 'sidebar-rectangle',
   slotId = '',
-  adClient = import.meta.env.VITE_ADSENSE_CLIENT || '',
+  adClient = import.meta.env.VITE_ADSENSE_CLIENT || 'ca-pub-7492088381598802',
   className = '',
 }) {
   const adRef = useRef(null);
