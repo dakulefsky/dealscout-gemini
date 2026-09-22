@@ -36,10 +36,21 @@ async function sendVerificationCode(email, code) {
   });
 }
 
+function resolveAdminWebUrl(env = process.env) {
+  const explicit = String(env.ADMIN_WEB_URL || '').trim();
+  if (explicit) {
+    let parsed;
+    try { parsed = new URL(explicit); } catch { throw new Error('ADMIN_WEB_URL must be an absolute URL'); }
+    if (env.NODE_ENV === 'production' && parsed.protocol !== 'https:') throw new Error('ADMIN_WEB_URL must use HTTPS in production');
+    return parsed.origin;
+  }
+  return resolvePublicWebUrl(env, { isProduction: env.NODE_ENV === 'production' });
+}
+
 async function sendPasswordReset(email, rawToken) {
   const config = getConfig();
-  const baseUrl = resolvePublicWebUrl(process.env, { isProduction: process.env.NODE_ENV === 'production' });
-  if (!baseUrl) throw new Error('PUBLIC_WEB_URL is required for password reset email delivery');
+  const baseUrl = resolveAdminWebUrl(process.env);
+  if (!baseUrl) throw new Error('ADMIN_WEB_URL or PUBLIC_WEB_URL is required for password reset email delivery');
   const resetUrl = `${baseUrl}/admin/reset-password?token=${encodeURIComponent(rawToken)}`;
   await getTransport().sendMail({
     from: config.from,
@@ -68,4 +79,4 @@ async function sendPriceAlert(email, { dealId, dealTitle, currentPrice, targetPr
   });
 }
 
-module.exports = { isConfigured, sendVerificationCode, sendPasswordReset, sendPriceAlert };
+module.exports = { isConfigured, resolveAdminWebUrl, sendVerificationCode, sendPasswordReset, sendPriceAlert };
