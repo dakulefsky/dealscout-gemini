@@ -14,7 +14,7 @@ export function BookmarksProvider({ children }) {
     try {
       setIsLoading(true);
       const res = await bookmarksApi.list();
-      setSavedDealIds(res.bookmarkIds || []);
+      setSavedDealIds((res.bookmarkIds || []).map(String));
       setSavedDealsList(res.deals || []);
     } catch (err) {
       console.error('Failed to load bookmarks:', err);
@@ -29,7 +29,8 @@ export function BookmarksProvider({ children }) {
 
   const toggleBookmark = async (deal) => {
     if (!deal) return;
-    const dealId = deal.id || deal.asin;
+    const dealId = String(deal.id || deal.asin || '');
+    if (!dealId) return;
     const isCurrentlySaved = savedDealIds.includes(dealId);
 
     // Optimistic update
@@ -38,14 +39,14 @@ export function BookmarksProvider({ children }) {
       setSavedDealsList((prev) => prev.filter((d) => (d.id !== dealId && d.asin !== dealId)));
       toast({
         title: 'Removed from Saved Deals',
-        description: `"${deal.title?.substring(0, 40)}..." was removed from your wishlist.`,
+        description: `"${String(deal.title || 'Deal').substring(0, 40)}" was removed from your saved deals.`,
       });
     } else {
       setSavedDealIds((prev) => [...prev, dealId]);
       setSavedDealsList((prev) => [deal, ...prev]);
       toast({
         title: 'Added to Saved Deals',
-        description: `"${deal.title?.substring(0, 40)}..." has been saved to your wishlist.`,
+        description: `"${String(deal.title || 'Deal').substring(0, 40)}" has been saved.`,
       });
     }
 
@@ -54,12 +55,16 @@ export function BookmarksProvider({ children }) {
       fetchBookmarks();
     } catch (err) {
       console.error('Failed to toggle bookmark:', err);
-      // Revert on error
-      fetchBookmarks();
+      await fetchBookmarks();
+      toast({
+        title: 'Could not update saved deals',
+        description: 'Your saved list was restored. Please try again.',
+        variant: 'destructive',
+      });
     }
   };
 
-  const isSaved = (dealId) => savedDealIds.includes(dealId);
+  const isSaved = (dealId) => savedDealIds.includes(String(dealId || ''));
 
   return (
     <BookmarksContext.Provider
