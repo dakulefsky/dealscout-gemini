@@ -35,6 +35,7 @@ test('production CSP uses a nonce and keeps executable inline scripts blocked', 
     assert.doesNotMatch(headers['Content-Security-Policy'], /script-src[^;]*'unsafe-inline'/);
     assert.match(headers['Content-Security-Policy'], /https:\/\/fonts\.googleapis\.com/);
     assert.match(headers['Content-Security-Policy'], /img-src 'self' data: blob: https:/);
+    assert.match(headers['Content-Security-Policy'], /connect-src 'self' https:\/\/ssh\.cloud\.google\.com/);
   });
 });
 
