@@ -7,6 +7,7 @@ const { securityHeaders, contentSecurityPolicy } = require('../server/middleware
 const seo = require('../server/services/seoService');
 
 const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 function withNodeEnv(value, fn) {
   const previous = process.env.NODE_ENV;
@@ -18,7 +19,7 @@ function withNodeEnv(value, fn) {
   }
 }
 
-test('production CSP uses a nonce and keeps executable inline scripts blocked', () => {
+test('production CSP uses AdSense-supported nonce-based strict dynamic scripts', () => {
   withNodeEnv('production', () => {
     const headers = {};
     const res = {
@@ -31,13 +32,11 @@ test('production CSP uses a nonce and keeps executable inline scripts blocked', 
     assert.equal(nextCalled, true);
     assert.match(res.locals.cspNonce, /^[A-Za-z0-9+/]+=*$/);
     assert.equal(headers['Content-Security-Policy'], contentSecurityPolicy(res.locals.cspNonce));
-    assert.match(headers['Content-Security-Policy'], new RegExp(`script-src 'self' 'nonce-${res.locals.cspNonce.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`));
-    assert.doesNotMatch(headers['Content-Security-Policy'], /script-src[^;]*'unsafe-inline'/);
+    assert.match(headers['Content-Security-Policy'], /script-src 'nonce-[^']+' 'unsafe-inline' 'unsafe-eval' 'strict-dynamic' https: http:/);
     assert.match(headers['Content-Security-Policy'], /https:\/\/fonts\.googleapis\.com/);
     assert.match(headers['Content-Security-Policy'], /img-src 'self' data: blob: https:/);
-    assert.match(headers['Content-Security-Policy'], /connect-src 'self' https:\/\/ssh\.cloud\.google\.com/);
-    assert.match(headers['Content-Security-Policy'], /https:\/\/pagead2\.googlesyndication\.com/);
-    assert.match(headers['Content-Security-Policy'], /frame-src 'self' https:\/\/googleads\.g\.doubleclick\.net https:\/\/tpc\.googlesyndication\.com/);
+    assert.match(headers['Content-Security-Policy'], /connect-src 'self' https:/);
+    assert.match(headers['Content-Security-Policy'], /frame-src 'self' https:/);
   });
 });
 
@@ -62,4 +61,10 @@ test('server-rendered JSON-LD receives the request CSP nonce', () => {
   });
   assert.match(rendered, /<script nonce="abc123" type="application\/ld\+json">/);
   assert.match(server, /seo\.replaceMeta\(indexTemplate, \{ \.\.\.meta, nonce: res\.locals\.cspNonce \}\)/);
+});
+
+test('production HTML nonces both the app bundle and global AdSense script', () => {
+  assert.match(indexHtml, /adsbygoogle\.js\?client=ca-pub-7492088381598802/);
+  assert.match(server, /function applyScriptNonce\(html, nonce\)/);
+  assert.match(server, /applyScriptNonce\(rendered, res\.locals\.cspNonce\)/);
 });
