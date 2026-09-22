@@ -66,6 +66,10 @@ jobs:
             fi
           done
           case "$PUBLIC_WEB_URL" in https://*) ;; *) echo "PUBLIC_WEB_URL must use https://" >&2; exit 1 ;; esac
+          if [ "$GCP_WEB_SERVICE" = "dealscout" ]; then
+            echo "GCP_WEB_SERVICE must point to the public shopper service, not the private IAP-protected dealscout service." >&2
+            exit 1
+          fi
 
       - name: Run release quality gate
         run: |
@@ -100,7 +104,7 @@ jobs:
         run: |
           set -euo pipefail
           PROVIDER="${DEAL_DATA_PROVIDER:-auto}"
-          ENV_VARS="^|^NODE_ENV=production|PUBLIC_WEB_URL=${PUBLIC_WEB_URL}|CORS_ORIGINS=${CORS_ORIGINS}|CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME}|AMAZON_ASSOCIATE_TAG=${AMAZON_ASSOCIATE_TAG}|DEAL_DATA_PROVIDER=${PROVIDER}"
+          ENV_VARS="^|^NODE_ENV=production|PUBLIC_SURFACE_ONLY=true|PUBLIC_WEB_URL=${PUBLIC_WEB_URL}|CORS_ORIGINS=${CORS_ORIGINS}|CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME}|AMAZON_ASSOCIATE_TAG=${AMAZON_ASSOCIATE_TAG}|DEAL_DATA_PROVIDER=${PROVIDER}"
           [ -n "${RAINFOREST_DOMAIN:-}" ] && ENV_VARS+="|RAINFOREST_DOMAIN=${RAINFOREST_DOMAIN}"
           [ -n "${RAINFOREST_DAILY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|RAINFOREST_DAILY_REQUEST_LIMIT=${RAINFOREST_DAILY_REQUEST_LIMIT}"
           [ -n "${RAINFOREST_MONTHLY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|RAINFOREST_MONTHLY_REQUEST_LIMIT=${RAINFOREST_MONTHLY_REQUEST_LIMIT}"
