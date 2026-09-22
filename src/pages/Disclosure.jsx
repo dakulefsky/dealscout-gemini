@@ -8,18 +8,16 @@ export default function Disclosure() {
         <ArrowLeft className="h-4 w-4" /> Back to deals
       </Link>
 
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-9 shadow-xs">
+      <article className="border-y border-emerald-950/10 py-8 sm:py-10">
         <div className="max-w-2xl">
-          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full mb-3">
-            <ShieldCheck className="w-3.5 h-3.5" /> Transparency
-          </span>
-          <h1 className="font-heading text-3xl sm:text-4xl font-black tracking-tight text-slate-900">Affiliate disclosure</h1>
+          <div className="ds-kicker inline-flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Transparency</div>
+          <h1 className="font-heading text-4xl sm:text-5xl font-bold text-emerald-950 mt-2">Affiliate disclosure</h1>
           <p className="text-sm sm:text-base text-slate-600 mt-3 leading-relaxed">
             The short version: DealScout may earn a commission when you buy through eligible Amazon links. It does not increase the price you pay.
           </p>
         </div>
 
-        <section className="mt-7 p-5 rounded-2xl bg-amber-50 border border-amber-200">
+        <section className="mt-8 py-5 border-y border-amber-300">
           <div className="flex items-start gap-3">
             <BadgeDollarSign className="w-5 h-5 text-amber-700 mt-0.5 shrink-0" />
             <div>
@@ -29,18 +27,18 @@ export default function Disclosure() {
           </div>
         </section>
 
-        <div className="grid sm:grid-cols-3 gap-3 mt-7">
-          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+        <div className="grid sm:grid-cols-3 gap-6 mt-8">
+          <div className="border-t border-emerald-950/10 pt-4">
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
             <h2 className="font-bold text-slate-900 mt-3">Prices are checked</h2>
             <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">We aim to show deals only when the current price and comparison price can be verified.</p>
           </div>
-          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+          <div className="border-t border-emerald-950/10 pt-4">
             <Clock3 className="w-5 h-5 text-emerald-600" />
             <h2 className="font-bold text-slate-900 mt-3">Deals can change</h2>
             <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">Prices, sellers, shipping, promotions, and availability may change after our latest check.</p>
           </div>
-          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+          <div className="border-t border-emerald-950/10 pt-4">
             <ShieldCheck className="w-5 h-5 text-emerald-600" />
             <h2 className="font-bold text-slate-900 mt-3">Amazon is final</h2>
             <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">Always confirm the final seller, price, shipping, availability, and purchase terms on Amazon.</p>
@@ -63,7 +61,7 @@ export default function Disclosure() {
             <p>Affiliate compensation does not guarantee that a product will be featured or labeled a DealScout Pick. The goal is to surface useful deals while being clear about how the site may earn money.</p>
           </section>
         </div>
-      </div>
+      </article>
     </div>
   );
 }
