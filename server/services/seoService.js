@@ -44,6 +44,14 @@ function replaceMeta(html, { title, description, canonical, robots = 'index,foll
   let out = html;
   out = out.replace(/<title>.*?<\/title>/i, `<title>${htmlEscape(title)}</title>`);
   out = out.replace(/<meta name="description"[^>]*>/i, `<meta name="description" content="${htmlEscape(description)}" />`);
+
+  // The base Vite shell contains generic crawler/social tags. Remove those before
+  // injecting route-specific values so crawlers never receive conflicting metadata.
+  out = out
+    .replace(/\s*<meta\s+name=["']robots["'][^>]*>/gi, '')
+    .replace(/\s*<link\s+rel=["']canonical["'][^>]*>/gi, '')
+    .replace(/\s*<meta\s+property=["']og:(?:title|description|url|image)["'][^>]*>/gi, '');
+
   const additions = [
     `<meta name="robots" content="${htmlEscape(robots)}" />`,
     canonical ? `<link rel="canonical" href="${htmlEscape(canonical)}" />` : '',
