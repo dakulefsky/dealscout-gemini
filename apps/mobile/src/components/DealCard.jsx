@@ -60,17 +60,17 @@ export default function DealCard({ deal, onSave, onOpen, onDismiss, saved = fals
 }
 
 const styles = StyleSheet.create({
-  card: { flex: 1, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 18, overflow: 'hidden', backgroundColor: '#fff' },
-  image: { width: '100%', aspectRatio: 1.25, backgroundColor: '#fff' },
+  card: { flex: 1, borderWidth: 1, borderColor: '#d7ded8', overflow: 'hidden', backgroundColor: '#fff' },
+  image: { width: '100%', aspectRatio: 1.25, backgroundColor: '#f7f5ef' },
   body: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8 },
-  discount: { alignSelf: 'flex-start', fontSize: 11, fontWeight: '900', color: '#047857', backgroundColor: '#ecfdf5', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, marginBottom: 7 },
+  discount: { alignSelf: 'flex-start', fontSize: 10, fontWeight: '900', color: '#064e3b', backgroundColor: '#dcebdc', paddingHorizontal: 7, paddingVertical: 3, marginBottom: 7 },
   title: { minHeight: 38, color: '#0f172a', fontSize: 14, lineHeight: 19, fontWeight: '700' },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginTop: 8 },
   sale: { fontSize: 17, color: '#0f172a', fontWeight: '900' },
   original: { fontSize: 12, color: '#94a3b8', textDecorationLine: 'line-through' },
   actions: { flexDirection: 'row', gap: 7, marginHorizontal: 10, marginBottom: 10 },
-  dismissButton: { flex: 1.3, paddingVertical: 9, borderRadius: 11, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#fff' },
+  dismissButton: { flex: 1.3, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#d7ded8', backgroundColor: '#fff' },
   dismissText: { fontSize: 10, fontWeight: '800', color: '#64748b' },
-  saveButton: { flex: 1, paddingVertical: 9, borderRadius: 11, alignItems: 'center', backgroundColor: '#f1f5f9' },
+  saveButton: { flex: 1, paddingVertical: 9, alignItems: 'center', backgroundColor: '#f1f5f9' },
   saveText: { fontSize: 12, fontWeight: '800', color: '#334155' },
 });
