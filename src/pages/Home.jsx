@@ -11,6 +11,7 @@ import { loadPreviousVisit, checkpointVisit, dealCreatedTimestampMs, dealFreshne
 import { INITIAL_FEED_SIZE, nextVisibleCount } from '@/lib/progressiveFeed';
 import { loadSeenDealDrop, markDealDropSeen, freshDealDrop } from '@/lib/dealDropFreshness';
 import { buildFeedChapters, chapterDealIds } from '@/lib/feedChapters';
+import { selectHeroDeal } from '@/lib/heroDealQuality';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -25,7 +26,6 @@ const DISCOUNT_TIERS = [{ value: 0, label: 'Any discount' }, { value: 15, label:
 const PRICE_TIERS = [{ value: 'all', label: 'Any price' }, { value: 'under-50', label: 'Under $50', max: 50 }, { value: '50-150', label: '$50–$150', min: 50, max: 150 }, { value: '150-300', label: '$150–$300', min: 150, max: 300 }, { value: 'over-300', label: '$300+', min: 300 }];
 const CHAPTER_INTERVAL = 8;
 const REMOTE_PAGE_SIZE = 24;
-const HERO_MIN_DISCOUNT_PERCENT = 30;
 
 function dealIdentity(deal) { return String(deal?.id || deal?.asin || '').trim(); }
 function balancedFeatured(items, maxItems = 8) { const bounded = (items || []).slice(0, maxItems); const evenLength = bounded.length - (bounded.length % 2); return evenLength >= 2 ? bounded.slice(0, evenLength) : []; }
@@ -88,12 +88,7 @@ export default function Home() {
   const resetAllFilters = () => { setActiveCat('all'); setSearchQuery(''); setMinDiscount(0); setPriceTier('all'); setSort('best'); setSearchParams({}); };
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
-  const heroDeal = useMemo(() => {
-    if (!showCuratedHome) return null;
-    return [...dropDeals]
-      .filter((deal) => Number(deal.discountPercent || 0) >= HERO_MIN_DISCOUNT_PERCENT)
-      .sort((a, b) => Number(b.discountPercent || 0) - Number(a.discountPercent || 0))[0] || null;
-  }, [dropDeals, showCuratedHome]);
+  const heroDeal = useMemo(() => showCuratedHome ? selectHeroDeal(dropDeals) : null, [dropDeals, showCuratedHome]);
   const remainingDropDeals = useMemo(() => {
     if (!showCuratedHome) return [];
     const heroId = heroDeal ? dealIdentity(heroDeal) : '';

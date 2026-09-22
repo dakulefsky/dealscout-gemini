@@ -212,7 +212,7 @@ export default function DealDetail() {
 
           {editorial?.isHumanPick && <section className="mt-8 border-y border-emerald-950/10 py-6 sm:py-7"><div className="ds-kicker inline-flex items-center gap-1.5"><Star className="w-3.5 h-3.5 fill-emerald-800" /> DealScout pick</div><h2 className="font-heading text-2xl font-bold text-emerald-950 mt-2">Why this one stood out</h2>{editorial.editorialNote && <p className="text-sm text-slate-600 leading-relaxed mt-3 max-w-2xl">{editorial.editorialNote}</p>}</section>}
 
-          <div className="mt-9"><AdSensePlaceholder format="in-content" slotId="5432109876" label="Advertisement" className="w-full" /><p className="text-[11px] text-slate-400 text-center mt-4">Product details and customer feedback are available on the current Amazon listing.</p></div>
+          <div className="mt-9"><AdSensePlaceholder format="in-content" slotId={import.meta.env.VITE_ADSENSE_IN_CONTENT_SLOT || ''} className="w-full" /><p className="text-[11px] text-slate-400 text-center mt-4">Product details and customer feedback are available on the current Amazon listing.</p></div>
         </main>
 
         <aside className="lg:sticky lg:top-24 min-w-0">
