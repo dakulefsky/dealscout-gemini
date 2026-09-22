@@ -15,7 +15,7 @@ function contentSecurityPolicy(nonce) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     "img-src 'self' data: blob: https:",
-    "connect-src 'self'",
+    "connect-src 'self' https://ssh.cloud.google.com",
     "manifest-src 'self'",
     'upgrade-insecure-requests',
   ].join('; ');
