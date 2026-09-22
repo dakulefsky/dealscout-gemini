@@ -43,6 +43,7 @@ export default function CategoryPage() {
   const [error, setError] = useState(null);
   const [sort, setSort] = useState('best');
   const [viewMode, setViewMode] = useState('grid');
+  const [retryPage, setRetryPage] = useState(0);
   const sentinelRef = useRef(null);
 
   useEffect(() => {
@@ -84,13 +85,14 @@ export default function CategoryPage() {
         .then((page) => {
           setDeals((current) => mergeDeals(current, page.items || []));
           setNextCursor(page.nextCursor || null);
+          setError(null);
         })
         .catch((err) => setError(err.message || 'Could not load more deals'))
         .finally(() => setLoadingMore(false));
     }, { rootMargin: '700px 0px' });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [category, loadingMore, nextCursor, sort]);
+  }, [category, loadingMore, nextCursor, retryPage, sort]);
 
   const visibleDeals = useMemo(() => {
     const list = [...deals];
@@ -133,6 +135,8 @@ export default function CategoryPage() {
       <main className="pt-7 sm:pt-9">
         {loading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="border border-emerald-950/10 bg-white animate-pulse"><div className="aspect-[4/3] bg-stone-100" /><div className="p-4 space-y-3"><div className="h-3 bg-stone-100" /><div className="h-6 w-24 bg-stone-100" /></div></div>)}</div>
+        ) : !category ? (
+          <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Category not found</h3><p className="text-sm text-slate-500 mt-1">This category may have moved or no longer exists.</p><Link to="/?category=all" className="mt-5 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Browse all deals <ArrowRight className="w-4 h-4" /></Link></div>
         ) : error && visibleDeals.length === 0 ? (
           <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Couldn’t load this edit</h3><p className="text-sm text-slate-500 mt-1">{error}</p></div>
         ) : visibleDeals.length === 0 ? (
@@ -142,7 +146,7 @@ export default function CategoryPage() {
             {viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr items-stretch">{visibleDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" />)}</div> : <div>{visibleDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" />)}</div>}
             <div ref={sentinelRef} className="h-10" aria-hidden="true" />
             {nextCursor ? <div className="text-center py-5 text-xs font-semibold text-slate-400">{loadingMore ? 'Loading more verified deals…' : 'More deals load as you scroll'}</div> : <div className="text-center py-8 mt-4 border-t border-emerald-950/10"><ShieldCheck className="w-4 h-4 mx-auto text-emerald-700" /><div className="mt-2 text-xs font-bold text-emerald-950">End of the current edit</div></div>}
-            {error && <div role="status" className="text-center text-xs text-amber-700">Couldn’t load the next page. Scroll away and back to retry.</div>}
+            {error && <div role="status" className="text-center text-xs text-amber-800 py-3"><div>Couldn’t load the next page.</div><button type="button" onClick={() => { setError(null); setRetryPage((value) => value + 1); }} className="mt-2 font-bold text-emerald-900 border-b border-emerald-900">Retry loading</button></div>}
           </>
         )}
       </main>

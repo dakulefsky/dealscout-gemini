@@ -4,16 +4,13 @@ import { Image } from '@/components/ui/image';
 import { useToast } from '@/components/ui/use-toast';
 import DealCard, { formatPrice } from '@/components/DealCard';
 import { verificationFreshness } from '@/lib/verificationFreshness';
+import { categoryPathFromName } from '@/lib/categoryRoutes';
 import { addCategoryInterest, loadInterests, personalizedRank } from '@/lib/feedPersonalization';
 import { deals as dealsApi, functions, editorial as editorialApi } from '@/lib/api';
 import { useBookmarks } from '@/lib/BookmarksContext';
 import SidebarAds from '@/components/SidebarAds';
 import AdSensePlaceholder from '@/components/AdSensePlaceholder';
 import { ArrowLeft, ShoppingBag, Loader2, Heart, Share2, CheckCircle2, ExternalLink, ShieldCheck, AlertTriangle, Star, ArrowRight, BadgePercent } from 'lucide-react';
-
-function categorySlug(value) {
-  return encodeURIComponent(String(value || '').trim());
-}
 
 function dealIdentity(deal) {
   return String(deal?.id || deal?.asin || '').trim();
@@ -189,7 +186,7 @@ export default function DealDetail() {
 
   const freshness = verificationFreshness(deal.priceCheckAt);
   const savings = Math.max(0, Number(deal.originalPrice || 0) - Number(deal.salePrice || 0));
-  const categoryPath = deal.category ? `/category/${categorySlug(deal.category)}` : '/';
+  const categoryPath = categoryPathFromName(deal.category);
   const dealFacts = [
     deal.discountPercent > 0 ? { label: 'Discount', value: `${deal.discountPercent}% off`, icon: BadgePercent } : null,
     savings > 0 ? { label: 'You save', value: formatPrice(savings), icon: CheckCircle2 } : null,
