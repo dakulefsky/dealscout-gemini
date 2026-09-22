@@ -24,11 +24,12 @@ const NotFound = lazy(() => import('@/pages/NotFound'));
 
 function RouteFallback() {
   return (
-    <div className="max-w-7xl mx-auto px-4 py-16" role="status" aria-live="polite">
-      <div className="max-w-md mx-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="h-4 w-28 rounded bg-slate-200 animate-pulse" />
-        <div className="mt-4 h-3 w-full rounded bg-slate-100 animate-pulse" />
-        <div className="mt-2 h-3 w-4/5 rounded bg-slate-100 animate-pulse" />
+    <div className="ds-shell py-16 sm:py-20" role="status" aria-live="polite">
+      <div className="max-w-3xl border-y border-emerald-950/10 py-10">
+        <div className="h-2.5 w-24 bg-stone-200 animate-pulse" />
+        <div className="mt-5 h-8 w-3/5 bg-stone-200 animate-pulse" />
+        <div className="mt-4 h-3 w-full max-w-xl bg-stone-100 animate-pulse" />
+        <div className="mt-2 h-3 w-4/5 max-w-lg bg-stone-100 animate-pulse" />
         <span className="sr-only">Loading page</span>
       </div>
     </div>
