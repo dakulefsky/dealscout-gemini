@@ -18,6 +18,12 @@ function injectInitialContent(html, content = '') {
   return html.replace('<div id="root"></div>', `<div id="root">${content}</div>`);
 }
 
+function applyScriptNonce(html, nonce) {
+  if (!nonce) return html;
+  const escapedNonce = escapeHtml(nonce);
+  return html.replace(/<script(?![^>]*\snonce=)([^>]*)>/gi, `<script nonce="${escapedNonce}"$1>`);
+}
+
 function closureHtml(reason = 'Shabbat or Yom Tov') {
   const safeReason = escapeHtml(reason);
   return `<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="robots" content="noindex,nofollow"/><title>DealScout is closed right now</title><style>body{margin:0;background:#f7f3e8;color:#17231b;font-family:Arial,sans-serif;display:grid;min-height:100vh;place-items:center}.box{max-width:620px;padding:48px 28px;text-align:center}h1{font-family:Georgia,serif;font-size:42px;margin:0 0 18px}p{font-size:17px;line-height:1.6;color:#536158}.small{font-size:13px;margin-top:28px;color:#7b837e}</style></head><body><main class="box"><div>✦</div><h1>We’re closed right now.</h1><p>DealScout pauses the shopper website during ${safeReason} according to the closure location selected in Admin. Please come back after the work-forbidden period ends.</p><p class="small">Shabbat &amp; Yom Tov closure calendar</p></main></body></html>`;
@@ -182,7 +188,8 @@ async function startServer() {
           meta = { title: 'Page not found — DealScout', description: 'The page you requested could not be found.', canonical: null, robots: 'noindex,follow' };
         }
         const rendered = seo.replaceMeta(indexTemplate, { ...meta, nonce: res.locals.cspNonce });
-        res.status(status).type('html').send(injectInitialContent(rendered, initialContent));
+        const nonceReady = applyScriptNonce(rendered, res.locals.cspNonce);
+        res.status(status).type('html').send(injectInitialContent(nonceReady, initialContent));
       } catch (err) {
         console.warn('[DealScout] SEO render fallback:', err.message);
         res.status(503).type('html').send(indexTemplate);
