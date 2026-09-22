@@ -108,7 +108,7 @@ export default function Layout({ children }) {
             ref={mobile ? undefined : searchRef}
             autoFocus={mobile}
             type="search"
-            placeholder="Search products, brands, or categories…"
+            placeholder="Search deals, brands, products…"
             value={searchQuery}
             onChange={(event) => { setSearchQuery(event.target.value); setIsSearchOpen(true); }}
             onFocus={() => searchQuery.trim() && setIsSearchOpen(true)}
@@ -147,8 +147,8 @@ export default function Layout({ children }) {
         <div className="ds-shell">
           <div className="h-16 sm:h-[72px] flex items-center gap-3 sm:gap-6">
             <Link to="/" className="shrink-0 leading-none">
-              <div className="font-heading text-[27px] sm:text-[34px] font-bold tracking-[-0.04em] text-emerald-950">DealScout</div>
-              <div className="hidden sm:block text-[9px] text-slate-500 mt-0.5 tracking-wide">Good deals. No digging.</div>
+              <div className="font-heading text-[29px] sm:text-[36px] font-bold tracking-[-0.045em] text-emerald-950">DealScout</div>
+              <div className="hidden sm:block text-[9px] uppercase tracking-[0.14em] text-slate-500 mt-0.5">Deals, edited down</div>
             </Link>
 
             <div className="relative flex-1 max-w-2xl hidden md:block">{searchBox(false)}</div>
@@ -162,7 +162,7 @@ export default function Layout({ children }) {
               </Link>
               {isAuthenticated && user?.role === 'admin' && <Link to="/admin" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-900 py-2"><Settings className="h-4 w-4" /><span className="hidden sm:inline">Admin</span></Link>}
               {isAuthenticated && user?.role === 'admin' && <button onClick={logout} className="inline-flex items-center text-slate-600 hover:text-slate-900 py-2" aria-label="Log out"><LogOut className="h-4 w-4" /></button>}
-              <Link to="/?category=all" className="hidden lg:inline-flex items-center gap-2 rounded-md bg-emerald-950 text-white px-4 py-2.5 text-xs font-bold hover:bg-emerald-900">Browse all deals</Link>
+              <Link to="/?category=all" className="hidden lg:inline-flex items-center gap-2 bg-emerald-950 text-white px-4 py-2.5 text-xs font-bold hover:bg-emerald-900">Browse all</Link>
               <button type="button" onClick={toggleMobileMenu} aria-expanded={mobileMenuOpen} aria-controls="mobile-dealscout-menu" className="lg:hidden inline-flex items-center justify-center w-9 h-9 text-slate-700" aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}><Menu className="h-5 w-5" /></button>
             </nav>
           </div>
@@ -180,7 +180,7 @@ export default function Layout({ children }) {
             </nav>
           )}
 
-          <div className="hidden md:flex items-center gap-6 h-10 overflow-x-auto text-[12px] font-semibold text-slate-700 whitespace-nowrap border-t border-emerald-950/5">
+          <div className="hidden md:flex items-center gap-7 h-10 overflow-x-auto text-[11px] uppercase tracking-[0.08em] font-bold text-slate-600 whitespace-nowrap border-t border-emerald-950/5">
             <Link to="/?category=all" className="hover:text-emerald-900">All Deals</Link>
             {topCategories.map((category) => <Link key={category.id || category.slug} to={`/category/${category.slug}`} className="hover:text-emerald-900">{category.name}</Link>)}
           </div>
