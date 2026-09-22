@@ -23,10 +23,12 @@ export default function Layout({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [categoriesList, setCategoriesList] = useState([]);
   const searchRef = useRef(null);
+  const isAdminArea = location.pathname.startsWith('/admin');
 
   useEffect(() => {
+    if (isAdminArea) return;
     categoriesApi.list().then((result) => setCategoriesList(result || [])).catch(() => setCategoriesList([]));
-  }, []);
+  }, [isAdminArea]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -148,28 +150,37 @@ export default function Layout({ children }) {
           <div className="h-16 sm:h-[72px] flex items-center gap-3 sm:gap-6">
             <Link to="/" className="shrink-0 leading-none">
               <div className="font-heading text-[29px] sm:text-[36px] font-bold tracking-[-0.045em] text-emerald-950">DealScout</div>
-              <div className="hidden sm:block text-[9px] uppercase tracking-[0.14em] text-slate-500 mt-0.5">Deals, edited down</div>
+              <div className="hidden sm:block text-[9px] uppercase tracking-[0.14em] text-slate-500 mt-0.5">{isAdminArea ? 'Operations' : 'Deals, edited down'}</div>
             </Link>
 
-            <div className="relative flex-1 max-w-2xl hidden md:block">{searchBox(false)}</div>
+            {!isAdminArea && <div className="relative flex-1 max-w-2xl hidden md:block">{searchBox(false)}</div>}
 
             <nav className="ml-auto flex items-center gap-1 sm:gap-4">
-              <button type="button" onClick={toggleMobileSearch} className="md:hidden w-9 h-9 flex items-center justify-center text-slate-700" title="Search"><Search className="h-4 w-4" /></button>
-              <Link to="/saved" className="relative inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-900 py-2">
-                <Heart className={`h-4 w-4 ${savedDealIds.length ? 'text-rose-600 fill-rose-600' : ''}`} />
-                <span className="hidden sm:inline">Saved</span>
-                {savedDealIds.length > 0 && <span className="absolute -top-0.5 -right-2 bg-rose-600 text-white text-[8px] font-bold min-w-4 h-4 px-1 rounded-full inline-flex items-center justify-center">{savedDealIds.length}</span>}
-              </Link>
-              {isAuthenticated && user?.role === 'admin' && <Link to="/admin" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-900 py-2"><Settings className="h-4 w-4" /><span className="hidden sm:inline">Admin</span></Link>}
-              {isAuthenticated && user?.role === 'admin' && <button onClick={logout} className="inline-flex items-center text-slate-600 hover:text-slate-900 py-2" aria-label="Log out"><LogOut className="h-4 w-4" /></button>}
-              <Link to="/?category=all" className="hidden lg:inline-flex items-center gap-2 bg-emerald-950 text-white px-4 py-2.5 text-xs font-bold hover:bg-emerald-900">Browse all</Link>
-              <button type="button" onClick={toggleMobileMenu} aria-expanded={mobileMenuOpen} aria-controls="mobile-dealscout-menu" className="lg:hidden inline-flex items-center justify-center w-9 h-9 text-slate-700" aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}><Menu className="h-5 w-5" /></button>
+              {isAdminArea ? (
+                <>
+                  {isAuthenticated && user?.role === 'admin' && <Link to="/admin" className="text-xs font-bold text-emerald-950 py-2">Dashboard</Link>}
+                  <Link to="/" className="text-xs font-semibold text-slate-600 hover:text-emerald-900 py-2">Shopper site</Link>
+                  {isAuthenticated && user?.role === 'admin' && <button onClick={logout} className="inline-flex items-center text-slate-600 hover:text-slate-900 py-2" aria-label="Log out"><LogOut className="h-4 w-4" /></button>}
+                </>
+              ) : (
+                <>
+                  <button type="button" onClick={toggleMobileSearch} className="md:hidden w-9 h-9 flex items-center justify-center text-slate-700" title="Search"><Search className="h-4 w-4" /></button>
+                  <Link to="/saved" className="relative inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-900 py-2">
+                    <Heart className={`h-4 w-4 ${savedDealIds.length ? 'text-rose-600 fill-rose-600' : ''}`} />
+                    <span className="hidden sm:inline">Saved</span>
+                    {savedDealIds.length > 0 && <span className="absolute -top-0.5 -right-2 bg-rose-600 text-white text-[8px] font-bold min-w-4 h-4 px-1 rounded-full inline-flex items-center justify-center">{savedDealIds.length}</span>}
+                  </Link>
+                  {isAuthenticated && user?.role === 'admin' && <Link to="/admin" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-900 py-2"><Settings className="h-4 w-4" /><span className="hidden sm:inline">Admin</span></Link>}
+                  <Link to="/?category=all" className="hidden lg:inline-flex items-center gap-2 bg-emerald-950 text-white px-4 py-2.5 text-xs font-bold hover:bg-emerald-900">Browse all</Link>
+                  <button type="button" onClick={toggleMobileMenu} aria-expanded={mobileMenuOpen} aria-controls="mobile-dealscout-menu" className="lg:hidden inline-flex items-center justify-center w-9 h-9 text-slate-700" aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}><Menu className="h-5 w-5" /></button>
+                </>
+              )}
             </nav>
           </div>
 
-          {mobileSearchOpen && <div className="md:hidden pb-3">{searchBox(true)}</div>}
+          {!isAdminArea && mobileSearchOpen && <div className="md:hidden pb-3">{searchBox(true)}</div>}
 
-          {mobileMenuOpen && (
+          {!isAdminArea && mobileMenuOpen && (
             <nav id="mobile-dealscout-menu" aria-label="Mobile navigation" className="lg:hidden border-t border-emerald-950/10 py-3">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1">
                 <Link to="/?category=all" className="py-2 text-sm font-bold text-emerald-950">All deals</Link>
@@ -180,17 +191,17 @@ export default function Layout({ children }) {
             </nav>
           )}
 
-          <div className="hidden md:flex items-center gap-7 h-10 overflow-x-auto text-[11px] uppercase tracking-[0.08em] font-bold text-slate-600 whitespace-nowrap border-t border-emerald-950/5">
+          {!isAdminArea && <div className="hidden md:flex items-center gap-7 h-10 overflow-x-auto text-[11px] uppercase tracking-[0.08em] font-bold text-slate-600 whitespace-nowrap border-t border-emerald-950/5">
             <Link to="/?category=all" className="hover:text-emerald-900">All Deals</Link>
             {topCategories.map((category) => <Link key={category.id || category.slug} to={`/category/${category.slug}`} className="hover:text-emerald-900">{category.name}</Link>)}
-          </div>
+          </div>}
         </div>
       </header>
 
       <main className="flex-1">{children}</main>
-      <AffiliateBanner />
+      {!isAdminArea && <AffiliateBanner />}
 
-      <footer className="bg-emerald-950 text-emerald-50 mt-14">
+      {!isAdminArea && <footer className="bg-emerald-950 text-emerald-50 mt-14">
         <div className="ds-shell py-10 sm:py-12">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div className="md:col-span-2"><div className="font-heading text-2xl font-bold">DealScout</div><p className="text-sm text-emerald-100/70 mt-2 max-w-md">Standout deals, verified prices, and less noise.</p></div>
@@ -199,7 +210,7 @@ export default function Layout({ children }) {
           </div>
           <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-emerald-100/50 text-center sm:text-left"><span>&copy; {new Date().getFullYear()} DealScout. Amazon and the Amazon logo are trademarks of Amazon.com, Inc.</span><span>As an Amazon Associate I earn from qualifying purchases.</span></div>
         </div>
-      </footer>
+      </footer>}
     </div>
   );
 }
