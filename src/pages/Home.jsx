@@ -25,6 +25,7 @@ const DISCOUNT_TIERS = [{ value: 0, label: 'Any discount' }, { value: 15, label:
 const PRICE_TIERS = [{ value: 'all', label: 'Any price' }, { value: 'under-50', label: 'Under $50', max: 50 }, { value: '50-150', label: '$50–$150', min: 50, max: 150 }, { value: '150-300', label: '$150–$300', min: 150, max: 300 }, { value: 'over-300', label: '$300+', min: 300 }];
 const CHAPTER_INTERVAL = 8;
 const REMOTE_PAGE_SIZE = 24;
+const HERO_MIN_DISCOUNT_PERCENT = 30;
 
 function dealIdentity(deal) { return String(deal?.id || deal?.asin || '').trim(); }
 function balancedFeatured(items, maxItems = 8) { const bounded = (items || []).slice(0, maxItems); const evenLength = bounded.length - (bounded.length % 2); return evenLength >= 2 ? bounded.slice(0, evenLength) : []; }
@@ -87,9 +88,19 @@ export default function Home() {
   const resetAllFilters = () => { setActiveCat('all'); setSearchQuery(''); setMinDiscount(0); setPriceTier('all'); setSort('best'); setSearchParams({}); };
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
-  const heroDeal = showCuratedHome ? dropDeals[0] : null;
-  const heroSideDeals = showCuratedHome ? dropDeals.slice(1, 4) : [];
-  const topDeals = showCuratedHome ? dropDeals.slice(4, 8) : [];
+  const heroDeal = useMemo(() => {
+    if (!showCuratedHome) return null;
+    return [...dropDeals]
+      .filter((deal) => Number(deal.discountPercent || 0) >= HERO_MIN_DISCOUNT_PERCENT)
+      .sort((a, b) => Number(b.discountPercent || 0) - Number(a.discountPercent || 0))[0] || null;
+  }, [dropDeals, showCuratedHome]);
+  const remainingDropDeals = useMemo(() => {
+    if (!showCuratedHome) return [];
+    const heroId = heroDeal ? dealIdentity(heroDeal) : '';
+    return heroId ? dropDeals.filter((deal) => dealIdentity(deal) !== heroId) : dropDeals;
+  }, [dropDeals, heroDeal, showCuratedHome]);
+  const heroSideDeals = heroDeal ? remainingDropDeals.slice(0, 3) : [];
+  const topDeals = heroDeal ? remainingDropDeals.slice(3, 7) : remainingDropDeals.slice(0, 4);
 
   const feedGrid = (items) => viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr items-stretch">{items.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" />)}</div> : <div>{items.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" />)}</div>;
 
@@ -113,7 +124,7 @@ export default function Home() {
             <Link to={`/deal/${heroDeal.id || heroDeal.asin}`} className="group relative min-h-[390px] sm:min-h-[470px] overflow-hidden bg-[#ded8ca]">
               <Image src={heroDeal.imageUrl} fallbackSrcs={heroDeal.imageGallery || []} alt={heroDeal.title} fittingType="contain" className="absolute inset-0 w-full h-full p-8 sm:p-12 group-hover:scale-[1.025] transition-transform duration-500" />
               <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7 bg-gradient-to-t from-emerald-950/95 via-emerald-950/75 to-transparent text-white pt-28">
-                <div className="text-[10px] uppercase tracking-[0.18em] font-black text-emerald-100">Featured deal</div>
+                <div className="text-[10px] uppercase tracking-[0.18em] font-black text-emerald-100">Standout discount</div>
                 <h2 className="font-heading text-2xl sm:text-3xl font-bold leading-tight mt-1 max-w-xl line-clamp-2">{heroDeal.title}</h2>
                 <div className="flex items-baseline gap-3 mt-3"><span className="text-3xl font-black">{formatPrice(heroDeal.salePrice)}</span>{heroDeal.originalPrice > heroDeal.salePrice && <span className="text-sm text-white/60 line-through">{formatPrice(heroDeal.originalPrice)}</span>}{heroDeal.discountPercent > 0 && <span className="bg-[#dcebdc] text-emerald-950 px-2 py-1 text-xs font-black">{heroDeal.discountPercent}% OFF</span>}</div>
               </div>
