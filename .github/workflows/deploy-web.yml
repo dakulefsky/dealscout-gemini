@@ -25,6 +25,7 @@ jobs:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
       GCP_REGION: ${{ vars.GCP_REGION }}
       GCP_WEB_SERVICE: ${{ vars.GCP_WEB_SERVICE }}
+      GCP_ADMIN_SERVICE: ${{ vars.GCP_ADMIN_SERVICE || 'dealscout' }}
       GCP_IMAGE_REPOSITORY: ${{ vars.GCP_IMAGE_REPOSITORY }}
       GCP_RUNTIME_SERVICE_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
       CLOUD_SQL_CONNECTION_NAME: ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
@@ -55,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           required=(
-            GCP_PROJECT_ID GCP_REGION GCP_WEB_SERVICE GCP_IMAGE_REPOSITORY
+            GCP_PROJECT_ID GCP_REGION GCP_WEB_SERVICE GCP_ADMIN_SERVICE GCP_IMAGE_REPOSITORY
             CLOUD_SQL_CONNECTION_NAME PUBLIC_WEB_URL CORS_ORIGINS
             AMAZON_ASSOCIATE_TAG GCP_DB_SECRETS GCP_WEB_SECRETS
           )
@@ -66,8 +67,8 @@ jobs:
             fi
           done
           case "$PUBLIC_WEB_URL" in https://*) ;; *) echo "PUBLIC_WEB_URL must use https://" >&2; exit 1 ;; esac
-          if [ "$GCP_WEB_SERVICE" = "dealscout" ]; then
-            echo "GCP_WEB_SERVICE must point to the public shopper service, not the private IAP-protected dealscout service." >&2
+          if [ "$GCP_WEB_SERVICE" = "$GCP_ADMIN_SERVICE" ]; then
+            echo "Public shopper and private admin must use different Cloud Run services." >&2
             exit 1
           fi
 
@@ -128,6 +129,14 @@ jobs:
             ARGS+=(--service-account "$GCP_RUNTIME_SERVICE_ACCOUNT")
           fi
           gcloud "${ARGS[@]}"
+
+      - name: Deploy private admin revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Intentionally preserve the existing private service environment, IAM,
+          # Cloud SQL attachment, and IAP configuration. Only advance its image.
+          gcloud run deploy "$GCP_ADMIN_SERVICE"             --project "$GCP_PROJECT_ID"             --region "$GCP_REGION"             --image "$GCP_IMAGE"             --platform managed             --quiet
 
       - name: Verify deployed revision
         if: ${{ inputs.run_smoke }}
