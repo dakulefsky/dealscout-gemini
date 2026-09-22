@@ -50,7 +50,8 @@ function replaceMeta(html, { title, description, canonical, robots = 'index,foll
   out = out
     .replace(/\s*<meta\s+name=["']robots["'][^>]*>/gi, '')
     .replace(/\s*<link\s+rel=["']canonical["'][^>]*>/gi, '')
-    .replace(/\s*<meta\s+property=["']og:(?:title|description|url|image)["'][^>]*>/gi, '');
+    .replace(/\s*<meta\s+property=["']og:(?:title|description|url|image)["'][^>]*>/gi, '')
+    .replace(/\s*<meta\s+name=["']twitter:(?:title|description|image)["'][^>]*>/gi, '');
 
   const additions = [
     `<meta name="robots" content="${htmlEscape(robots)}" />`,
@@ -59,6 +60,9 @@ function replaceMeta(html, { title, description, canonical, robots = 'index,foll
     `<meta property="og:description" content="${htmlEscape(description)}" />`,
     canonical ? `<meta property="og:url" content="${htmlEscape(canonical)}" />` : '',
     image ? `<meta property="og:image" content="${htmlEscape(image)}" />` : '',
+    `<meta name="twitter:title" content="${htmlEscape(title)}" />`,
+    `<meta name="twitter:description" content="${htmlEscape(description)}" />`,
+    image ? `<meta name="twitter:image" content="${htmlEscape(image)}" />` : '',
     jsonLd ? `<script${nonce ? ` nonce="${htmlEscape(nonce)}"` : ''} type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>` : '',
   ].filter(Boolean).join('\n    ');
   return out.replace('</head>', `    ${additions}\n  </head>`);
