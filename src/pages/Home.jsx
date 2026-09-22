@@ -71,7 +71,12 @@ export default function Home() {
   const hasActiveFilters = activeCat !== 'all' || searchQuery.trim() !== '' || minDiscount > 0 || priceTier !== 'all' || sort !== 'best';
   const showCuratedHome = !flatAllMode && !hasActiveFilters;
   const dropDeals = useMemo(() => showCuratedHome ? balancedFeatured(freshDealDrop(visibleDeals, initialSeenDrop, 8), 8) : [], [visibleDeals, initialSeenDrop, showCuratedHome]);
-  const dropIds = useMemo(() => new Set(dropDeals.map((deal) => deal.id || deal.asin)), [dropDeals]);
+  const heroDeal = useMemo(() => showCuratedHome ? selectHeroDeal(visibleDeals) : null, [visibleDeals, showCuratedHome]);
+  const dropIds = useMemo(() => {
+    const ids = new Set(dropDeals.map((deal) => deal.id || deal.asin));
+    if (heroDeal) ids.add(heroDeal.id || heroDeal.asin);
+    return ids;
+  }, [dropDeals, heroDeal]);
   const chapters = useMemo(() => showCuratedHome ? buildFeedChapters(visibleDeals, interests, dropIds) : [], [visibleDeals, interests, dropIds, showCuratedHome]);
   const chapterIds = useMemo(() => chapterDealIds(chapters), [chapters]);
   const exploreDeals = useMemo(() => (flatAllMode || hasActiveFilters) ? visibleDeals : visibleDeals.filter((deal) => { const id = deal.id || deal.asin; return !dropIds.has(id) && !chapterIds.has(id); }), [visibleDeals, flatAllMode, hasActiveFilters, dropIds, chapterIds]);
@@ -88,7 +93,6 @@ export default function Home() {
   const resetAllFilters = () => { setActiveCat('all'); setSearchQuery(''); setMinDiscount(0); setPriceTier('all'); setSort('best'); setSearchParams({}); };
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
-  const heroDeal = useMemo(() => showCuratedHome ? selectHeroDeal(dropDeals) : null, [dropDeals, showCuratedHome]);
   const remainingDropDeals = useMemo(() => {
     if (!showCuratedHome) return [];
     const heroId = heroDeal ? dealIdentity(heroDeal) : '';
@@ -103,6 +107,18 @@ export default function Home() {
   const exploreWithChapters = () => { const sections = []; for (let start = 0; start < progressiveDeals.length; start += CHAPTER_INTERVAL) { const chunk = progressiveDeals.slice(start, start + CHAPTER_INTERVAL); sections.push(<Fragment key={`chunk-${start}`}>{feedGrid(chunk)}</Fragment>); const chapter = chapters[Math.floor(start / CHAPTER_INTERVAL)]; if (chapter) sections.push(chapterBlock(chapter)); } return sections; };
 
   return <div>
+    {showCuratedHome && !heroDeal && (
+      <section className="border-b border-emerald-950/10 bg-[#f7f5ef]">
+        <div className="ds-shell py-10 sm:py-14">
+          <div className="max-w-3xl">
+            <div className="ds-kicker">Today at DealScout</div>
+            <h1 className="font-heading text-[42px] sm:text-[58px] leading-[0.94] font-bold text-emerald-950 mt-3">The deals worth seeing.</h1>
+            <p className="text-sm sm:text-base leading-relaxed text-slate-600 mt-4 max-w-xl">Fresh finds, checked prices, and no oversized feature unless the discount genuinely earns it.</p>
+          </div>
+        </div>
+      </section>
+    )}
+
     {showCuratedHome && heroDeal && (
       <section className="border-b border-emerald-950/10 bg-[#f7f5ef]">
         <div className="ds-shell py-5 sm:py-8">
