@@ -109,6 +109,7 @@ export function buildReleasePlan(env = process.env) {
 
   const webEnv = encodeEnvVars([
     ['NODE_ENV', 'production'],
+    ['PUBLIC_SURFACE_ONLY', 'true'],
     ['PUBLIC_WEB_URL', publicWebUrl],
     ['CORS_ORIGINS', corsOrigins],
     ['CLOUD_SQL_CONNECTION_NAME', cloudSql],

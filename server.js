@@ -76,6 +76,7 @@ async function startServer() {
   app.use(cors({ origin: createCorsOriginPolicy(corsOrigins, { isProduction }), credentials: true }));
   app.use(express.json({ limit: '1mb' }));
   app.use(apiRateLimit());
+  app.use(require('./server/middleware/publicSurfaceOnly.js').publicSurfaceOnly);
 
   const amazonContentPolicy = require('./server/middleware/amazonContentPolicy.js');
   app.use(amazonContentPolicy.blockThirdPartyAmazonReviews);
