@@ -84,6 +84,8 @@ export function buildReleasePlan(env = process.env) {
   const affiliateTag = requireValue(env, 'AMAZON_ASSOCIATE_TAG');
   const dealProvider = text(env, 'DEAL_DATA_PROVIDER', 'auto');
   const webService = text(env, 'GCP_WEB_SERVICE', 'dealscout-web');
+  const adminService = text(env, 'GCP_ADMIN_SERVICE', 'dealscout');
+  if (adminService === webService) throw new Error('GCP_ADMIN_SERVICE must differ from GCP_WEB_SERVICE');
   const publisherPool = text(env, 'GCP_PUBLISHER_POOL', 'dealscout-publisher');
   const serviceAccount = text(env, 'GCP_RUNTIME_SERVICE_ACCOUNT');
 
@@ -151,6 +153,13 @@ export function buildReleasePlan(env = process.env) {
   ];
   if (serviceAccount) pushFlag(web, '--service-account', serviceAccount);
 
+  const admin = ['run', 'deploy', adminService,
+    '--project', project,
+    '--region', region,
+    '--image', image,
+    '--platform', 'managed',
+  ];
+
   const publisher = ['run', 'worker-pools', 'deploy', publisherPool,
     '--project', project,
     '--region', region,
@@ -169,9 +178,11 @@ export function buildReleasePlan(env = process.env) {
     region,
     image,
     webService,
+    adminService,
     publisherPool,
     commands: [
-      { label: 'website/api', executable: 'gcloud', args: web },
+      { label: 'public website/api', executable: 'gcloud', args: web },
+      { label: 'private admin', executable: 'gcloud', args: admin },
       { label: 'whatsapp status publisher', executable: 'gcloud', args: publisher },
     ],
   };

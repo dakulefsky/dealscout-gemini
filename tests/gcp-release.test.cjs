@@ -15,6 +15,7 @@ function env() {
     GCP_REGION: 'us-central1',
     GCP_IMAGE: 'us-central1-docker.pkg.dev/project-123/dealscout/app:abc123',
     GCP_WEB_SERVICE: 'dealscout-web',
+    GCP_ADMIN_SERVICE: 'dealscout',
     GCP_PUBLISHER_POOL: 'dealscout-publisher',
     GCP_RUNTIME_SERVICE_ACCOUNT: 'dealscout-runtime@project-123.iam.gserviceaccount.com',
     CLOUD_SQL_CONNECTION_NAME: 'project-123:us-central1:dealscout-db',
@@ -41,17 +42,23 @@ function env() {
   };
 }
 
-test('release plan deploys web as a Cloud Run service and publisher as one worker-pool instance', async () => {
+test('release plan deploys public web, private admin, and one publisher worker', async () => {
   const { buildReleasePlan } = await loadModule();
   const plan = buildReleasePlan(env());
-  assert.equal(plan.commands.length, 2);
+  assert.equal(plan.commands.length, 3);
 
   const web = plan.commands[0].args;
   assert.deepEqual(web.slice(0, 3), ['run', 'deploy', 'dealscout-web']);
   assert.equal(web.includes('--allow-unauthenticated'), true);
   assert.equal(web.includes('--set-cloudsql-instances'), true);
 
-  const publisher = plan.commands[1].args;
+  const admin = plan.commands[1].args;
+  assert.deepEqual(admin.slice(0, 3), ['run', 'deploy', 'dealscout']);
+  assert.equal(admin.includes('--allow-unauthenticated'), false);
+  assert.equal(admin.includes('--set-env-vars'), false);
+  assert.equal(admin.includes('--set-secrets'), false);
+
+  const publisher = plan.commands[2].args;
   assert.deepEqual(publisher.slice(0, 4), ['run', 'worker-pools', 'deploy', 'dealscout-publisher']);
   assert.equal(publisher[publisher.indexOf('--instances') + 1], '1');
   assert.equal(publisher[publisher.indexOf('--command') + 1], 'node');
@@ -85,7 +92,7 @@ test('web release forwards provider and Gemini budget controls', async () => {
 test('publisher release is pinned to whatsapp_status WAHA continuous mode', async () => {
   const { buildReleasePlan } = await loadModule();
   const plan = buildReleasePlan(env());
-  const args = plan.commands[1].args;
+  const args = plan.commands[2].args;
   const encoded = args[args.indexOf('--set-env-vars') + 1];
   assert.match(encoded, /PUBLICATION_CHANNEL=whatsapp_status/);
   assert.match(encoded, /PUBLICATION_TRANSPORT=waha/);
@@ -96,7 +103,7 @@ test('publisher release is pinned to whatsapp_status WAHA continuous mode', asyn
 test('publisher release forwards only publication worker config names the runtime consumes', async () => {
   const { buildReleasePlan } = await loadModule();
   const plan = buildReleasePlan(env());
-  const args = plan.commands[1].args;
+  const args = plan.commands[2].args;
   const encoded = args[args.indexOf('--set-env-vars') + 1];
 
   for (const expected of [
@@ -114,7 +121,7 @@ test('publisher release forwards only publication worker config names the runtim
 test('publisher gets DB and WAHA secrets but not web auth or provider secrets', async () => {
   const { buildReleasePlan } = await loadModule();
   const plan = buildReleasePlan(env());
-  const publisherArgs = plan.commands[1].args;
+  const publisherArgs = plan.commands[2].args;
   const publisherSecrets = publisherArgs[publisherArgs.indexOf('--set-secrets') + 1];
   const publisherEnv = publisherArgs[publisherArgs.indexOf('--set-env-vars') + 1];
 
@@ -164,4 +171,12 @@ test('dry-run rendering contains secret references but never secret contents', a
   assert.match(rendered, /JWT_SECRET=dealscout-jwt:latest/);
   assert.match(rendered, /WAHA_API_KEY=dealscout-waha-key:latest/);
   assert.doesNotMatch(rendered, /actual-secret-value/);
+});
+
+
+test('release refuses to collapse public and private services into one Cloud Run service', async () => {
+  const { buildReleasePlan } = await loadModule();
+  const invalid = env();
+  invalid.GCP_ADMIN_SERVICE = invalid.GCP_WEB_SERVICE;
+  assert.throws(() => buildReleasePlan(invalid), /must differ/);
 });
