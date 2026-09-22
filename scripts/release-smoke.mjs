@@ -84,10 +84,11 @@ function assertV1Headers(response, requestPath) {
 async function runReleaseSmoke(baseUrl, options = {}) {
   const target = cleanBaseUrl(baseUrl);
   const browserOrigin = cleanBrowserOrigin(options.browserOrigin);
-  const fetchOptions = { timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS, fetchImpl: options.fetchImpl };
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  const fetchOptions = { timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS, fetchImpl };
   const checks = [];
 
-  const homepage = await fetchOptions.fetchImpl(`${target}/`, {
+  const homepage = await fetchImpl(`${target}/`, {
     headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
     redirect: 'error',
   });
@@ -96,7 +97,7 @@ async function runReleaseSmoke(baseUrl, options = {}) {
   assert(homepageHtml.includes('ca-pub-7492088381598802'), 'homepage is missing the configured AdSense site code');
   checks.push('public-home-adsense');
 
-  const admin = await fetchOptions.fetchImpl(`${target}/admin`, {
+  const admin = await fetchImpl(`${target}/admin`, {
     headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
     redirect: 'manual',
   });
