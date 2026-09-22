@@ -97,6 +97,15 @@ async function runReleaseSmoke(baseUrl, options = {}) {
   assert(homepageHtml.includes('ca-pub-7492088381598802'), 'homepage is missing the configured AdSense site code');
   checks.push('public-home-adsense');
 
+  const adsTxt = await fetchImpl(`${target}/ads.txt`, {
+    headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
+    redirect: 'error',
+  });
+  assert(adsTxt.ok, `ads.txt failed: HTTP ${adsTxt.status}`);
+  const adsTxtBody = (await adsTxt.text()).trim();
+  assert(adsTxtBody.split(/\r?\n/).includes('google.com, pub-7492088381598802, DIRECT, f08c47fec0942fa0'), 'ads.txt is missing the authorized AdSense seller record');
+  checks.push('adsense-ads-txt');
+
   const admin = await fetchImpl(`${target}/admin`, {
     headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
     redirect: 'manual',
