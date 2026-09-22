@@ -34,14 +34,22 @@ async function requestJson(baseUrl, requestPath, {
   timeoutMs = DEFAULT_TIMEOUT_MS,
   fetchImpl = globalThis.fetch,
   headers = {},
+  method = 'GET',
+  body,
 } = {}) {
   if (typeof fetchImpl !== 'function') throw new Error('fetch is required');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
   try {
     const response = await fetchImpl(`${baseUrl}${requestPath}`, {
-      method: 'GET',
-      headers: { Accept: 'application/json', 'User-Agent': 'DealScout-Release-Smoke/1', ...headers },
+      method,
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'DealScout-Release-Smoke/1',
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...headers,
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: controller.signal,
       redirect: 'error',
     });
@@ -76,8 +84,33 @@ function assertV1Headers(response, requestPath) {
 async function runReleaseSmoke(baseUrl, options = {}) {
   const target = cleanBaseUrl(baseUrl);
   const browserOrigin = cleanBrowserOrigin(options.browserOrigin);
-  const fetchOptions = { timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS, fetchImpl: options.fetchImpl };
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  const fetchOptions = { timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS, fetchImpl };
   const checks = [];
+
+  const homepage = await fetchImpl(`${target}/`, {
+    headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
+    redirect: 'error',
+  });
+  assert(homepage.ok, `homepage failed: HTTP ${homepage.status}`);
+  const homepageHtml = await homepage.text();
+  assert(homepageHtml.includes('ca-pub-7492088381598802'), 'homepage is missing the configured AdSense site code');
+  checks.push('public-home-adsense');
+
+  const admin = await fetchImpl(`${target}/admin`, {
+    headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
+    redirect: 'manual',
+  });
+  assert(admin.status === 404, `public /admin must return 404, received HTTP ${admin.status}`);
+  checks.push('private-admin-hidden');
+
+  const affiliate = await requestJson(target, '/api/functions/amazon-redirect', {
+    ...fetchOptions,
+    method: 'POST',
+    body: { url: 'https://www.amazon.com/dp/B08PZHYWJS' },
+  });
+  assert(/^https:\/\/(?:www\.)?amazon\.com\//i.test(String(affiliate.body?.redirectUrl || '')), 'affiliate redirect endpoint did not return an Amazon URL');
+  checks.push('affiliate-redirect');
 
   const health = await requestJson(target, '/api/health', fetchOptions);
   assert(health.body?.status === 'ok', '/api/health did not report status=ok');
