@@ -36,6 +36,8 @@ test('production CSP uses a nonce and keeps executable inline scripts blocked', 
     assert.match(headers['Content-Security-Policy'], /https:\/\/fonts\.googleapis\.com/);
     assert.match(headers['Content-Security-Policy'], /img-src 'self' data: blob: https:/);
     assert.match(headers['Content-Security-Policy'], /connect-src 'self' https:\/\/ssh\.cloud\.google\.com/);
+    assert.match(headers['Content-Security-Policy'], /https:\/\/pagead2\.googlesyndication\.com/);
+    assert.match(headers['Content-Security-Policy'], /frame-src 'self' https:\/\/googleads\.g\.doubleclick\.net https:\/\/tpc\.googlesyndication\.com/);
   });
 });
 
