@@ -8,6 +8,7 @@ import { addCategoryInterest, loadInterests, reduceCategoryInterest, resetIntere
 import { checkpointVisit, dealFreshnessTimestampMs, dismissDeal, loadDismissedIds, loadPreviousVisit } from '../src/engagement';
 import { rankDeals } from '../../../src/lib/dealRanking';
 import { dwellWeight, personalizedRank } from '../../../src/lib/personalizationCore';
+import { trustworthyDiscountPercent } from '../../../src/lib/heroDealQuality';
 
 const PAGE_SIZE = 24;
 const SEARCH_DEBOUNCE_MS = 250;
@@ -47,10 +48,15 @@ function mergeDeals(current, incoming) {
   })];
 }
 
-function balancedFeatured(items, maxItems = 4) {
-  const bounded = (items || []).slice(0, maxItems);
-  const evenLength = bounded.length - (bounded.length % 2);
-  return evenLength >= 2 ? bounded.slice(0, evenLength) : [];
+function standoutFeatured(items, maxItems = 4) {
+  const qualified = (items || [])
+    .map((deal) => ({ deal, discount: trustworthyDiscountPercent(deal) }))
+    .filter(({ discount }) => discount >= 30)
+    .sort((a, b) => b.discount - a.discount)
+    .slice(0, maxItems)
+    .map(({ deal }) => deal);
+  const evenLength = qualified.length - (qualified.length % 2);
+  return evenLength >= 2 ? qualified.slice(0, evenLength) : [];
 }
 
 function serverSort(sort) {
@@ -112,7 +118,7 @@ export default function HomeScreen() {
   const hasActiveFilters = activeCategory !== 'all' || query.trim() !== '' || minDiscount > 0 || priceTier !== 'all' || sort !== 'best';
   const rankedItems = useMemo(() => sort === 'best' ? personalizedRank(rankDeals(items), interests) : items, [interests, items, sort]);
   const visibleRankedItems = useMemo(() => rankedItems.filter((deal) => !dismissedIds.has(idOf(deal))), [dismissedIds, rankedItems]);
-  const featured = useMemo(() => hasActiveFilters ? [] : balancedFeatured(visibleRankedItems, 4), [hasActiveFilters, visibleRankedItems]);
+  const featured = useMemo(() => hasActiveFilters ? [] : standoutFeatured(visibleRankedItems, 4), [hasActiveFilters, visibleRankedItems]);
   const featuredIds = useMemo(() => new Set(featured.map(idOf)), [featured]);
   const feedItems = useMemo(() => visibleRankedItems.filter((deal) => !featuredIds.has(idOf(deal))), [visibleRankedItems, featuredIds]);
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
@@ -306,8 +312,9 @@ export default function HomeScreen() {
   const header = (
     <View>
       <View style={styles.hero}>
-        <View style={styles.trustChip}><Text style={styles.trustText}>Freshly checked</Text></View>
-        <Text style={styles.heroTitle}>Good deals. No digging.</Text>
+        <Text style={styles.eyebrow}>TODAY AT DEALSCOUT</Text>
+        <Text style={styles.heroTitle}>The deals worth seeing.</Text>
+        <Text style={styles.heroCopy}>Fresh finds, checked prices, less clutter.</Text>
         {!hasActiveFilters && refreshedSinceLastVisit > 0 && (
           <Text style={styles.returnCue}>{refreshedSinceLastVisit} {refreshedSinceLastVisit === 1 ? 'deal refreshed' : 'deals refreshed'} since your last visit</Text>
         )}
@@ -355,15 +362,15 @@ export default function HomeScreen() {
 
       {featured.length > 0 && (
         <View style={styles.featuredSection}>
-          <Text style={styles.eyebrow}>DEAL DROP</Text>
-          <Text style={styles.sectionTitle}>Today’s best finds</Text>
+          <Text style={styles.eyebrow}>STANDOUT DISCOUNTS</Text>
+          <Text style={styles.sectionTitle}>The strongest verified cuts</Text>
           <View style={styles.featuredGrid}>
             {featured.map((deal) => <View key={idOf(deal)} style={styles.featuredCell}>{card(deal)}</View>)}
           </View>
         </View>
       )}
 
-      <Text style={styles.moreTitle}>{hasActiveFilters ? 'Deals' : 'More deals for you'}</Text>
+      <Text style={styles.moreTitle}>{hasActiveFilters ? 'Deals' : 'More worth a look'}</Text>
     </View>
   );
 
@@ -392,34 +399,33 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f8fafc' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: '#f8fafc' },
+  safe: { flex: 1, backgroundColor: '#fbfaf7' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: '#fbfaf7' },
   loadingText: { color: '#64748b', fontWeight: '700' },
   content: { paddingBottom: 36 },
-  hero: { paddingHorizontal: 18, paddingTop: 20, paddingBottom: 18, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  trustChip: { alignSelf: 'flex-start', backgroundColor: '#ecfdf5', borderColor: '#a7f3d0', borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  trustText: { color: '#065f46', fontWeight: '800', fontSize: 11 },
-  heroTitle: { marginTop: 12, fontSize: 34, lineHeight: 38, letterSpacing: -1, fontWeight: '900', color: '#020617' },
+  hero: { paddingHorizontal: 18, paddingTop: 24, paddingBottom: 20, backgroundColor: '#f7f5ef', borderBottomWidth: 1, borderBottomColor: '#d7ded8' },
+  heroTitle: { marginTop: 7, fontSize: 36, lineHeight: 38, letterSpacing: -1.4, fontWeight: '900', color: '#064e3b' },
+  heroCopy: { marginTop: 9, color: '#64748b', fontSize: 13, lineHeight: 19, fontWeight: '600' },
   returnCue: { marginTop: 9, color: '#047857', fontSize: 12, lineHeight: 18, fontWeight: '800' },
   heroActions: { flexDirection: 'row', marginTop: 14 },
-  savedButton: { borderRadius: 999, backgroundColor: '#0f172a', paddingHorizontal: 14, paddingVertical: 9 },
+  savedButton: { backgroundColor: '#064e3b', paddingHorizontal: 14, paddingVertical: 9 },
   savedButtonText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   controls: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 6 },
-  search: { height: 46, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 14, backgroundColor: '#fff', paddingHorizontal: 14, color: '#0f172a', fontSize: 15, marginTop: 10, marginBottom: 12 },
+  search: { height: 46, borderWidth: 1, borderColor: '#d7ded8', backgroundColor: '#fff', paddingHorizontal: 14, color: '#0f172a', fontSize: 15, marginTop: 10, marginBottom: 12 },
   controlLabel: { color: '#64748b', fontWeight: '900', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 3, marginBottom: 7 },
   chipRow: { gap: 8, paddingRight: 12 },
-  chip: { borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#fff', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
-  chipActive: { backgroundColor: '#0f172a', borderColor: '#0f172a' },
+  chip: { borderWidth: 1, borderColor: '#d7ded8', backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 8 },
+  chipActive: { backgroundColor: '#064e3b', borderColor: '#064e3b' },
   chipText: { color: '#475569', fontSize: 12, fontWeight: '800' },
   chipTextActive: { color: '#fff' },
   resetRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 12, marginBottom: 4 },
   resetText: { color: '#be123c', fontSize: 12, fontWeight: '800' },
-  featuredSection: { marginHorizontal: 14, marginTop: 10, marginBottom: 18, padding: 14, backgroundColor: '#fff7ed', borderWidth: 1, borderColor: '#fed7aa', borderRadius: 22 },
-  eyebrow: { fontSize: 11, color: '#c2410c', fontWeight: '900', letterSpacing: 1.2 },
+  featuredSection: { marginHorizontal: 14, marginTop: 12, marginBottom: 20, paddingTop: 16, paddingBottom: 4, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#d7ded8' },
+  eyebrow: { fontSize: 10, color: '#047857', fontWeight: '900', letterSpacing: 1.4 },
   sectionTitle: { fontSize: 22, color: '#0f172a', fontWeight: '900', marginTop: 4, marginBottom: 12 },
   featuredGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -5, rowGap: 10 },
   featuredCell: { width: '50%', paddingHorizontal: 5 },
-  moreTitle: { paddingHorizontal: 16, marginBottom: 12, marginTop: 8, fontSize: 22, color: '#0f172a', fontWeight: '900' },
+  moreTitle: { paddingHorizontal: 16, marginBottom: 12, marginTop: 8, fontSize: 24, color: '#064e3b', fontWeight: '900', letterSpacing: -0.6 },
   row: { paddingHorizontal: 9 },
   cell: { width: '50%', paddingHorizontal: 5, marginBottom: 10 },
   footer: { paddingVertical: 24 },
