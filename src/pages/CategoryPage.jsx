@@ -44,6 +44,7 @@ export default function CategoryPage() {
   const [sort, setSort] = useState('best');
   const [viewMode, setViewMode] = useState('grid');
   const [retryPage, setRetryPage] = useState(0);
+  const [retryInitial, setRetryInitial] = useState(0);
   const sentinelRef = useRef(null);
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export default function CategoryPage() {
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
 
     return () => controller.abort();
-  }, [slug, sort]);
+  }, [slug, sort, retryInitial]);
 
   useEffect(() => {
     const node = sentinelRef.current;
@@ -126,8 +127,8 @@ export default function CategoryPage() {
             {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
           </select>
           <div className="hidden sm:flex items-center border border-emerald-950/15">
-            <button type="button" aria-label="Grid view" onClick={() => setViewMode('grid')} className={`p-2.5 ${viewMode === 'grid' ? 'bg-emerald-950 text-white' : 'text-slate-500'}`}><LayoutGrid className="w-3.5 h-3.5" /></button>
-            <button type="button" aria-label="List view" onClick={() => setViewMode('list')} className={`p-2.5 border-l border-emerald-950/15 ${viewMode === 'list' ? 'bg-emerald-950 text-white' : 'text-slate-500'}`}><List className="w-3.5 h-3.5" /></button>
+            <button type="button" aria-label="Grid view" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} className={`p-2.5 ${viewMode === 'grid' ? 'bg-emerald-950 text-white' : 'text-slate-500'}`}><LayoutGrid className="w-3.5 h-3.5" /></button>
+            <button type="button" aria-label="List view" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')} className={`p-2.5 border-l border-emerald-950/15 ${viewMode === 'list' ? 'bg-emerald-950 text-white' : 'text-slate-500'}`}><List className="w-3.5 h-3.5" /></button>
           </div>
         </div>
       </header>
@@ -138,7 +139,7 @@ export default function CategoryPage() {
         ) : !category ? (
           <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Category not found</h3><p className="text-sm text-slate-500 mt-1">This category may have moved or no longer exists.</p><Link to="/?category=all" className="mt-5 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Browse all deals <ArrowRight className="w-4 h-4" /></Link></div>
         ) : error && visibleDeals.length === 0 ? (
-          <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Couldn’t load this edit</h3><p className="text-sm text-slate-500 mt-1">{error}</p></div>
+          <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Couldn’t load this edit</h3><p className="text-sm text-slate-500 mt-1">{error}</p><button type="button" onClick={() => setRetryInitial((value) => value + 1)} className="mt-5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Try again</button></div>
         ) : visibleDeals.length === 0 ? (
           <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">No active deals here right now</h3><p className="text-sm text-slate-500 mt-1">New verified finds will appear here as they land.</p></div>
         ) : (
