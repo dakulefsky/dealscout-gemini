@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Loader2, ShieldCheck, Star, Save, ArrowLeft, CheckCircle2, Clock, Send, XCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Image } from '@/components/ui/image';
 import { deals as dealsApi, editorial as editorialApi } from '@/lib/api';
 import { formatPrice } from '@/components/DealCard';
@@ -23,12 +24,13 @@ export default function EditorialReview() {
   const [loading, setLoading] = useState(true);
   const [busyAsin, setBusyAsin] = useState(null);
   const [filter, setFilter] = useState('needs-review');
+  const [search, setSearch] = useState('');
   const { toast } = useToast();
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const allDeals = await dealsApi.list({ limit: 100 });
+      const allDeals = await dealsApi.list({ limit: 100, q: search.trim() || undefined });
       const verified = (allDeals || []).filter((d) => d.sourceVerified && !d.isExpired && ['APPROVED', 'PENDING_REVIEW'].includes(d.status));
       setDeals(verified);
       const batch = await editorialApi.batch(verified.map((deal) => deal.asin));
@@ -38,12 +40,16 @@ export default function EditorialReview() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [search, toast]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => load(), search.trim() ? 250 : 0);
+    return () => window.clearTimeout(timer);
+  }, [load, search]);
 
   const visibleDeals = useMemo(() => deals.filter((deal) => {
     const e = editorialByAsin[deal.asin] || emptyEditorial;
+    if (search.trim()) return true;
     if (filter === 'needs-review') return deal.status === 'PENDING_REVIEW';
     if (filter === 'picks') return e.isHumanPick;
     return true;
@@ -120,14 +126,17 @@ export default function EditorialReview() {
           <h1 className="text-3xl font-black text-slate-900">Review Exceptions</h1>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">Normal verified deals publish automatically. Use All verified to manage any live deal, including permanently removing one from the catalog.</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {[
-            ['needs-review', 'Needs review'],
-            ['picks', 'DealScout Picks'],
-            ['all', 'All verified'],
-          ].map(([key, label]) => (
-            <button key={key} onClick={() => setFilter(key)} className={`px-3 py-2 rounded-xl text-xs font-bold border ${filter === key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200'}`}>{label}</button>
-          ))}
+        <div className="flex flex-col sm:items-end gap-2">
+          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title or ASIN" className="w-full sm:w-64 rounded-xl" aria-label="Search admin deals" />
+          <div className="flex gap-2 flex-wrap">
+            {[
+              ['needs-review', 'Needs review'],
+              ['picks', 'DealScout Picks'],
+              ['all', 'All verified'],
+            ].map(([key, label]) => (
+              <button key={key} onClick={() => setFilter(key)} className={`px-3 py-2 rounded-xl text-xs font-bold border ${filter === key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200'}`}>{label}</button>
+            ))}
+          </div>
         </div>
       </div>
 
