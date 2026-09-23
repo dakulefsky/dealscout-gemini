@@ -6,7 +6,7 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'DealDetail.jsx'), 'utf8');
 
 test('product detail continues browsing with a category-first recommendation feed', () => {
-  assert.match(source, /Other live deals/);
+  assert.match(source, /Keep browsing/);
   assert.match(source, /dealsApi\.page\(\{ category: data\.category, limit: 16, sort: '-discount_percent' \}\)/);
   assert.match(source, /primaryRows\.length < 9/);
   assert.match(source, /dealsApi\.page\(\{ limit: 24, sort: '-discount_percent' \}\)/);
@@ -27,7 +27,7 @@ test('product recommendations dedupe fallback inventory and stay balanced', () =
 
 test('product detail makes verified savings and price status first class', () => {
   assert.match(source, /aria-label="Deal facts"/);
-  assert.match(source, /You save/);
+  assert.match(source, /label: 'Save'/);
   assert.match(source, /Price status/);
   assert.match(source, /View deal on Amazon/);
 });
