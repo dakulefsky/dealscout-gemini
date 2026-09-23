@@ -7,7 +7,7 @@ const repository = fs.readFileSync(path.join(__dirname, '..', 'server', 'reposit
 const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
 
 test('sitemap repository selects only fresh public deal identity fields in PostgreSQL', () => {
-  assert.match(repository, /SELECT id, asin, price_check_at/);
+  assert.match(repository, /SELECT id, asin, category, price_check_at/);
   assert.match(repository, /status = 'APPROVED'/);
   assert.match(repository, /source_verified = 1/);
   assert.match(repository, /is_expired <> 1/);
