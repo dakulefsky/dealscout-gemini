@@ -74,6 +74,15 @@ function pushFlag(args, flag, value) {
   if (value !== undefined && value !== null && String(value).trim() !== '') args.push(flag, String(value));
 }
 
+function boundedInteger(env, key, fallback, min = 1, max = 20) {
+  const raw = text(env, key, fallback);
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`${key} must be an integer between ${min} and ${max}`);
+  }
+  return value;
+}
+
 export function buildReleasePlan(env = process.env) {
   const project = requireValue(env, 'GCP_PROJECT_ID');
   const region = text(env, 'GCP_REGION', 'us-central1');
@@ -88,6 +97,9 @@ export function buildReleasePlan(env = process.env) {
   if (adminService === webService) throw new Error('GCP_ADMIN_SERVICE must differ from GCP_WEB_SERVICE');
   const publisherPool = text(env, 'GCP_PUBLISHER_POOL', 'dealscout-publisher');
   const serviceAccount = text(env, 'GCP_RUNTIME_SERVICE_ACCOUNT');
+  const webPoolMax = boundedInteger(env, 'PG_WEB_POOL_MAX', '4');
+  const adminPoolMax = boundedInteger(env, 'PG_ADMIN_POOL_MAX', '3');
+  const publisherPoolMax = boundedInteger(env, 'PG_PUBLISHER_POOL_MAX', '2');
 
   const dbSecrets = requireSecretMappings(
     requireValue(env, 'GCP_DB_SECRETS'),
@@ -115,6 +127,7 @@ export function buildReleasePlan(env = process.env) {
     ['PUBLIC_WEB_URL', publicWebUrl],
     ['CORS_ORIGINS', corsOrigins],
     ['CLOUD_SQL_CONNECTION_NAME', cloudSql],
+    ['PG_POOL_MAX', webPoolMax],
     ['AMAZON_ASSOCIATE_TAG', affiliateTag],
     ['DEAL_DATA_PROVIDER', dealProvider],
     ['RAINFOREST_DOMAIN', text(env, 'RAINFOREST_DOMAIN')],
@@ -128,6 +141,7 @@ export function buildReleasePlan(env = process.env) {
   const publisherEnv = encodeEnvVars([
     ['NODE_ENV', 'production'],
     ['CLOUD_SQL_CONNECTION_NAME', cloudSql],
+    ['PG_POOL_MAX', publisherPoolMax],
     ['PUBLICATION_CHANNEL', 'whatsapp_status'],
     ['PUBLICATION_TRANSPORT', 'waha'],
     ['PUBLICATION_RUN_MODE', 'continuous'],
@@ -158,6 +172,7 @@ export function buildReleasePlan(env = process.env) {
     '--region', region,
     '--image', image,
     '--platform', 'managed',
+    '--update-env-vars', `PG_POOL_MAX=${adminPoolMax}`,
   ];
 
   const publisher = ['run', 'worker-pools', 'deploy', publisherPool,
