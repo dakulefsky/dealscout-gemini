@@ -1,11 +1,14 @@
 # DealScout Google Cloud release
 
-DealScout production uses one immutable container image with two runtime roles:
+DealScout production uses one immutable container image across three deployments:
 
-- **Website + API:** a public Cloud Run service running the image default command (`node server.js`).
+- **Website + API:** the public `dealscout-web` Cloud Run service running the image default command (`node server.js`).
+- **Private admin:** the IAP-protected `dealscout` Cloud Run service running the same image. Its existing private access and runtime settings are preserved when advancing the image.
 - **WhatsApp Status publisher:** one Cloud Run worker-pool instance running `node publication-worker.js` continuously.
 
-Both roles attach to the same Cloud SQL instance. The publisher has no public HTTP endpoint and must not receive web-only authentication/provider secrets.
+All three use the same Cloud SQL instance. The publisher has no public HTTP endpoint and must not receive web-only authentication/provider secrets.
+
+For website releases, run the repository's **Deploy Web** GitHub Actions workflow from the release commit. It builds the image once, deploys that exact image to both the public and private Cloud Run services, verifies their configured images match, then runs the public smoke test. Publishing a commit alone does not update either live service. The private admin retains IAP; the public service keeps `PUBLIC_SURFACE_ONLY=true`, which hides admin routes there.
 
 ## Build first
 
@@ -75,10 +78,11 @@ After the dry run is correct:
 npm run release:gcp
 ```
 
-The release script performs two ordered deployments:
+The release script performs three ordered deployments:
 
 1. `gcloud run deploy` for the public website/API service, with Cloud SQL attached.
-2. `gcloud run worker-pools deploy` for a single Status publisher instance, overriding the image command to `node publication-worker.js`.
+2. `gcloud run deploy` for the private admin service using the same image, preserving its access and environment settings.
+3. `gcloud run worker-pools deploy` for a single Status publisher instance, overriding the image command to `node publication-worker.js`.
 
 The publisher is deliberately pinned by the release script to:
 

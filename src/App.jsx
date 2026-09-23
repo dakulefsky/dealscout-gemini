@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider } from '@/lib/AuthContext';
 import { BookmarksProvider } from '@/lib/BookmarksContext';
 import Layout from '@/components/Layout';
@@ -41,6 +41,11 @@ function LegacyResetRedirect() {
   return <Navigate to={`/admin/reset-password${location.search}`} replace />;
 }
 
+function ProductRoute() {
+  const { id } = useParams();
+  return <DealDetail key={id} />;
+}
+
 function AdminDashboard() {
   return (
     <>
@@ -68,7 +73,7 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/category/:slug" element={<CategoryPage />} />
-                  <Route path="/deal/:id" element={<DealDetail />} />
+                  <Route path="/deal/:id" element={<ProductRoute />} />
                   <Route path="/saved" element={<SavedDeals />} />
                   <Route path="/disclosure" element={<Disclosure />} />
                   <Route path="/privacy" element={<Privacy />} />
