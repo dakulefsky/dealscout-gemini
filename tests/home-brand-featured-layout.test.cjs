@@ -7,7 +7,7 @@ const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.js
 
 test('home leads with restrained department copy instead of explanatory personalization copy', () => {
   assert.match(home, /Departments/);
-  assert.match(home, /15%+ off · recently checked/);
+  assert.match(home, /15%\+ off · recently checked/);
   assert.doesNotMatch(home, /quietly learns which categories|Good deals\. No digging/);
 });
 
