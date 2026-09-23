@@ -11,7 +11,7 @@ import { loadPreviousVisit, checkpointVisit, dealCreatedTimestampMs, dealFreshne
 import { INITIAL_FEED_SIZE, nextVisibleCount } from '@/lib/progressiveFeed';
 import { loadSeenDealDrop, markDealDropSeen, freshDealDrop } from '@/lib/dealDropFreshness';
 import { buildFeedChapters, chapterDealIds } from '@/lib/feedChapters';
-import { selectHeroDeal } from '@/lib/heroDealQuality';
+import { trustworthyDiscountPercent } from '@/lib/heroDealQuality';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -73,13 +73,18 @@ export default function Home() {
   const flatAllMode = activeCat === 'all' && searchParams.get('category') === 'all' && searchQuery.trim() === '' && minDiscount === 0 && priceTier === 'all' && sort === 'best';
   const hasActiveFilters = activeCat !== 'all' || searchQuery.trim() !== '' || minDiscount > 0 || priceTier !== 'all' || sort !== 'best';
   const showCuratedHome = !flatAllMode && !hasActiveFilters;
-  const dropDeals = useMemo(() => showCuratedHome ? balancedFeatured(freshDealDrop(visibleDeals, initialSeenDrop, 8), 8) : [], [visibleDeals, initialSeenDrop, showCuratedHome]);
-  const heroDeal = useMemo(() => showCuratedHome ? selectHeroDeal(visibleDeals) : null, [visibleDeals, showCuratedHome]);
-  const dropIds = useMemo(() => {
-    const ids = new Set(dropDeals.map((deal) => deal.id || deal.asin));
-    if (heroDeal) ids.add(heroDeal.id || heroDeal.asin);
-    return ids;
-  }, [dropDeals, heroDeal]);
+  const spotlightDeals = useMemo(() => {
+    if (!showCuratedHome) return [];
+    return visibleDeals
+      .map((deal) => ({ deal, discount: trustworthyDiscountPercent(deal) }))
+      .filter((item) => item.discount >= 30)
+      .sort((a, b) => b.discount - a.discount)
+      .slice(0, 3)
+      .map(({ deal }) => deal);
+  }, [visibleDeals, showCuratedHome]);
+  const spotlightIds = useMemo(() => new Set(spotlightDeals.map((deal) => deal.id || deal.asin)), [spotlightDeals]);
+  const dropDeals = useMemo(() => showCuratedHome ? balancedFeatured(freshDealDrop(visibleDeals.filter((deal) => !spotlightIds.has(deal.id || deal.asin)), initialSeenDrop, 8), 8) : [], [visibleDeals, spotlightIds, initialSeenDrop, showCuratedHome]);
+  const dropIds = useMemo(() => new Set([...spotlightIds, ...dropDeals.map((deal) => deal.id || deal.asin)]), [spotlightIds, dropDeals]);
   const chapters = useMemo(() => showCuratedHome ? buildFeedChapters(visibleDeals, interests, dropIds) : [], [visibleDeals, interests, dropIds, showCuratedHome]);
   const chapterIds = useMemo(() => chapterDealIds(chapters), [chapters]);
   const exploreDeals = useMemo(() => (flatAllMode || hasActiveFilters) ? visibleDeals : visibleDeals.filter((deal) => { const id = deal.id || deal.asin; return !dropIds.has(id) && !chapterIds.has(id); }), [visibleDeals, flatAllMode, hasActiveFilters, dropIds, chapterIds]);
@@ -96,13 +101,7 @@ export default function Home() {
   const resetAllFilters = () => { setActiveCat('all'); setSearchQuery(''); setMinDiscount(0); setPriceTier('all'); setSort('best'); setSearchParams({}); };
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
-  const remainingDropDeals = useMemo(() => {
-    if (!showCuratedHome) return [];
-    const heroId = heroDeal ? dealIdentity(heroDeal) : '';
-    return heroId ? dropDeals.filter((deal) => dealIdentity(deal) !== heroId) : dropDeals;
-  }, [dropDeals, heroDeal, showCuratedHome]);
-  const heroSideDeals = heroDeal ? remainingDropDeals.slice(0, 3) : [];
-  const topDeals = heroDeal ? remainingDropDeals.slice(3, 7) : remainingDropDeals.slice(0, 4);
+  const topDeals = showCuratedHome ? dropDeals.slice(0, 4) : [];
 
   const feedGrid = (items) => viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr items-stretch">{items.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" />)}</div> : <div>{items.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" />)}</div>;
 
@@ -110,56 +109,63 @@ export default function Home() {
   const exploreWithChapters = () => { const sections = []; for (let start = 0; start < progressiveDeals.length; start += CHAPTER_INTERVAL) { const chunk = progressiveDeals.slice(start, start + CHAPTER_INTERVAL); sections.push(<Fragment key={`chunk-${start}`}>{feedGrid(chunk)}</Fragment>); const chapter = chapters[Math.floor(start / CHAPTER_INTERVAL)]; if (chapter) sections.push(chapterBlock(chapter)); } return sections; };
 
   return <div>
-    {showCuratedHome && !heroDeal && (
+    {showCuratedHome && (
       <section className="border-b border-emerald-950/10 bg-[#f7f5ef]">
-        <div className="ds-shell py-10 sm:py-14">
-          <div className="max-w-3xl">
-            <div className="ds-kicker">Today at DealScout</div>
-            <h1 className="font-heading text-[42px] sm:text-[58px] leading-[0.94] font-bold text-emerald-950 mt-3">The deals worth seeing.</h1>
-            <p className="text-sm sm:text-base leading-relaxed text-slate-600 mt-4 max-w-xl">Fresh finds, checked prices, and no oversized feature unless the discount genuinely earns it.</p>
-          </div>
-        </div>
-      </section>
-    )}
+        <div className="ds-shell py-8 sm:py-11">
+          <div className="grid lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.72fr)] gap-7 lg:gap-10 items-start">
+            <div>
+              <div className="ds-kicker">Shop by category</div>
+              <h1 className="font-heading text-[42px] sm:text-[58px] lg:text-[66px] leading-[0.94] font-bold text-emerald-950 mt-3">What are you here for?</h1>
+              <p className="text-sm sm:text-base leading-relaxed text-slate-600 mt-4 max-w-2xl">Start with what you actually need. We’ll take you straight to the freshest verified deals in that part of Amazon.</p>
 
-    {showCuratedHome && heroDeal && (
-      <section className="border-b border-emerald-950/10 bg-[#f7f5ef]">
-        <div className="ds-shell py-5 sm:py-8">
-          <div ref={dropSeenMarker} className="h-px" aria-hidden="true" />
-          <div className="grid lg:grid-cols-[0.78fr_1.65fr_0.92fr] gap-5 lg:gap-6 items-stretch">
-            <div className="flex flex-col justify-center py-4 lg:py-8">
-              <div className="ds-kicker">Today at DealScout</div>
-              <h1 className="font-heading text-[46px] sm:text-[62px] lg:text-[70px] leading-[0.92] font-bold text-emerald-950 mt-3">The deals worth seeing.</h1>
-              <p className="text-sm sm:text-base leading-relaxed text-slate-600 mt-5 max-w-sm">A tighter edit of products with prices worth stopping for. Checked, sorted, and easy to scan.</p>
-              <Link to="/?category=all" className="mt-6 inline-flex items-center justify-center gap-2 w-fit bg-emerald-950 text-white px-5 py-3 text-sm font-bold hover:bg-emerald-900">Browse all deals <ArrowRight className="w-4 h-4" /></Link>
-              {refreshedSinceLastVisit > 0 && <div className="mt-5 text-xs font-semibold text-emerald-800"><Sparkles className="w-3.5 h-3.5 inline mr-1.5" />Freshly refreshed deals are waiting · {refreshedSinceLastVisit} updated</div>}
-            </div>
-
-            <Link to={`/deal/${heroDeal.id || heroDeal.asin}`} className="group relative min-h-[390px] sm:min-h-[470px] overflow-hidden bg-[#ded8ca]">
-              <Image src={heroDeal.imageUrl} fallbackSrcs={heroDeal.imageGallery || []} alt={heroDeal.title} fittingType="contain" loading="eager" fetchPriority="high" className="absolute inset-0 w-full h-full p-8 sm:p-12 group-hover:scale-[1.025] transition-transform duration-500" />
-              <div className="absolute inset-x-0 bottom-0 p-5 sm:p-7 bg-gradient-to-t from-emerald-950/95 via-emerald-950/75 to-transparent text-white pt-28">
-                <div className="text-[10px] uppercase tracking-[0.18em] font-black text-emerald-100">Standout discount</div>
-                <h2 className="font-heading text-2xl sm:text-3xl font-bold leading-tight mt-1 max-w-xl line-clamp-2">{heroDeal.title}</h2>
-                <div className="flex items-baseline gap-3 mt-3"><span className="text-3xl font-black">{formatPrice(heroDeal.salePrice)}</span>{heroDeal.originalPrice > heroDeal.salePrice && <span className="text-sm text-white/60 line-through">{formatPrice(heroDeal.originalPrice)}</span>}{heroDeal.discountPercent > 0 && <span className="bg-[#dcebdc] text-emerald-950 px-2 py-1 text-xs font-black">{heroDeal.discountPercent}% OFF</span>}</div>
+              <div className="mt-7 grid sm:grid-cols-2 xl:grid-cols-3 border-t border-l border-emerald-950/10 bg-white">
+                {categories.slice(0, 9).map((category) => (
+                  <Link key={category.id || category.slug} to={`/category/${category.slug}`} className="group min-h-[132px] border-r border-b border-emerald-950/10 p-4 sm:p-5 flex flex-col justify-between hover:bg-[#f3f0e8] transition-colors">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.14em] font-black text-slate-400">{Number(category.liveCount || 0)} live {Number(category.liveCount || 0) === 1 ? 'deal' : 'deals'}</div>
+                      <h2 className="font-heading text-xl font-bold text-emerald-950 mt-1.5">{category.name}</h2>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between gap-3 text-xs font-bold text-emerald-800">
+                      <span>See {category.name.toLowerCase()}</span>
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                  </Link>
+                ))}
               </div>
-            </Link>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-px bg-emerald-950/10">
-              {heroSideDeals.map((deal) => <Link key={deal.id || deal.asin} to={`/deal/${deal.id || deal.asin}`} className="group bg-white p-3 sm:p-4 flex items-center gap-3 min-h-[120px]"><div className="w-24 h-20 sm:w-28 sm:h-24 bg-[#f7f5ef] p-2 shrink-0"><Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-105 transition-transform" /></div><div className="min-w-0"><h3 className="text-xs sm:text-sm font-bold leading-snug line-clamp-2">{deal.title}</h3><div className="mt-2 flex items-baseline gap-2"><span className="text-lg font-black text-emerald-950">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-[10px] text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>{deal.discountPercent > 0 && <div className="mt-1 text-[10px] font-black text-emerald-700">{deal.discountPercent}% OFF</div>}</div></Link>)}
+              <Link to="/?category=all" className="mt-5 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Browse every deal <ArrowRight className="w-4 h-4" /></Link>
+              {refreshedSinceLastVisit > 0 && <div className="mt-5 text-xs font-semibold text-emerald-800"><Sparkles className="w-3.5 h-3.5 inline mr-1.5" />{refreshedSinceLastVisit} deals refreshed since your last visit</div>}
             </div>
-          </div>
 
-          <div className="mt-5 border-y border-emerald-950/10 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] text-slate-600">
-            <span className="inline-flex items-center gap-1.5 font-bold text-emerald-950"><ShieldCheck className="w-3.5 h-3.5 text-emerald-700" /> Price checked</span>
-            <span>Fresh deals move to the front.</span>
-            <span>Stale prices fall out of the public feed.</span>
-            <span className="hidden sm:inline text-slate-400">No endless coupon-page clutter.</span>
+            <aside className="lg:border-l lg:border-emerald-950/10 lg:pl-7">
+              <div className="ds-kicker">Best right now</div>
+              <h2 className="font-heading text-2xl sm:text-3xl font-bold text-emerald-950 mt-2">A few deals worth noticing</h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-2 leading-relaxed">Only fresh, source-verified discounts of at least 30% make this rail.</p>
+
+              {spotlightDeals.length > 0 ? (
+                <div className="mt-5 border-t border-emerald-950/10">
+                  {spotlightDeals.map((deal) => (
+                    <Link key={deal.id || deal.asin} to={`/deal/${deal.id || deal.asin}`} className="group grid grid-cols-[88px_1fr] gap-3 py-4 border-b border-emerald-950/10">
+                      <div className="h-20 bg-white p-2">
+                        <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-[1.03] transition-transform" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[10px] uppercase tracking-[0.12em] font-black text-emerald-700">{trustworthyDiscountPercent(deal)}% off</div>
+                        <h3 className="mt-1 text-sm font-bold text-slate-950 leading-snug line-clamp-2">{deal.title}</h3>
+                        <div className="mt-2 flex items-baseline gap-2"><span className="text-lg font-black text-emerald-950">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-[10px] text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-5 border-y border-emerald-950/10 py-5 text-sm text-slate-500">No deal clears the standout threshold right now. The category pages still show all fresh verified finds.</div>
+              )}
+            </aside>
           </div>
         </div>
       </section>
     )}
 
-    {showCuratedHome && topDeals.length > 0 && <section className="ds-shell py-9 sm:py-12"><div className="flex items-end justify-between gap-4 mb-5"><div><div className="ds-kicker">Freshly checked</div><h2 className="ds-section-title mt-1">Today’s edit</h2></div><Link to="/?category=all" className="text-xs font-bold text-emerald-900 inline-flex items-center gap-1">See all deals <ArrowRight className="w-3.5 h-3.5" /></Link></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{topDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} />)}</div></section>}
+    {showCuratedHome && topDeals.length > 0 && <section className="ds-shell py-9 sm:py-12"><div ref={dropSeenMarker} className="h-px" aria-hidden="true" /><div className="flex items-end justify-between gap-4 mb-5"><div><div className="ds-kicker">Freshly checked</div><h2 className="ds-section-title mt-1">Today’s edit</h2></div><Link to="/?category=all" className="text-xs font-bold text-emerald-900 inline-flex items-center gap-1">See all deals <ArrowRight className="w-3.5 h-3.5" /></Link></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{topDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} />)}</div></section>}
 
     {showCuratedHome && filteredPicks.length > 0 && <section className="border-y border-emerald-950/10 bg-white"><div className="ds-shell py-9 sm:py-12"><div className="mb-5"><div className="ds-kicker"><Star className="w-3.5 h-3.5 inline mr-1.5 fill-emerald-800" />Editor’s shelf</div><h2 className="ds-section-title mt-1">Worth a closer look</h2></div><div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">{filteredPicks.map((pick) => <div key={pick.asin}><DealCard deal={pick.deal} />{pick.editorialNote && <p className="hidden sm:block mt-2 text-[11px] leading-relaxed text-slate-600 border-t border-emerald-950/10 pt-2"><strong className="text-emerald-900">Why we picked it:</strong> {pick.editorialNote}</p>}</div>)}</div></div></section>}
 

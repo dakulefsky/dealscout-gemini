@@ -68,11 +68,25 @@ function replaceMeta(html, { title, description, canonical, robots = 'index,foll
   return out.replace('</head>', `    ${additions}\n  </head>`);
 }
 
-function homeMeta(baseUrl) {
+function homeMeta(baseUrl, categories = []) {
+  const canonical = `${baseUrl}/`;
+  const itemListElement = categories.slice(0, 12).map((category, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    name: category.name,
+    url: `${baseUrl}/category/${encodeURIComponent(category.slug)}`,
+  }));
   return {
-    title: 'DealScout — Amazon Deals & Price Drops',
-    description: 'Find current Amazon price drops and standout deals, with recent price checks and clear savings.',
-    canonical: `${baseUrl}/`,
+    title: 'DealScout — Amazon Deals by Category & Price Drops',
+    description: 'Shop fresh Amazon deals by category, with recently verified prices, clear savings, and a small edit of standout discounts.',
+    canonical,
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@graph': [
+        { '@type': 'WebSite', name: 'DealScout', url: canonical },
+        { '@type': 'CollectionPage', name: 'Amazon deals by category', url: canonical, mainEntity: { '@type': 'ItemList', itemListElement } },
+      ],
+    },
   };
 }
 

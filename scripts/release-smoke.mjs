@@ -97,6 +97,31 @@ async function runReleaseSmoke(baseUrl, options = {}) {
   assert(homepageHtml.includes('ca-pub-7492088381598802'), 'homepage is missing the configured AdSense site code');
   checks.push('public-home-adsense');
 
+  assert(homepageHtml.includes(`<link rel="canonical" href="${target}/" />`), 'homepage is missing the public canonical URL');
+  assert(/<meta\s+name=["']robots["']\s+content=["']index,follow["']/i.test(homepageHtml), 'homepage is not explicitly indexable');
+  assert(homepageHtml.includes('data-server-crawl-content="home"'), 'homepage is missing server-rendered crawl content');
+  checks.push('public-home-indexable');
+
+  const robots = await fetchImpl(`${target}/robots.txt`, {
+    headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
+    redirect: 'error',
+  });
+  assert(robots.ok, `robots.txt failed: HTTP ${robots.status}`);
+  const robotsBody = await robots.text();
+  assert(/Allow:\s*\//.test(robotsBody), 'robots.txt does not allow public crawling');
+  assert(robotsBody.includes(`Sitemap: ${target}/sitemap.xml`), 'robots.txt points at the wrong sitemap origin');
+  checks.push('robots-indexable');
+
+  const sitemap = await fetchImpl(`${target}/sitemap.xml`, {
+    headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
+    redirect: 'error',
+  });
+  assert(sitemap.ok, `sitemap.xml failed: HTTP ${sitemap.status}`);
+  const sitemapBody = await sitemap.text();
+  assert(sitemapBody.includes(`<loc>${target}/</loc>`), 'sitemap is missing the public homepage');
+  assert(!sitemapBody.includes('/admin'), 'sitemap must never expose admin URLs');
+  checks.push('sitemap-indexable');
+
   const adsTxt = await fetchImpl(`${target}/ads.txt`, {
     headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
     redirect: 'error',
