@@ -1,11 +1,12 @@
 # DealScout Google Cloud release
 
-DealScout production uses one immutable container image with two runtime roles:
+DealScout production uses one immutable container image with three runtime roles:
 
 - **Website + API:** a public Cloud Run service running the image default command (`node server.js`).
+- **Private admin:** a separate IAP-protected Cloud Run service using the same image.
 - **WhatsApp Status publisher:** one Cloud Run worker-pool instance running `node publication-worker.js` continuously.
 
-Both roles attach to the same Cloud SQL instance. The publisher has no public HTTP endpoint and must not receive web-only authentication/provider secrets.
+The roles use separate PostgreSQL pools even though they attach to the same Cloud SQL instance. The publisher has no public HTTP endpoint and must not receive web-only authentication/provider secrets.
 
 ## Build first
 
@@ -35,7 +36,7 @@ WAHA_BASE_URL
 WAHA_SESSION
 ```
 
-Optional release settings include `GCP_REGION` (defaults to `us-central1`), `GCP_WEB_SERVICE`, `GCP_PUBLISHER_POOL`, `GCP_RUNTIME_SERVICE_ACCOUNT`, `RAINFOREST_DOMAIN`, and the publication worker controls the runtime actually consumes: `WAHA_TIMEOUT_MS`, `PUBLICATION_POLL_MS`, `PUBLICATION_MIN_SPACING_SECONDS`, `PUBLICATION_QUEUE_BATCH`, `PUBLICATION_CANDIDATE_LIMIT`, and `PUBLICATION_MAX_PER_CYCLE`.
+Optional release settings include `GCP_REGION` (defaults to `us-central1`), `GCP_WEB_SERVICE`, `GCP_ADMIN_SERVICE`, `GCP_PUBLISHER_POOL`, `GCP_RUNTIME_SERVICE_ACCOUNT`, `RAINFOREST_DOMAIN`, and explicit database pool budgets `PG_WEB_POOL_MAX` (default 4), `PG_ADMIN_POOL_MAX` (default 3), and `PG_PUBLISHER_POOL_MAX` (default 2). Publication worker controls the runtime actually consumes include: `WAHA_TIMEOUT_MS`, `PUBLICATION_POLL_MS`, `PUBLICATION_MIN_SPACING_SECONDS`, `PUBLICATION_QUEUE_BATCH`, `PUBLICATION_CANDIDATE_LIMIT`, and `PUBLICATION_MAX_PER_CYCLE`.
 
 WhatsApp deal-quality thresholds are defined by the shared distribution policy rather than deployment-only environment variables, so the release command does not accept a second set of `PUBLICATION_MIN_DISCOUNT` or `PUBLICATION_MIN_QUALITY` controls that could drift from the website/app policy.
 
@@ -75,10 +76,13 @@ After the dry run is correct:
 npm run release:gcp
 ```
 
-The release script performs two ordered deployments:
+The release script performs three ordered deployments:
 
 1. `gcloud run deploy` for the public website/API service, with Cloud SQL attached.
-2. `gcloud run worker-pools deploy` for a single Status publisher instance, overriding the image command to `node publication-worker.js`.
+2. `gcloud run deploy` for the private admin service without weakening its existing access policy.
+3. `gcloud run worker-pools deploy` for a single Status publisher instance, overriding the image command to `node publication-worker.js`.
+
+Each runtime receives its own `PG_POOL_MAX` budget. Keeping the publisher and admin pools small prevents Cloud Run scale-out on the public service from silently multiplying the total Cloud SQL connection budget.
 
 The publisher is deliberately pinned by the release script to:
 
