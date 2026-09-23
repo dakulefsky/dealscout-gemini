@@ -16,10 +16,10 @@ test('home wires progressive feed helpers into the live feed', () => {
 
 test('home exposes balanced Deal Drop freshness and avoids immediate Explore duplicates', () => {
   assert.match(home, /balancedFeatured\(freshDealDrop\(visibleDeals\.filter\(\(deal\) => !spotlightIds\.has/);
-  assert.match(home, /Current/);
+  assert.match(home, /Latest/);
   assert.match(home, /dropIds\.has/);
   assert.match(home, /dropDeals\.length/);
-  assert.match(home, /Current/);
+  assert.match(home, /Latest/);
 });
 
 test('home creates a local freshness return loop and a finite caught-up state', () => {
