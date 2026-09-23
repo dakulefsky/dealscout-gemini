@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { normalizeGuestId, isValidGuestId } = require('../services/clientIdentityService');
 
 const MAX_RATE_BUCKETS = 5000;
 const buckets = new Map();
@@ -56,7 +57,10 @@ function apiRateLimit({ windowMs = 15 * 60 * 1000, max = 300 } = {}) {
     if (!req.path?.startsWith('/api/')) return next();
     const now = Date.now();
     pruneRateBuckets(now, windowMs);
-    const key = req.ip || req.socket?.remoteAddress || 'unknown';
+    const guestId = normalizeGuestId(req.headers?.['x-guest-id']);
+    const key = isValidGuestId(guestId)
+      ? `guest:${guestId}`
+      : `ip:${req.ip || req.socket?.remoteAddress || 'unknown'}`;
     let bucket = buckets.get(key);
     if (!bucket || now - bucket.startedAt >= windowMs) {
       bucket = { startedAt: now, count: 0 };
@@ -67,6 +71,8 @@ function apiRateLimit({ windowMs = 15 * 60 * 1000, max = 300 } = {}) {
     res.setHeader('RateLimit-Remaining', String(Math.max(0, max - bucket.count)));
     res.setHeader('RateLimit-Reset', String(Math.ceil((bucket.startedAt + windowMs) / 1000)));
     if (bucket.count > max) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((bucket.startedAt + windowMs - now) / 1000));
+      res.setHeader('Retry-After', String(retryAfterSeconds));
       return res.status(429).json({ error: 'Too many requests. Please try again later.' });
     }
     next();
