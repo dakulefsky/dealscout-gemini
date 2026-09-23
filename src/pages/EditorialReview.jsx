@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, ShieldCheck, Star, Save, ArrowLeft, CheckCircle2, Clock, Send, XCircle } from 'lucide-react';
+import { Loader2, ShieldCheck, Star, Save, ArrowLeft, CheckCircle2, Clock, Send, XCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Image } from '@/components/ui/image';
@@ -74,6 +74,27 @@ export default function EditorialReview() {
     }
   }
 
+  async function removeDeal(deal) {
+    const label = deal?.title || deal?.asin || 'this deal';
+    if (!window.confirm(`Permanently remove "${label}" from DealScout? This cannot be undone.`)) return;
+    setBusyAsin(deal.asin);
+    try {
+      await dealsApi.delete(deal.id || deal.asin);
+      await editorialApi.remove(deal.asin).catch(() => null);
+      setDeals((prev) => prev.filter((d) => d.asin !== deal.asin));
+      setEditorialByAsin((prev) => {
+        const next = { ...prev };
+        delete next[deal.asin];
+        return next;
+      });
+      toast({ title: 'Deal permanently removed', description: 'It has been deleted from the DealScout catalog.' });
+    } catch (error) {
+      toast({ title: 'Could not remove deal', description: error.message, variant: 'destructive' });
+    } finally {
+      setBusyAsin(null);
+    }
+  }
+
   async function reject(deal) {
     setBusyAsin(deal.asin);
     try {
@@ -97,7 +118,7 @@ export default function EditorialReview() {
         <div>
           <Link to="/admin" className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 mb-2"><ArrowLeft className="w-3.5 h-3.5" /> Back to Admin</Link>
           <h1 className="text-3xl font-black text-slate-900">Review Exceptions</h1>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Normal verified deals publish automatically. This queue is reserved for deals with a specific reason to need a human decision.</p>
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Normal verified deals publish automatically. Use All verified to manage any live deal, including permanently removing one from the catalog.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {[
@@ -150,6 +171,7 @@ export default function EditorialReview() {
                   <Button disabled={busy} onClick={() => save(deal, { isHumanPick: true }, held)} className="rounded-xl font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}{held ? 'Publish as Pick' : e.isHumanPick ? 'Update Pick' : 'Make DealScout Pick'}</Button>
                   {held && <Button disabled={busy} onClick={() => reject(deal)} variant="outline" className="rounded-xl font-bold gap-1.5 text-red-700 border-red-200 hover:bg-red-50"><XCircle className="w-4 h-4" /> Reject</Button>}
                   <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, false)} variant="outline" className="rounded-xl font-bold gap-1.5"><Save className="w-4 h-4" /> Save for Later</Button>
+                  <Button disabled={busy} onClick={() => removeDeal(deal)} variant="outline" className="rounded-xl font-bold gap-1.5 text-red-800 border-red-300 hover:bg-red-50"><Trash2 className="w-4 h-4" /> Remove Permanently</Button>
                 </div>
               </div>
             );
