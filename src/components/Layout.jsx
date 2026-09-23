@@ -5,7 +5,8 @@ import { useBookmarks } from '@/lib/BookmarksContext';
 import { Image } from '@/components/ui/image';
 import { LogOut, Settings, Heart, Search, X, Loader2, Menu } from 'lucide-react';
 import AffiliateBanner from '@/components/AffiliateBanner';
-import { deals as dealsApi, categories as categoriesApi } from '@/lib/api';
+import { deals as dealsApi } from '@/lib/api';
+import { getActiveCategories } from '@/lib/publicCatalogCache';
 
 const SEARCH_DEBOUNCE_MS = 250;
 const MIN_SEARCH_CHARS = 2;
@@ -28,7 +29,7 @@ export default function Layout({ children }) {
 
   useEffect(() => {
     if (isAdminArea) return;
-    categoriesApi.list().then((result) => setCategoriesList(result || [])).catch(() => setCategoriesList([]));
+    getActiveCategories().then((result) => setCategoriesList(result || [])).catch(() => setCategoriesList([]));
   }, [isAdminArea]);
 
   useEffect(() => {
