@@ -103,17 +103,17 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
   }
 
   return (
-    <div ref={cardRef} className={`group relative h-full flex flex-col bg-white border-t-2 border-x border-b border-emerald-950/15 ${isExpired ? 'opacity-65' : 'hover:border-t-emerald-950 hover:border-x-emerald-950/25 hover:border-b-emerald-950/25'} transition-colors duration-150`}>
+    <div ref={cardRef} className={`group relative h-full flex flex-col bg-white border-t-[3px] border-x border-b border-emerald-950/20 ${isExpired ? 'opacity-65' : 'border-t-emerald-950'}`}>
       <Link to={`/deal/${dealId}`} onClick={handleDealClick} aria-label={`View deal: ${deal.title}`} className="flex flex-col flex-1 min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700">
         <div className={`relative aspect-[4/3] w-full overflow-hidden p-4 bg-[#f7f5f0] border-b border-emerald-950/5 ${isExpired ? 'grayscale-[0.8]' : ''}`}>
           <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-[1.015] transition-transform duration-200" />
-          {isExpired ? <span className="absolute top-2 left-2 bg-slate-900 text-white text-[9px] font-bold px-2 py-1"><Clock className="w-2.5 h-2.5 inline mr-1" />Ended</span> : deal.discountPercent > 0 ? <span className="absolute top-2 left-2 bg-[#dfeee2] text-emerald-950 text-[10px] font-black px-2 py-1">{deal.discountPercent}% OFF</span> : null}
+          {isExpired ? <span className="absolute top-2 left-2 bg-slate-900 text-white text-[9px] font-bold px-2 py-1"><Clock className="w-2.5 h-2.5 inline mr-1" />Ended</span> : deal.discountPercent > 0 ? <span className="absolute top-2 left-2 bg-emerald-950 text-white text-[9px] font-black tracking-[0.08em] px-2 py-1">{deal.discountPercent}% OFF</span> : null}
         </div>
-        <div className="p-3.5 sm:p-4 flex flex-col flex-1 min-h-0">
-          <div className="flex items-center justify-between gap-2 mb-2 min-h-[16px]"><span className="text-[9px] uppercase tracking-[0.12em] font-bold text-slate-500 truncate">{deal.category || 'Deal'}</span>{sourceBadge}</div>
-          <h3 className={`text-[13px] sm:text-sm font-bold leading-snug line-clamp-2 min-h-[2.4rem] ${isExpired ? 'line-through text-slate-500' : 'text-slate-950 group-hover:text-emerald-900'}`}>{deal.title}</h3>
+        <div className="p-3 sm:p-3.5 flex flex-col flex-1 min-h-0">
+          <div className="flex items-center justify-between gap-2 mb-1.5 min-h-[15px]"><span className="text-[9px] uppercase tracking-[0.12em] font-bold text-slate-500 truncate">{deal.category || 'Deal'}</span>{sourceBadge}</div>
+          <h3 className={`text-[13px] sm:text-[14px] font-black leading-[1.18] line-clamp-2 min-h-[2.4rem] ${isExpired ? 'line-through text-slate-500' : 'text-slate-950 group-hover:text-emerald-900'}`}>{deal.title}</h3>
           <div className="mt-auto pt-3">
-            <div className="flex items-baseline gap-1.5 flex-wrap"><span className="ds-price text-lg sm:text-xl">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-[10px] sm:text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>
+            <div className="flex items-baseline gap-1.5 flex-wrap"><span className="ds-price text-xl sm:text-[22px]">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-[10px] sm:text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>
             <div className="mt-1.5 flex items-center justify-between gap-2">{!isExpired && savings > 0 ? <span className="text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Save {formatPrice(savings)}</span> : <span /> }<ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-800 transition-colors" /></div>
           </div>
         </div>
