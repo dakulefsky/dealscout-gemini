@@ -40,7 +40,7 @@ export function buildFeedChapters(deals = [], interests = {}, initiallyUsedIds =
     const items = takeUnique(matching, used);
     if (items.length >= 2) {
       const displayCategory = items[0]?.category || topCategory;
-      chapters.push({ key: 'personalized-category', eyebrow: 'Picked for you', title: `Because you’re checking out ${displayCategory}`, items });
+      chapters.push({ key: 'personalized-category', eyebrow: 'More in this department', title: displayCategory, items });
     }
   }
 
@@ -49,7 +49,7 @@ export function buildFeedChapters(deals = [], interests = {}, initiallyUsedIds =
     deals.filter((deal) => !familiar.has(categoryKey(deal?.category))),
     used,
   );
-  if (discovery.length >= 2) chapters.push({ key: 'discovery', eyebrow: 'Explore', title: 'Something different', items: discovery });
+  if (discovery.length >= 2) chapters.push({ key: 'discovery', eyebrow: 'Another aisle', title: 'More live deals', items: discovery });
 
   const biggestDrops = takeUnique(
     deals
@@ -63,7 +63,7 @@ export function buildFeedChapters(deals = [], interests = {}, initiallyUsedIds =
     deals.filter((deal) => Number(deal?.salePrice) > 0 && Number(deal?.salePrice) < 25),
     used,
   );
-  if (under25.length >= 2) chapters.push({ key: 'under-25', eyebrow: 'Quick wins', title: 'Good finds under $25', items: under25 });
+  if (under25.length >= 2) chapters.push({ key: 'under-25', eyebrow: 'Under $25', title: 'Lower-priced finds', items: under25 });
 
   return chapters.slice(0, 4);
 }
