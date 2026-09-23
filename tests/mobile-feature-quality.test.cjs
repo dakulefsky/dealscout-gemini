@@ -9,5 +9,6 @@ test('mobile featured section uses shared trustworthy discount logic', () => {
   assert.match(home, /trustworthyDiscountPercent/);
   assert.match(home, /discount >= 30/);
   assert.doesNotMatch(home, /Good deals\. No digging\./);
-  assert.match(home, /The deals worth seeing\./);
+  assert.match(home, /DEPARTMENTS/);
+  assert.doesNotMatch(home, /The deals worth seeing\./);
 });
