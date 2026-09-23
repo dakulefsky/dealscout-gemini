@@ -1,4 +1,5 @@
 const PUBLIC_PRICE_MAX_AGE_SECONDS = 24 * 60 * 60;
+const PUBLIC_MIN_DISCOUNT_PERCENT = 15;
 
 function checkedAtSeconds(deal) {
   const value = Number(deal?.price_check_at ?? deal?.priceCheckAt ?? 0);
@@ -22,12 +23,24 @@ function isPriceFresh(deal, nowSeconds = Math.floor(Date.now() / 1000), maxAgeSe
   return Number.isFinite(age) && age >= 0 && age <= Number(maxAgeSeconds);
 }
 
+function discountPercent(deal) {
+  const original = Number(deal?.original_price ?? deal?.originalPrice);
+  const sale = Number(deal?.sale_price ?? deal?.salePrice);
+  if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0 || sale <= 0 || sale >= original) return 0;
+  return ((original - sale) / original) * 100;
+}
+
+function meetsMinimumDiscount(deal, minimum = PUBLIC_MIN_DISCOUNT_PERCENT) {
+  return discountPercent(deal) >= Number(minimum);
+}
+
 function isPublicDeal(deal, options = {}) {
   if (!deal) return false;
   if (deal.status !== 'APPROVED') return false;
   if (deal.is_expired === 1 || deal.isExpired === true) return false;
   if (!(deal.source_verified === 1 || deal.sourceVerified === true)) return false;
   if (!hasValidPricePair(deal)) return false;
+  if (!meetsMinimumDiscount(deal)) return false;
   return isPriceFresh(deal, options.nowSeconds, options.maxAgeSeconds);
 }
 
@@ -37,6 +50,9 @@ function freshPriceThreshold(nowSeconds = Math.floor(Date.now() / 1000), maxAgeS
 
 module.exports = {
   PUBLIC_PRICE_MAX_AGE_SECONDS,
+  PUBLIC_MIN_DISCOUNT_PERCENT,
+  discountPercent,
+  meetsMinimumDiscount,
   checkedAtSeconds,
   hasValidPricePair,
   isPriceFresh,

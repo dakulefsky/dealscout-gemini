@@ -1,7 +1,7 @@
 const postgres = require('../storage/postgres');
 const bookmarkRepository = require('./bookmarkRepository');
 const dealRepository = require('./dealRepository');
-const { isPublicDeal, freshPriceThreshold } = require('../services/publicDealPolicy');
+const { isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
 
 async function listPublicSavedDeals(userId) {
   if (!postgres.isConfigured()) {
@@ -34,6 +34,7 @@ async function listPublicSavedDeals(userId) {
        AND d.original_price > 0
        AND d.sale_price > 0
        AND d.sale_price < d.original_price
+       AND (100.0 * (d.original_price - d.sale_price) / d.original_price) >= ${PUBLIC_MIN_DISCOUNT_PERCENT}
        AND d.price_check_at IS NOT NULL
        AND d.price_check_at >= $2
        AND d.price_check_at <= $3
