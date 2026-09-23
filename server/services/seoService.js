@@ -25,10 +25,18 @@ function priceCheckAgeHours(deal, nowMs = Date.now()) {
 
 function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now(), maxDealAgeHours = PUBLIC_PRICE_MAX_AGE_HOURS }) {
   const freshDeals = deals.filter((deal) => priceCheckAgeHours(deal, nowMs) <= maxDealAgeHours);
+  const latestCheck = freshDeals.reduce((latest, deal) => Math.max(latest, Number(deal.price_check_at || 0)), 0);
+  const latestByCategory = new Map();
+  for (const deal of freshDeals) {
+    const key = String(deal.category || '').trim().toLowerCase();
+    const checkedAt = Number(deal.price_check_at || 0);
+    if (key && checkedAt > Number(latestByCategory.get(key) || 0)) latestByCategory.set(key, checkedAt);
+  }
+  const iso = (seconds) => Number(seconds) > 0 ? new Date(Number(seconds) * 1000).toISOString() : undefined;
   const urls = [
-    { loc: `${baseUrl}/` },
-    ...categories.map((c) => ({ loc: `${baseUrl}/category/${encodeURIComponent(c.slug)}` })),
-    ...freshDeals.map((d) => ({ loc: `${baseUrl}/deal/${encodeURIComponent(d.id || d.asin)}`, lastmod: d.price_check_at ? new Date(Number(d.price_check_at) * 1000).toISOString() : undefined })),
+    { loc: `${baseUrl}/`, lastmod: iso(latestCheck) },
+    ...categories.map((c) => ({ loc: `${baseUrl}/category/${encodeURIComponent(c.slug)}`, lastmod: iso(latestByCategory.get(String(c.name || '').trim().toLowerCase())) })),
+    ...freshDeals.map((d) => ({ loc: `${baseUrl}/deal/${encodeURIComponent(d.id || d.asin)}`, lastmod: iso(d.price_check_at) })),
     { loc: `${baseUrl}/disclosure` },
     { loc: `${baseUrl}/privacy` },
     { loc: `${baseUrl}/support` },
