@@ -15,16 +15,16 @@ test('home wires progressive feed helpers into the live feed', () => {
 });
 
 test('home exposes balanced Deal Drop freshness and avoids immediate Explore duplicates', () => {
-  assert.match(home, /balancedFeatured\(freshDealDrop\(visibleDeals, initialSeenDrop, 8\), 8\)/);
+  assert.match(home, /balancedFeatured\(freshDealDrop\(visibleDeals\.filter\(\(deal\) => !spotlightIds\.has/);
   assert.match(home, /Deal Drop/);
   assert.match(home, /dropIds\.has/);
   assert.match(home, /dropDeals\.length/);
-  assert.match(home, /Today’s best finds/);
+  assert.match(home, /Today’s edit/);
 });
 
 test('home creates a local freshness return loop and a finite caught-up state', () => {
   assert.match(returnLoop, /dealscout-feed-last-visit-v1/);
   assert.match(home, /refreshedSinceLastVisit/);
-  assert.match(home, /Freshly refreshed deals are waiting/);
+  assert.match(home, /deals refreshed since your last visit/);
   assert.match(home, /You’ve seen today’s best deals/);
 });
