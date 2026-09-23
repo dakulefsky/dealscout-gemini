@@ -36,7 +36,7 @@ test('cursor predicates are keyset based instead of offset pagination', () => {
 test('feed discount filters and cursors use the price-derived expression', () => {
   assert.match(feedRepo, /const DISCOUNT_SQL = '\(100\.0 \* \(original_price - sale_price\) \/ original_price\)'/);
   assert.match(feedRepo, /filters\.minDiscount !== null\) where\.push\(`\$\{DISCOUNT_SQL\} >=/);
-  assert.match(feedRepo, /const field = sort === 'discount_desc' \? DISCOUNT_SQL : 'sale_price'/);
+  assert.match(feedRepo, /const field = sort === 'best' \? BEST_SQL : sort === 'discount_desc' \? DISCOUNT_SQL : 'sale_price'/);
   assert.match(feedRepo, /sort === 'discount_desc' \? derivedDiscount\(row\)/);
 });
 
