@@ -35,7 +35,7 @@ async function requestJson(baseUrl, requestPath, {
   fetchImpl = globalThis.fetch,
   headers = {},
   method = 'GET',
-  body,
+  body: requestBody,
 } = {}) {
   if (typeof fetchImpl !== 'function') throw new Error('fetch is required');
   const controller = new AbortController();
@@ -46,23 +46,23 @@ async function requestJson(baseUrl, requestPath, {
       headers: {
         Accept: 'application/json',
         'User-Agent': 'DealScout-Release-Smoke/1',
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(requestBody !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...headers,
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: requestBody !== undefined ? JSON.stringify(requestBody) : undefined,
       signal: controller.signal,
       redirect: 'error',
     });
-    let body = null;
+    let responseBody = null;
     const contentType = response.headers?.get?.('content-type') || '';
     if (contentType.includes('application/json')) {
-      try { body = await response.json(); } catch { body = null; }
+      try { responseBody = await response.json(); } catch { responseBody = null; }
     }
     if (!response.ok) {
-      const detail = body?.error || `HTTP ${response.status}`;
+      const detail = responseBody?.error || `HTTP ${response.status}`;
       throw new Error(`${requestPath} failed: ${detail}`);
     }
-    return { response, body };
+    return { response, body: responseBody };
   } catch (error) {
     if (controller.signal.aborted && error?.name === 'AbortError') throw new Error(`${requestPath} timed out`);
     throw error;
