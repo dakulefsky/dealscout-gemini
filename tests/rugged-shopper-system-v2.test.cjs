@@ -18,3 +18,11 @@ test('shopper system favors hard rules, compressed hierarchy, and terse copy', (
   assert.doesNotMatch(home, /Three strong ones|Today’s edit|Worth a closer look/);
   assert.match(card, /border-t-\[3px\]/);
 });
+
+
+test('deal cards surface factual verification recency instead of a vague trust badge', () => {
+  const card = read('src/components/DealCard.jsx');
+  assert.match(card, /Checked now/);
+  assert.match(card, /Checked \$\{Math\.floor\(freshness\.ageSeconds \/ 3600\)\}h/);
+  assert.doesNotMatch(card, />Verified<\/span>/);
+});
