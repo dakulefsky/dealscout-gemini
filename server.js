@@ -207,7 +207,14 @@ async function startServer() {
     const distPath = path.join(__dirname, 'dist');
     const indexPath = path.join(distPath, 'index.html');
     const indexTemplate = fs.readFileSync(indexPath, 'utf8');
-    app.use(express.static(distPath, { index: false }));
+    app.use(express.static(distPath, {
+      index: false,
+      setHeaders(res, filePath) {
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
+    }));
     app.use(async (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
       try {
