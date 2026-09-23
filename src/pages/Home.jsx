@@ -22,7 +22,7 @@ const SORTS = [
   { key: 'price-low', label: 'Lowest price' },
   { key: 'price-high', label: 'Highest price' },
 ];
-const DISCOUNT_TIERS = [{ value: 0, label: 'Any discount' }, { value: 15, label: '15%+ off' }, { value: 25, label: '25%+ off' }, { value: 30, label: '30%+ off' }, { value: 50, label: '50%+ off' }];
+const DISCOUNT_TIERS = [{ value: 0, label: '15%+ (all deals)' }, { value: 15, label: '15%+ off' }, { value: 25, label: '25%+ off' }, { value: 30, label: '30%+ off' }, { value: 50, label: '50%+ off' }];
 const PRICE_TIERS = [{ value: 'all', label: 'Any price' }, { value: 'under-50', label: 'Under $50', max: 50 }, { value: '50-150', label: '$50–$150', min: 50, max: 150 }, { value: '150-300', label: '$150–$300', min: 150, max: 300 }, { value: 'over-300', label: '$300+', min: 300 }];
 const CHAPTER_INTERVAL = 8;
 const REMOTE_PAGE_SIZE = 24;
