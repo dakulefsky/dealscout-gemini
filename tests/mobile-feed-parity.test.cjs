@@ -23,6 +23,7 @@ test('native feed exposes the same server-backed shopper dimensions as web Home'
   assert.match(mobileHome, /minPrice: selectedPriceTier\.min \?\? ''/);
   assert.match(mobileHome, /maxPrice: selectedPriceTier\.max \?\? ''/);
   assert.match(mobileHome, /q: query\.trim\(\)/);
+  assert.match(mobileHome, /if \(sort === 'best'\) return 'best'/);
   assert.match(mobileHome, /discount_desc/);
   assert.match(mobileHome, /price_asc/);
   assert.match(mobileHome, /price_desc/);

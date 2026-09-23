@@ -19,6 +19,6 @@ test('curated deal rows remain bounded and balanced where grids require it', () 
 });
 
 test('Deal Drop headline stays terse', () => {
-  assert.match(home, /Current/);
+  assert.match(home, /Latest/);
   assert.doesNotMatch(home, /worth seeing right now|A quick hit of the strongest verified deals/);
 });
