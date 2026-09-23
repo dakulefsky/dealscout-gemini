@@ -70,7 +70,7 @@ function replaceMeta(html, { title, description, canonical, robots = 'index,foll
 
 function homeMeta(baseUrl, categories = []) {
   const canonical = `${baseUrl}/`;
-  const itemListElement = categories.slice(0, 12).map((category, index) => ({
+  const itemListElement = categories.map((category, index) => ({
     '@type': 'ListItem',
     position: index + 1,
     name: category.name,
@@ -90,13 +90,19 @@ function homeMeta(baseUrl, categories = []) {
   };
 }
 
-function categoryMeta(baseUrl, category) {
+function categoryMeta(baseUrl, category, deals = []) {
   const name = category?.name || 'Amazon Deals';
   const slug = category?.slug || 'other';
   const canonical = `${baseUrl}/category/${encodeURIComponent(slug)}`;
   const description = category?.description
     ? `Browse current ${name} deals and price drops on DealScout. ${category.description}`
     : `Browse current ${name} deals and price drops on DealScout, with recently verified prices and rotating live offers.`;
+  const dealItems = (deals || []).slice(0, 12).map((deal, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    name: deal.title,
+    url: `${baseUrl}/deal/${encodeURIComponent(deal.id || deal.asin)}`,
+  }));
   const jsonLd = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -106,6 +112,7 @@ function categoryMeta(baseUrl, category) {
         description,
         url: canonical,
         isPartOf: { '@type': 'WebSite', name: 'DealScout', url: `${baseUrl}/` },
+        ...(dealItems.length ? { mainEntity: { '@type': 'ItemList', itemListElement: dealItems } } : {}),
       },
       {
         '@type': 'BreadcrumbList',
