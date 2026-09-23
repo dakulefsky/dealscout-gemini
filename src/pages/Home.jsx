@@ -30,7 +30,7 @@ const REMOTE_PAGE_SIZE = 24;
 function dealIdentity(deal) { return String(deal?.id || deal?.asin || '').trim(); }
 function balancedFeatured(items, maxItems = 8) { const bounded = (items || []).slice(0, maxItems); const evenLength = bounded.length - (bounded.length % 2); return evenLength >= 2 ? bounded.slice(0, evenLength) : []; }
 function mergeDeals(current, incoming) { const seen = new Set(current.map(dealIdentity)); return [...current, ...incoming.filter((deal) => { const id = dealIdentity(deal); if (!id || seen.has(id)) return false; seen.add(id); return true; })]; }
-function serverSort(sort) { if (sort === 'discount') return 'discount_desc'; if (sort === 'price-low') return 'price_asc'; if (sort === 'price-high') return 'price_desc'; return '-created_date'; }
+function serverSort(sort) { if (sort === 'best') return 'best'; if (sort === 'discount') return 'discount_desc'; if (sort === 'price-low') return 'price_asc'; if (sort === 'price-high') return 'price_desc'; return '-created_date'; }
 
 export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
