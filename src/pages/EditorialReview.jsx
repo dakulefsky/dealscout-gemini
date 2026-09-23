@@ -125,8 +125,8 @@ export default function EditorialReview() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <Link to="/admin" className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 mb-2"><ArrowLeft className="w-3.5 h-3.5" /> Back to Admin</Link>
-          <h1 className="text-3xl font-black text-slate-900">Review Exceptions</h1>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Normal verified deals publish automatically. Search the full catalog here to review, reject, or permanently remove any deal.</p>
+          <h1 className="text-3xl font-black text-slate-900">Manage Deals</h1>
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Search the catalog by title or ASIN. You can review exceptions, manage picks, or permanently remove a deal.</p>
         </div>
         <div className="flex flex-col sm:items-end gap-2">
           <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title or ASIN" className="w-full sm:w-64 rounded-xl" aria-label="Search admin deals" />
@@ -146,13 +146,13 @@ export default function EditorialReview() {
 
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950 flex gap-3 items-start">
         <ShieldCheck className="w-5 h-5 shrink-0 text-emerald-700" />
-        <div><strong>Low-touch by design:</strong> valid ordinary deals do not wait for you. Review is for exceptions such as suspiciously extreme discounts or incomplete presentation data.</div>
+        <div><strong>Automatic publishing stays on:</strong> this page is only for manual intervention when you want it.</div>
       </div>
 
       {loading ? (
         <div className="py-24 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-600" /></div>
       ) : visibleDeals.length === 0 ? (
-        <div className="py-20 text-center rounded-3xl border border-slate-200 bg-white"><CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500 mb-3" /><h2 className="font-bold text-slate-900">Queue is clear</h2><p className="text-sm text-slate-500 mt-1">Automation is handling the ordinary deals.</p></div>
+        <div className="py-20 text-center rounded-3xl border border-slate-200 bg-white"><CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500 mb-3" /><h2 className="font-bold text-slate-900">No matching deals</h2><p className="text-sm text-slate-500 mt-1">Try another search or filter.</p></div>
       ) : (
         <div className="space-y-4">
           {visibleDeals.map((deal) => {
