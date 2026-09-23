@@ -16,6 +16,7 @@ const SORTS = [
 const PAGE_SIZE = 24;
 
 function serverSort(sort) {
+  if (sort === 'best') return 'best';
   if (sort === 'discount') return 'discount_desc';
   if (sort === 'price-low') return 'price_asc';
   if (sort === 'price-high') return 'price_desc';
@@ -141,7 +142,7 @@ export default function CategoryPage() {
         ) : error && visibleDeals.length === 0 ? (
           <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Couldn’t load this department</h3><p className="text-sm text-slate-500 mt-1">{error}</p><button type="button" onClick={() => setRetryInitial((value) => value + 1)} className="mt-5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Try again</button></div>
         ) : visibleDeals.length === 0 ? (
-          <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">No active deals here right now</h3><p className="text-sm text-slate-500 mt-1">New verified finds will appear here as they land.</p></div>
+          <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">No active deals here right now</h3><p className="text-sm text-slate-500 mt-1">No current inventory.</p></div>
         ) : (
           <>
             {viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr items-stretch">{visibleDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" />)}</div> : <div>{visibleDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" />)}</div>}
