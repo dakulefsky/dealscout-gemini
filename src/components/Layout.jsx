@@ -114,14 +114,14 @@ export default function Layout({ children }) {
             value={searchQuery}
             onChange={(event) => { setSearchQuery(event.target.value); setIsSearchOpen(true); }}
             onFocus={() => searchQuery.trim() && setIsSearchOpen(true)}
-            className="w-full pl-10 pr-9 h-11 rounded-md border border-emerald-950/10 bg-stone-100/80 text-sm text-emerald-950 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800/30 focus:bg-white transition"
+            className="w-full pl-10 pr-9 h-11 border border-emerald-950/15 bg-stone-100/80 text-sm text-emerald-950 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800/30 focus:bg-white transition"
           />
           {searchQuery && <button type="button" onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700" aria-label="Clear search"><X className="h-4 w-4" /></button>}
         </div>
       </form>
 
       {isSearchOpen && searchQuery.trim() && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-emerald-950/10 shadow-2xl overflow-hidden z-50">
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-emerald-950/10 shadow-[0_10px_24px_rgba(23,52,40,0.12)] overflow-hidden z-50">
           {searchLoading ? (
             <div className="p-5 flex items-center justify-center gap-2 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…</div>
           ) : searchResults.length === 0 ? (
@@ -150,7 +150,7 @@ export default function Layout({ children }) {
           <div className="h-16 sm:h-[72px] flex items-center gap-3 sm:gap-6">
             <Link to="/" className="shrink-0 leading-none">
               <div className="font-heading text-[29px] sm:text-[36px] font-bold tracking-[-0.045em] text-emerald-950">DealScout</div>
-              <div className="hidden sm:block text-[9px] uppercase tracking-[0.14em] text-slate-500 mt-0.5">{isAdminArea ? 'Operations' : 'Deals, edited down'}</div>
+              <div className="hidden sm:block text-[9px] uppercase tracking-[0.14em] text-slate-500 mt-0.5">{isAdminArea ? 'Operations' : 'Verified Amazon deals'}</div>
             </Link>
 
             {!isAdminArea && <div className="relative flex-1 max-w-2xl hidden md:block">{searchBox(false)}</div>}
@@ -204,7 +204,7 @@ export default function Layout({ children }) {
       {!isAdminArea && <footer className="bg-emerald-950 text-emerald-50 mt-14">
         <div className="ds-shell py-10 sm:py-12">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            <div className="md:col-span-2"><div className="font-heading text-2xl font-bold">DealScout</div><p className="text-sm text-emerald-100/70 mt-2 max-w-md">Standout deals, verified prices, and less noise.</p></div>
+            <div className="md:col-span-2"><div className="font-heading text-2xl font-bold">DealScout</div><p className="text-sm text-emerald-100/70 mt-2 max-w-md">Current deals with recently checked prices.</p></div>
             <div><h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-200/60 mb-3">Categories</h4><ul className="space-y-2 text-xs">{categoriesList.slice(0, 5).map((category) => <li key={category.id}><Link to={`/category/${category.slug}`} className="text-emerald-50/80 hover:text-white">{category.name}</Link></li>)}</ul></div>
             <div><h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-200/60 mb-3">More</h4><ul className="space-y-2 text-xs"><li><Link to="/disclosure" className="text-emerald-50/80 hover:text-white">Affiliate Disclosure</Link></li><li><Link to="/privacy" className="text-emerald-50/80 hover:text-white">Privacy</Link></li><li><Link to="/support" className="text-emerald-50/80 hover:text-white">Support</Link></li><li><Link to="/saved" className="text-emerald-50/80 hover:text-white">Saved Deals</Link></li></ul></div>
           </div>
