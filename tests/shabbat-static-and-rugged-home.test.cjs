@@ -24,9 +24,9 @@ test('crawler files and infrastructure health stay available during closure', ()
 
 test('homepage uses a restrained department index instead of a giant explanatory hero', () => {
   assert.match(home, /Departments/);
-  assert.match(home, /Current deals by department/);
-  assert.match(home, /Worth it today/);
-  assert.match(home, /Verified prices · live inventory/);
+  assert.match(home, />Departments<\/h1>/);
+  assert.match(home, />Standouts<\/h2>/);
+  assert.match(home, /15%\+ off · recently checked/);
   assert.doesNotMatch(home, /What are you here for\?/);
   assert.doesNotMatch(home, /text-\[66px\]/);
 });
