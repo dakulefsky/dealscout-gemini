@@ -6,7 +6,7 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '..', 'server/repositories/dealQueryRepository.js'), 'utf8');
 
 test('legacy public deal list uses the shared 24-hour public policy', () => {
-  assert.match(source, /const \{ isPublicDeal, freshPriceThreshold \} = require\('\.\.\/services\/publicDealPolicy'\)/);
+  assert.match(source, /isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT/);
   assert.match(source, /return isAdmin \|\| isPublicDeal\(deal\)/);
   assert.match(source, /price_check_at IS NOT NULL AND price_check_at >=/);
   assert.match(source, /price_check_at <=/);
