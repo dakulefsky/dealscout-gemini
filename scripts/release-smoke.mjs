@@ -97,7 +97,7 @@ async function runReleaseSmoke(baseUrl, options = {}) {
   assert(homepageHtml.includes('ca-pub-7492088381598802'), 'homepage is missing the configured AdSense site code');
   checks.push('public-home-adsense');
 
-  assert(/<link\s+rel=["']canonical["']\s+href=["']https:\/\/dealscouted\.com\//i.test(homepageHtml), 'homepage is missing the public canonical URL');
+  assert(homepageHtml.includes(`<link rel="canonical" href="${target}/" />`), 'homepage is missing the public canonical URL');
   assert(/<meta\s+name=["']robots["']\s+content=["']index,follow["']/i.test(homepageHtml), 'homepage is not explicitly indexable');
   assert(homepageHtml.includes('data-server-crawl-content="home"'), 'homepage is missing server-rendered crawl content');
   checks.push('public-home-indexable');
