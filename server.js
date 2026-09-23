@@ -104,6 +104,7 @@ async function startServer() {
   const sitemapRepository = require('./server/repositories/sitemapRepository.js');
   const categoryRepository = require('./server/repositories/categoryRepository.js');
   const dealFeedRepository = require('./server/repositories/dealFeedRepository.js');
+  const { isPublicDeal } = require('./server/services/publicDealPolicy.js');
   const seo = require('./server/services/seoService.js');
   const dealCron = require('./server/services/cronService.js');
   const jewishClosure = require('./server/services/jewishClosureService.js');
@@ -207,7 +208,14 @@ async function startServer() {
     const distPath = path.join(__dirname, 'dist');
     const indexPath = path.join(distPath, 'index.html');
     const indexTemplate = fs.readFileSync(indexPath, 'utf8');
-    app.use(express.static(distPath, { index: false }));
+    app.use(express.static(distPath, {
+      index: false,
+      setHeaders(res, filePath) {
+        if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      },
+    }));
     app.use(async (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
       try {
@@ -221,7 +229,7 @@ async function startServer() {
           meta = { ...seo.homeMeta(baseUrl), title: 'DealScout Admin', description: 'Private DealScout administration.', canonical: null, robots: 'noindex,nofollow' };
         } else if (dealMatch) {
           const deal = await dealRepository.findByIdOrAsin(decodeURIComponent(dealMatch[1]));
-          if (deal && deal.status === 'APPROVED' && deal.source_verified === 1 && deal.is_expired !== 1) {
+          if (deal && isPublicDeal(deal)) {
             meta = seo.dealMeta(baseUrl, deal);
             if (meta.robots !== 'noindex,follow') initialContent = dealInitialContent(deal);
           } else {
