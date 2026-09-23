@@ -21,7 +21,6 @@ const SORTS = [
 ];
 const DISCOUNT_TIERS = [
   { value: 0, label: '15%+ (all deals)' },
-  { value: 15, label: '15%+' },
   { value: 25, label: '25%+' },
   { value: 30, label: '30%+' },
   { value: 50, label: '50%+' },
@@ -60,6 +59,7 @@ function standoutFeatured(items, maxItems = 4) {
 }
 
 function serverSort(sort) {
+  if (sort === 'best') return 'best';
   if (sort === 'discount') return 'discount_desc';
   if (sort === 'price-low') return 'price_asc';
   if (sort === 'price-high') return 'price_desc';
@@ -379,8 +379,8 @@ export default function HomeScreen() {
 
       {featured.length > 0 && (
         <View style={styles.featuredSection}>
-          <Text style={styles.eyebrow}>WORTH IT TODAY</Text>
-          <Text style={styles.sectionTitle}>Strong discounts, checked.</Text>
+          <Text style={styles.eyebrow}>30%+ OFF</Text>
+          <Text style={styles.sectionTitle}>Standouts</Text>
           <View style={styles.featuredGrid}>
             {featured.map((deal) => <View key={idOf(deal)} style={styles.featuredCell}>{card(deal)}</View>)}
           </View>
@@ -391,7 +391,7 @@ export default function HomeScreen() {
     </View>
   );
 
-  if (loading && !items.length) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /><Text style={styles.loadingText}>Finding good deals…</Text></SafeAreaView>;
+  if (loading && !items.length) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /><Text style={styles.loadingText}>Loading deals…</Text></SafeAreaView>;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -408,7 +408,7 @@ export default function HomeScreen() {
         onEndReached={loadMore}
         onEndReachedThreshold={0.7}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshAll} />}
-        ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footer} /> : !nextCursor && items.length ? <Text style={styles.endText}>You’ve seen today’s best deals</Text> : null}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={styles.footer} /> : null}
         ListEmptyComponent={!loading ? <View style={styles.emptyWrap}><Text style={styles.empty}>{error || 'No deals match your filters.'}</Text>{hasActiveFilters && <Pressable onPress={resetFilters} style={styles.emptyReset}><Text style={styles.emptyResetText}>Reset filters</Text></Pressable>}</View> : null}
       />
     </SafeAreaView>
