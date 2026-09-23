@@ -5,7 +5,7 @@ const dealQueries = require('../repositories/dealQueryRepository');
 const dealFeed = require('../repositories/dealFeedRepository');
 const categories = require('../repositories/categoryRepository');
 const { optionalAuth, requireAdmin } = require('../middleware/auth');
-const { isPublicDeal } = require('../services/publicDealPolicy');
+const { isPublicDeal, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
 const { isAmazonUrl } = require('../services/amazonUrlService');
 const { manualExpireChanges, manualRestoreChanges } = require('../services/manualDealLifecycle');
 
@@ -137,6 +137,9 @@ router.post('/', requireAdmin, async (req, res) => {
     const status = b.status || 'PENDING_REVIEW';
     if (!validStatus(status)) throw new Error('Invalid deal status');
     if (status === 'APPROVED' && !sourceVerified) throw new Error('Only source-verified deals can be approved');
+    if (status === 'APPROVED' && prices.discount < PUBLIC_MIN_DISCOUNT_PERCENT) {
+      throw new Error(`Approved deals must be at least ${PUBLIC_MIN_DISCOUNT_PERCENT}% off`);
+    }
     const existing = await deals.findByIdOrAsin(asin);
     const deal = await deals.upsert({
       id: asin,
@@ -197,6 +200,15 @@ router.patch('/:id', requireAdmin, async (req, res) => {
       const effectiveVerified = changes.source_verified !== undefined ? changes.source_verified : deal.source_verified;
       if (b.status === 'APPROVED' && effectiveVerified !== 1) throw new Error('Only source-verified deals can be approved');
       changes.status = b.status;
+    }
+    const effectiveStatus = changes.status ?? deal.status;
+    const effectiveOriginal = changes.original_price ?? Number(deal.original_price);
+    const effectiveSale = changes.sale_price ?? Number(deal.sale_price);
+    const effectiveDiscount = Number.isFinite(effectiveOriginal) && Number.isFinite(effectiveSale) && effectiveOriginal > 0
+      ? ((effectiveOriginal - effectiveSale) / effectiveOriginal) * 100
+      : 0;
+    if (effectiveStatus === 'APPROVED' && effectiveDiscount < PUBLIC_MIN_DISCOUNT_PERCENT) {
+      throw new Error(`Approved deals must be at least ${PUBLIC_MIN_DISCOUNT_PERCENT}% off`);
     }
     res.json(rowToDeal(await deals.update(deal.id, changes), { includeInternal: true }));
   } catch (err) {
