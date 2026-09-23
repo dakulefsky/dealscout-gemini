@@ -134,7 +134,7 @@ export default function Home() {
 
                 <div className="md:border-l md:border-emerald-950/15 md:pl-8">
                   <div className="grid grid-cols-2 md:grid-cols-1 divide-y divide-emerald-950/10">
-                    {categories.slice(5, 11).map((category) => (
+                    {categories.slice(5).map((category) => (
                       <Link key={category.id || category.slug} to={`/category/${category.slug}`} className="group min-h-12 flex items-center justify-between gap-3 py-3 border-b md:border-b-0 border-emerald-950/10">
                         <span className="text-sm font-bold text-slate-800 group-hover:text-emerald-900">{category.name}</span>
                         <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-800 group-hover:translate-x-0.5 transition" />
