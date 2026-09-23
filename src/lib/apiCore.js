@@ -52,6 +52,11 @@ function createDealScoutClient({ baseUrl = '', fetchImpl = globalThis.fetch, get
           error.data = data;
           throw error;
         }
+        if (options.validateResponse && !options.validateResponse(data)) {
+          const error = new Error('Product data is temporarily unavailable');
+          error.status = 502;
+          throw error;
+        }
         return data;
       } catch (error) {
         let normalized = error;
@@ -78,7 +83,12 @@ function createDealScoutClient({ baseUrl = '', fetchImpl = globalThis.fetch, get
   const deals = {
     list: (params = {}, options) => { const qs = queryString(params); return api.get(`${SHOPPER_API}/deals${qs ? `?${qs}` : ''}`, options); },
     page: (params = {}, options) => { const qs = queryString(params); return api.get(`${SHOPPER_API}/deals/feed${qs ? `?${qs}` : ''}`, options); },
-    get: (id, options) => api.get(`${SHOPPER_API}/deals/${encodeURIComponent(id)}`, options), create: (data) => api.post(`${SHOPPER_API}/deals`, data), update: (id, data) => api.patch(`${SHOPPER_API}/deals/${encodeURIComponent(id)}`, data), delete: (id) => api.delete(`${SHOPPER_API}/deals/${encodeURIComponent(id)}`), expire: (id) => api.post(`${SHOPPER_API}/deals/${encodeURIComponent(id)}/expire`), restore: (id) => api.post(`${SHOPPER_API}/deals/${encodeURIComponent(id)}/restore`), approveAll: () => api.post(`${SHOPPER_API}/deals/approve-all`), bulkStatus: (ids, status) => api.post(`${SHOPPER_API}/deals/bulk-status`, { ids, status }), getStats: () => api.get(`${SHOPPER_API}/deals/stats`),
+    get: (id, options) => api.get(`${SHOPPER_API}/deals/${encodeURIComponent(id)}`, {
+      ...options,
+      validateResponse: (data) => Boolean(data && typeof data === 'object' && !Array.isArray(data)
+        && (data.id || data.asin) && typeof data.title === 'string' && data.title.trim()
+        && Number.isFinite(Number(data.salePrice)) && Number(data.salePrice) > 0),
+    }), create: (data) => api.post(`${SHOPPER_API}/deals`, data), update: (id, data) => api.patch(`${SHOPPER_API}/deals/${encodeURIComponent(id)}`, data), delete: (id) => api.delete(`${SHOPPER_API}/deals/${encodeURIComponent(id)}`), expire: (id) => api.post(`${SHOPPER_API}/deals/${encodeURIComponent(id)}/expire`), restore: (id) => api.post(`${SHOPPER_API}/deals/${encodeURIComponent(id)}/restore`), approveAll: () => api.post(`${SHOPPER_API}/deals/approve-all`), bulkStatus: (ids, status) => api.post(`${SHOPPER_API}/deals/bulk-status`, { ids, status }), getStats: () => api.get(`${SHOPPER_API}/deals/stats`),
   };
   const categoryList = (params = {}) => { const qs = queryString(params); return api.get(`${SHOPPER_API}/categories${qs ? `?${qs}` : ''}`); };
   const categories = { list: (params = {}) => categoryList({ activeOnly: 1, ...params }), all: (params = {}) => categoryList(params), get: (id) => api.get(`${SHOPPER_API}/categories/${encodeURIComponent(id)}`), create: (data) => api.post(`${SHOPPER_API}/categories`, data), update: (id, data) => api.patch(`${SHOPPER_API}/categories/${encodeURIComponent(id)}`, data), delete: (id) => api.delete(`${SHOPPER_API}/categories/${encodeURIComponent(id)}`) };

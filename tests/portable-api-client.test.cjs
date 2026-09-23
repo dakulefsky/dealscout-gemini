@@ -74,7 +74,7 @@ test('portable client encodes resource identifiers before placing them in paths'
   const client = createDealScoutClient({
     fetchImpl: async (value) => {
       url = value;
-      return jsonResponse({ id: 'ok' });
+      return jsonResponse({ id: 'ok', title: 'Product', salePrice: 25 });
     },
   });
   await client.deals.get('abc/def');
@@ -113,7 +113,7 @@ test('portable client retries one transient GET failure and then succeeds', asyn
     fetchImpl: async () => {
       calls += 1;
       if (calls === 1) return jsonResponse({ error: 'temporary' }, { status: 503 });
-      return jsonResponse({ id: 'B012345678' });
+      return jsonResponse({ id: 'B012345678', title: 'Product', salePrice: 25 });
     },
   });
   const result = await client.deals.get('B012345678');
@@ -142,4 +142,18 @@ test('portable client does not retry permanent shopper errors or mutations', asy
   });
   await assert.rejects(mutationClient.api.post('/api/test', { ok: true }), (error) => error.status === 503);
   assert.equal(postCalls, 1);
+});
+
+test('product read retries an incomplete success response before showing a load error', async () => {
+  const { createDealScoutClient } = await loadCore();
+  let calls = 0;
+  const client = createDealScoutClient({ fetchImpl: async () => {
+    calls += 1;
+    return jsonResponse(calls === 1 ? {} : { id: 'B012345678', title: 'Product', salePrice: 25 });
+  } });
+  assert.equal((await client.deals.get('B012345678')).title, 'Product');
+  assert.equal(calls, 2);
+
+  const broken = createDealScoutClient({ fetchImpl: async () => jsonResponse({}) });
+  await assert.rejects(broken.deals.get('B012345678'), (error) => error.status === 502);
 });

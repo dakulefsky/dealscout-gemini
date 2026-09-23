@@ -136,7 +136,28 @@ jobs:
           set -euo pipefail
           # Intentionally preserve the existing private service environment, IAM,
           # Cloud SQL attachment, and IAP configuration. Only advance its image.
-          gcloud run deploy "$GCP_ADMIN_SERVICE"             --project "$GCP_PROJECT_ID"             --region "$GCP_REGION"             --image "$GCP_IMAGE"             --platform managed             --quiet
+          gcloud run deploy "$GCP_ADMIN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --image "$GCP_IMAGE" \
+            --platform managed \
+            --quiet
+
+      - name: Verify public and private image parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          for service in "$GCP_WEB_SERVICE" "$GCP_ADMIN_SERVICE"; do
+            deployed_image="$(gcloud run services describe "$service" \
+              --project "$GCP_PROJECT_ID" \
+              --region "$GCP_REGION" \
+              --format='value(spec.template.spec.containers[0].image)')"
+            if [ "$deployed_image" != "$GCP_IMAGE" ]; then
+              echo "$service has image $deployed_image; expected $GCP_IMAGE" >&2
+              exit 1
+            fi
+            echo "$service is using $GCP_IMAGE"
+          done
 
       - name: Verify deployed revision
         if: ${{ inputs.run_smoke }}
@@ -152,6 +173,7 @@ jobs:
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo "- Image: \`${GCP_IMAGE}\`"
             echo "- Service: \`${GCP_WEB_SERVICE}\`"
+            echo "- Private service: \`${GCP_ADMIN_SERVICE}\`"
             echo "- Region: \`${GCP_REGION}\`"
             echo "- Public URL: ${PUBLIC_WEB_URL}"
           } >> "$GITHUB_STEP_SUMMARY"
