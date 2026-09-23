@@ -46,7 +46,7 @@ test('product detail renders the core deal before editorial and recommendation r
 test('secondary product content failures cannot erase a valid core deal', () => {
   assert.match(source, /void \(async \(\) => \{/);
   assert.match(source, /Secondary content must never turn a valid core product into a not-found page/);
-  const primaryCatchIndex = source.lastIndexOf(".catch(() => {\n        if (!mounted) return;\n        setDeal(null);");
+  const primaryCatchIndex = source.lastIndexOf(".catch((error) => {\n        if (!mounted) return;\n        setDeal(null);");
   const secondaryCatchIndex = source.indexOf('Secondary content must never turn a valid core product into a not-found page');
   assert.ok(primaryCatchIndex > secondaryCatchIndex);
 });
@@ -60,4 +60,15 @@ test('product share uses native sharing when available and only claims clipboard
   assert.match(source, /toast\(\{ title: 'Link copied' \}\)/);
   assert.match(source, /Could not share link/);
   assert.doesNotMatch(source, /navigator\.clipboard\.writeText\(window\.location\.href\);\s*setCopiedLink\(true\)/);
+});
+
+
+test('product detail can recover from a transient primary load failure without reloading the app', () => {
+  assert.match(source, /const \[loadError, setLoadError\] = useState\(null\)/);
+  assert.match(source, /const \[retryNonce, setRetryNonce\] = useState\(0\)/);
+  assert.match(source, /setLoadError\(error\)/);
+  assert.match(source, /\[id, retryNonce\]/);
+  assert.match(source, /Couldn’t load this deal/);
+  assert.match(source, /setRetryNonce\(\(value\) => value \+ 1\)/);
+  assert.match(source, />Retry<\/button>/);
 });
