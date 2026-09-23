@@ -18,8 +18,11 @@ test('observed price history is absent from both shopper API and deal page UI', 
 test('deal pages provide crawlable category links without inventing category slugs', () => {
   assert.match(dealDetail, /<nav aria-label="Breadcrumb"/);
   assert.match(dealDetail, /to=\{categoryPath\}/);
-  assert.match(dealDetail, /return encodeURIComponent\(String\(value \|\| ''\)\.trim\(\)\)/);
-  assert.doesNotMatch(dealDetail, /replace\(\/&\/g, 'and'\)/);
+  assert.match(dealDetail, /categoryPathFromName/);
+  const categoryRoutes = fs.readFileSync(path.join(root, 'src', 'lib', 'categoryRoutes.js'), 'utf8');
+  assert.match(categoryRoutes, /CATEGORY_SLUGS/);
+  assert.match(categoryRoutes, /home-kitchen/);
+  assert.match(categoryRoutes, /encodeURIComponent\(slug\)/);
 });
 
 test('dead review sync client calls stay removed', () => {
