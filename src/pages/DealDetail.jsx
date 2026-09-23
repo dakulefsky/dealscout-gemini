@@ -52,6 +52,8 @@ export default function DealDetail() {
   const [editorial, setEditorial] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [redirecting, setRedirecting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const { toast } = useToast();
@@ -60,6 +62,7 @@ export default function DealDetail() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
+    setLoadError(null);
     setEditorial(null);
     setRecommendations([]);
 
@@ -96,14 +99,15 @@ export default function DealDetail() {
           // Secondary content must never turn a valid core product into a not-found page.
         });
       })
-      .catch(() => {
+      .catch((error) => {
         if (!mounted) return;
         setDeal(null);
+        setLoadError(error);
         setLoading(false);
       });
 
     return () => { mounted = false; };
-  }, [id]);
+  }, [id, retryNonce]);
 
   const dealId = deal?.id || deal?.asin;
   const saved = isSaved(dealId);
@@ -173,12 +177,16 @@ export default function DealDetail() {
   if (loading) return <div className="ds-shell py-24 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-800" /></div>;
 
   if (!deal) {
+    const temporaryFailure = loadError && Number(loadError.status || 0) !== 404;
     return (
       <div className="ds-shell py-24 text-center">
-        <div className="ds-kicker">No longer available</div>
-        <h2 className="font-heading text-3xl font-bold text-emerald-950 mt-2">Deal not found</h2>
-        <p className="text-slate-500 mt-3 text-sm">This deal may have ended or is no longer available.</p>
-        <Link to="/" className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1"><ArrowLeft className="w-4 h-4" /> Back to deals</Link>
+        <div className="ds-kicker">{temporaryFailure ? 'Temporary load error' : 'No longer available'}</div>
+        <h2 className="font-heading text-3xl font-black text-emerald-950 mt-2">{temporaryFailure ? 'Couldn’t load this deal' : 'Deal not found'}</h2>
+        <p className="text-slate-500 mt-3 text-sm">{temporaryFailure ? 'The connection failed while loading this product.' : 'This deal may have ended or is no longer available.'}</p>
+        <div className="mt-6 flex items-center justify-center gap-5">
+          {temporaryFailure && <button type="button" onClick={() => setRetryNonce((value) => value + 1)} className="bg-emerald-950 text-white px-5 py-2.5 text-sm font-black">Retry</button>}
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1"><ArrowLeft className="w-4 h-4" /> Back to deals</Link>
+        </div>
       </div>
     );
   }
