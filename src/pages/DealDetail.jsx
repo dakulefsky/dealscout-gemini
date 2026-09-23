@@ -202,7 +202,7 @@ export default function DealDetail() {
 
       <div className="grid lg:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.9fr)] gap-8 lg:gap-12 pt-7 sm:pt-10 items-start">
         <main className="min-w-0">
-          <div className={`bg-[#f1ece1] border-t-2 border-x border-b border-emerald-950/15 aspect-[4/3] sm:aspect-[16/10] lg:aspect-[4/3] flex items-center justify-center p-7 sm:p-12 ${deal.isExpired ? 'grayscale-[0.75]' : ''}`}><Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} fittingType="contain" className="w-full h-full" alt={deal.title} /></div>
+          <div className={`bg-[#f1ece1] border-t-2 border-x border-b border-emerald-950/15 aspect-[4/3] sm:aspect-[16/10] lg:aspect-[4/3] flex items-center justify-center p-7 sm:p-12 ${deal.isExpired ? 'grayscale-[0.75]' : ''}`}><Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} fittingType="contain" loading="eager" fetchPriority="high" className="w-full h-full" alt={deal.title} /></div>
 
           {dealFacts.length > 0 && <section aria-label="Deal facts" className="border-x border-b border-emerald-950/15 bg-white px-4 sm:px-5 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">{dealFacts.map(({ label, value, icon: Icon }) => <div key={label} className="inline-flex items-center gap-2"><Icon className="w-3.5 h-3.5 text-emerald-800 shrink-0" /><span className="text-[9px] uppercase tracking-[0.12em] font-black text-slate-400">{label}</span><span className="text-xs font-black text-emerald-950">{value}</span></div>)}</section>}
 
