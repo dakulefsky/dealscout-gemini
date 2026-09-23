@@ -31,9 +31,9 @@ export default function EditorialReview() {
     setLoading(true);
     try {
       const allDeals = await dealsApi.list({ limit: 100, q: search.trim() || undefined });
-      const verified = (allDeals || []).filter((d) => d.sourceVerified && !d.isExpired && ['APPROVED', 'PENDING_REVIEW'].includes(d.status));
-      setDeals(verified);
-      const batch = await editorialApi.batch(verified.map((deal) => deal.asin));
+      const catalog = Array.isArray(allDeals) ? allDeals : [];
+      setDeals(catalog);
+      const batch = await editorialApi.batch(catalog.map((deal) => deal.asin));
       setEditorialByAsin(batch?.byAsin || {});
     } catch (error) {
       toast({ title: 'Could not load review queue', description: error.message, variant: 'destructive' });
@@ -52,6 +52,8 @@ export default function EditorialReview() {
     if (search.trim()) return true;
     if (filter === 'needs-review') return deal.status === 'PENDING_REVIEW';
     if (filter === 'picks') return e.isHumanPick;
+    if (filter === 'ended') return deal.isExpired || deal.status === 'EXPIRED';
+    if (filter === 'rejected') return deal.status === 'REJECTED';
     return true;
   }), [deals, editorialByAsin, filter, search]);
 
@@ -124,7 +126,7 @@ export default function EditorialReview() {
         <div>
           <Link to="/admin" className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 mb-2"><ArrowLeft className="w-3.5 h-3.5" /> Back to Admin</Link>
           <h1 className="text-3xl font-black text-slate-900">Review Exceptions</h1>
-          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Normal verified deals publish automatically. Use All verified to manage any live deal, including permanently removing one from the catalog.</p>
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl">Normal verified deals publish automatically. Search the full catalog here to review, reject, or permanently remove any deal.</p>
         </div>
         <div className="flex flex-col sm:items-end gap-2">
           <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title or ASIN" className="w-full sm:w-64 rounded-xl" aria-label="Search admin deals" />
@@ -132,7 +134,9 @@ export default function EditorialReview() {
             {[
               ['needs-review', 'Needs review'],
               ['picks', 'DealScout Picks'],
-              ['all', 'All verified'],
+              ['ended', 'Ended'],
+              ['rejected', 'Rejected'],
+              ['all', 'All catalog'],
             ].map(([key, label]) => (
               <button key={key} onClick={() => setFilter(key)} className={`px-3 py-2 rounded-xl text-xs font-bold border ${filter === key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200'}`}>{label}</button>
             ))}
@@ -155,12 +159,15 @@ export default function EditorialReview() {
             const e = editorialByAsin[deal.asin] || emptyEditorial;
             const busy = busyAsin === deal.asin;
             const held = deal.status === 'PENDING_REVIEW';
+            const ended = deal.isExpired || deal.status === 'EXPIRED';
+            const canEditorial = deal.sourceVerified && !ended && deal.status !== 'REJECTED';
             return (
               <div key={deal.asin} className={`bg-white border rounded-3xl p-5 shadow-xs grid lg:grid-cols-[240px_1fr_230px] gap-5 ${held ? 'border-amber-300' : 'border-slate-200'}`}>
                 <div className="flex gap-3 min-w-0">
                   <div className="w-20 h-20 rounded-2xl bg-slate-50 border border-slate-100 p-1 shrink-0 overflow-hidden"><Image src={deal.imageUrl} alt={deal.title} fittingType="contain" className="w-full h-full" /></div>
                   <div className="min-w-0">
-                    <div className="text-[10px] font-black uppercase tracking-wide text-emerald-600">Price verified • {deal.sourceProvider || 'Provider'}</div>
+                    <div className={`text-[10px] font-black uppercase tracking-wide ${deal.sourceVerified ? 'text-emerald-600' : 'text-amber-700'}`}>{deal.sourceVerified ? 'Price verified' : 'Not source verified'} • {deal.sourceProvider || 'No provider'}</div>
+                    <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Status: {deal.status || 'UNKNOWN'}</div>
                     {held && <div className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded mt-1"><Clock className="w-3 h-3" /> Needs a decision</div>}
                     <h3 className="text-xs font-bold text-slate-900 mt-1 line-clamp-3">{deal.title}</h3>
                     <div className="text-sm font-black text-emerald-700 mt-1">{formatPrice(deal.salePrice)} <span className="text-xs text-slate-400 line-through font-normal">{formatPrice(deal.originalPrice)}</span></div>
@@ -176,10 +183,10 @@ export default function EditorialReview() {
                 </div>
 
                 <div className="flex lg:flex-col gap-2 justify-center">
-                  {held && <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, true)} className="rounded-xl font-bold gap-1.5 bg-slate-900 hover:bg-slate-800">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Publish Normally</Button>}
-                  <Button disabled={busy} onClick={() => save(deal, { isHumanPick: true }, held)} className="rounded-xl font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}{held ? 'Publish as Pick' : e.isHumanPick ? 'Update Pick' : 'Make DealScout Pick'}</Button>
+                  {held && canEditorial && <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, true)} className="rounded-xl font-bold gap-1.5 bg-slate-900 hover:bg-slate-800">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Publish Normally</Button>}
+                  {canEditorial && <Button disabled={busy} onClick={() => save(deal, { isHumanPick: true }, held)} className="rounded-xl font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}{held ? 'Publish as Pick' : e.isHumanPick ? 'Update Pick' : 'Make DealScout Pick'}</Button>}
                   {held && <Button disabled={busy} onClick={() => reject(deal)} variant="outline" className="rounded-xl font-bold gap-1.5 text-red-700 border-red-200 hover:bg-red-50"><XCircle className="w-4 h-4" /> Reject</Button>}
-                  <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, false)} variant="outline" className="rounded-xl font-bold gap-1.5"><Save className="w-4 h-4" /> Save for Later</Button>
+                  {canEditorial && <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, false)} variant="outline" className="rounded-xl font-bold gap-1.5"><Save className="w-4 h-4" /> Save for Later</Button>}
                   <Button disabled={busy} onClick={() => removeDeal(deal)} variant="outline" className="rounded-xl font-bold gap-1.5 text-red-800 border-red-300 hover:bg-red-50"><Trash2 className="w-4 h-4" /> Remove Permanently</Button>
                 </div>
               </div>
