@@ -11,7 +11,7 @@ test('product facts render as one ledger strip rather than equal feature cards',
 });
 
 test('recommendation language stays terse and retail-like', () => {
-  assert.match(source, /Same aisle/);
+  assert.match(source, /Keep browsing/);
   assert.match(source, /Other live deals/);
   assert.doesNotMatch(source, /More deals you might like|weighted toward this category/);
 });
