@@ -5,13 +5,14 @@ const path = require('node:path');
 
 const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
 
-test('homepage hero is selected from the live catalog, not only unseen drop deals', () => {
-  assert.match(home, /selectHeroDeal\(visibleDeals\)/);
-  assert.doesNotMatch(home, /selectHeroDeal\(dropDeals\)/);
-  assert.match(home, /if \(heroDeal\) ids\.add\(heroDeal\.id \|\| heroDeal\.asin\)/);
+test('homepage standout rail is selected from the live verified catalog', () => {
+  assert.match(home, /trustworthyDiscountPercent\(deal\)/);
+  assert.match(home, /filter\(\(item\) => item\.discount >= 30\)/);
+  assert.match(home, /slice\(0, 3\)/);
+  assert.match(home, /const spotlightIds/);
 });
 
-test('homepage retains an intro when no deal earns the oversized hero slot', () => {
-  assert.match(home, /showCuratedHome && !heroDeal/);
-  assert.match(home, /no oversized feature unless the discount genuinely earns it/i);
+test('homepage remains useful when no deal clears the standout threshold', () => {
+  assert.match(home, /Nothing clears our standout threshold right now/);
+  assert.match(home, /Current deals by department/);
 });
