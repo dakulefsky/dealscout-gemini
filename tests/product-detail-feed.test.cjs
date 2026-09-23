@@ -6,7 +6,7 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'DealDetail.jsx'), 'utf8');
 
 test('product detail continues browsing with a category-first recommendation feed', () => {
-  assert.match(source, /More deals you might like/);
+  assert.match(source, /Other live deals/);
   assert.match(source, /dealsApi\.page\(\{ category: data\.category, limit: 16, sort: '-discount_percent' \}\)/);
   assert.match(source, /primaryRows\.length < 9/);
   assert.match(source, /dealsApi\.page\(\{ limit: 24, sort: '-discount_percent' \}\)/);
