@@ -138,6 +138,7 @@ async function startServer() {
         sitemapRepository.listFreshPublicDeals(),
         categoryRepository.list({ activeOnly: true }),
       ]);
+      res.set('Cache-Control', 'public, max-age=900, stale-while-revalidate=3600');
       res.type('application/xml').send(seo.buildSitemap({ baseUrl: seo.siteBase(req, publicWebUrl), deals: liveDeals, categories }));
     } catch (err) {
       console.warn('[DealScout] Sitemap generation failed:', err.message);

@@ -12,7 +12,7 @@ async function listFreshPublicDeals({ maxAgeHours = PUBLIC_PRICE_MAX_AGE_SECONDS
 
   await dealRepository.ensureSchema();
   const result = await postgres.query(`
-    SELECT id, asin, price_check_at
+    SELECT id, asin, category, price_check_at
       FROM deals
      WHERE status = 'APPROVED'
        AND source_verified = 1
