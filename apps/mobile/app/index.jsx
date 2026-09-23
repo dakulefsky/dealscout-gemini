@@ -311,30 +311,47 @@ export default function HomeScreen() {
 
   const header = (
     <View>
-      <View style={styles.hero}>
-        <Text style={styles.eyebrow}>TODAY AT DEALSCOUT</Text>
-        <Text style={styles.heroTitle}>The deals worth seeing.</Text>
-        <Text style={styles.heroCopy}>Fresh finds, checked prices, less clutter.</Text>
-        {!hasActiveFilters && refreshedSinceLastVisit > 0 && (
-          <Text style={styles.returnCue}>{refreshedSinceLastVisit} {refreshedSinceLastVisit === 1 ? 'deal refreshed' : 'deals refreshed'} since your last visit</Text>
-        )}
-        <View style={styles.heroActions}>
-          <Pressable onPress={() => router.push('/saved')} accessibilityRole="button" accessibilityLabel="Open saved deals" style={styles.savedButton}>
-            <Text style={styles.savedButtonText}>Saved{savedIds.size ? ` ${savedIds.size}` : ''}</Text>
-          </Pressable>
+      <View style={styles.masthead}>
+        <View>
+          <Text style={styles.brand}>DealScout</Text>
+          <Text style={styles.brandSub}>VERIFIED AMAZON DEALS</Text>
         </View>
+        <Pressable onPress={() => router.push('/saved')} accessibilityRole="button" accessibilityLabel="Open saved deals" style={styles.savedButton}>
+          <Text style={styles.savedButtonText}>Saved{savedIds.size ? ` ${savedIds.size}` : ''}</Text>
+        </Pressable>
       </View>
 
-      <View style={styles.controls}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow} accessibilityLabel="Deal categories">
-          <Chip active={activeCategory === 'all'} label="All" onPress={() => setActiveCategory('all')} />
-          {categories.map((category) => {
-            const name = category?.name || category?.id;
-            if (!name) return null;
-            return <Chip key={category.id || name} active={String(activeCategory).toLowerCase() === String(name).toLowerCase()} label={name} onPress={() => setActiveCategory(name)} />;
-          })}
-        </ScrollView>
+      {!hasActiveFilters && (
+        <View style={styles.departments}>
+          <View style={styles.sectionRule}>
+            <Text style={styles.eyebrow}>DEPARTMENTS</Text>
+            <Text style={styles.ruleNote}>LIVE INVENTORY</Text>
+          </View>
+          <View style={styles.departmentList}>
+            {categories.slice(0, 8).map((category, index) => {
+              const name = category?.name || category?.id;
+              if (!name) return null;
+              return (
+                <Pressable
+                  key={category.id || name}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Browse ${name} deals`}
+                  onPress={() => setActiveCategory(name)}
+                  style={[styles.departmentRow, index < 4 && styles.departmentPrimary]}
+                >
+                  <Text numberOfLines={1} style={[styles.departmentName, index < 4 && styles.departmentNamePrimary]}>{name}</Text>
+                  <Text style={styles.departmentCount}>{Number(category.liveCount || 0)} LIVE</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {refreshedSinceLastVisit > 0 && (
+            <Text style={styles.returnCue}>{refreshedSinceLastVisit} {refreshedSinceLastVisit === 1 ? 'deal refreshed' : 'deals refreshed'} since your last visit</Text>
+          )}
+        </View>
+      )}
 
+      <View style={styles.controls}>
         <TextInput value={query} onChangeText={setQuery} placeholder="Search deals" placeholderTextColor="#94a3b8" returnKeyType="search" style={styles.search} accessibilityLabel="Search deals" />
 
         <Text style={styles.controlLabel}>Sort</Text>
@@ -362,15 +379,15 @@ export default function HomeScreen() {
 
       {featured.length > 0 && (
         <View style={styles.featuredSection}>
-          <Text style={styles.eyebrow}>STANDOUT DISCOUNTS</Text>
-          <Text style={styles.sectionTitle}>The strongest verified cuts</Text>
+          <Text style={styles.eyebrow}>WORTH IT TODAY</Text>
+          <Text style={styles.sectionTitle}>Strong discounts, checked.</Text>
           <View style={styles.featuredGrid}>
             {featured.map((deal) => <View key={idOf(deal)} style={styles.featuredCell}>{card(deal)}</View>)}
           </View>
         </View>
       )}
 
-      <Text style={styles.moreTitle}>{hasActiveFilters ? 'Deals' : 'More worth a look'}</Text>
+      <Text style={styles.moreTitle}>{hasActiveFilters ? 'Deals' : 'Current inventory'}</Text>
     </View>
   );
 
@@ -403,13 +420,21 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: '#fbfaf7' },
   loadingText: { color: '#64748b', fontWeight: '700' },
   content: { paddingBottom: 36 },
-  hero: { paddingHorizontal: 18, paddingTop: 24, paddingBottom: 20, backgroundColor: '#f7f5ef', borderBottomWidth: 1, borderBottomColor: '#d7ded8' },
-  heroTitle: { marginTop: 7, fontSize: 36, lineHeight: 38, letterSpacing: -1.4, fontWeight: '900', color: '#064e3b' },
-  heroCopy: { marginTop: 9, color: '#64748b', fontSize: 13, lineHeight: 19, fontWeight: '600' },
-  returnCue: { marginTop: 9, color: '#047857', fontSize: 12, lineHeight: 18, fontWeight: '800' },
-  heroActions: { flexDirection: 'row', marginTop: 14 },
-  savedButton: { backgroundColor: '#064e3b', paddingHorizontal: 14, paddingVertical: 9 },
-  savedButtonText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  masthead: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 13, backgroundColor: '#fbfaf7', borderBottomWidth: 2, borderBottomColor: '#173428', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  brand: { fontSize: 30, lineHeight: 31, letterSpacing: -1.3, fontWeight: '900', color: '#173428' },
+  brandSub: { marginTop: 2, fontSize: 9, letterSpacing: 1.3, fontWeight: '900', color: '#64748b' },
+  savedButton: { borderWidth: 1, borderColor: '#173428', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#fbfaf7' },
+  savedButtonText: { color: '#173428', fontSize: 11, fontWeight: '900' },
+  departments: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, backgroundColor: '#f3efe5', borderBottomWidth: 1, borderBottomColor: '#cfc8ba' },
+  sectionRule: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 2, borderBottomColor: '#173428', paddingBottom: 8 },
+  ruleNote: { fontSize: 9, letterSpacing: 1.2, fontWeight: '900', color: '#64748b' },
+  departmentList: { marginTop: 2 },
+  departmentRow: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#bcb5a8' },
+  departmentPrimary: { minHeight: 50 },
+  departmentName: { flex: 1, fontSize: 13, fontWeight: '800', color: '#334155' },
+  departmentNamePrimary: { fontSize: 18, color: '#173428', fontWeight: '900' },
+  departmentCount: { fontSize: 9, letterSpacing: 1, fontWeight: '900', color: '#8a857b' },
+  returnCue: { marginTop: 10, color: '#047857', fontSize: 11, lineHeight: 16, fontWeight: '800' },
   controls: { paddingHorizontal: 14, paddingTop: 14, paddingBottom: 6 },
   search: { height: 46, borderWidth: 1, borderColor: '#d7ded8', backgroundColor: '#fff', paddingHorizontal: 14, color: '#0f172a', fontSize: 15, marginTop: 10, marginBottom: 12 },
   controlLabel: { color: '#64748b', fontWeight: '900', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 3, marginBottom: 7 },
