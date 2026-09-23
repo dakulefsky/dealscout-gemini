@@ -87,5 +87,5 @@ test('Home only marks the balanced Deal Drop as seen after its marker enters the
   assert.match(homeSource, /balancedFeatured\(freshDealDrop\(visibleDeals\.filter\(\(deal\) => !spotlightIds\.has/);
   assert.match(homeSource, /markDealDropSeen\(dropDeals\)/);
   assert.match(homeSource, /dealDropMarked\.current = true/);
-  assert.match(homeSource, /Today’s edit/);
+  assert.match(homeSource, /Current/);
 });
