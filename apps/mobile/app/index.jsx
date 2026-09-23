@@ -20,7 +20,7 @@ const SORTS = [
   { key: 'price-high', label: 'Highest price' },
 ];
 const DISCOUNT_TIERS = [
-  { value: 0, label: 'Any discount' },
+  { value: 0, label: '15%+ (all deals)' },
   { value: 15, label: '15%+' },
   { value: 25, label: '25%+' },
   { value: 30, label: '30%+' },
