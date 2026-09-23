@@ -117,7 +117,7 @@ export default function CategoryPage() {
       <header className="mt-6 border-y border-emerald-950/10 py-7 sm:py-10 grid lg:grid-cols-[1fr_auto] gap-6 lg:items-end">
         <div className="max-w-4xl">
           <div className="ds-kicker">Department</div>
-          <h1 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold leading-[0.98] text-emerald-950 mt-2">{category ? category.name : 'Category'} deals</h1>
+          <h1 className="font-heading text-4xl sm:text-5xl lg:text-[58px] font-black leading-[0.94] text-emerald-950 mt-2">{category ? category.name : 'Category'} deals</h1>
           <p className="mt-4 text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl">{seoContent.intro}</p>
           {!loading && visibleDeals.length > 0 && <div className="mt-4 text-[11px] uppercase tracking-[0.12em] font-bold text-slate-400">{visibleDeals.length} verified deals loaded{nextCursor ? ' · more available' : ''}</div>}
         </div>
@@ -139,14 +139,14 @@ export default function CategoryPage() {
         ) : !category ? (
           <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Category not found</h3><p className="text-sm text-slate-500 mt-1">This category may have moved or no longer exists.</p><Link to="/?category=all" className="mt-5 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Browse all deals <ArrowRight className="w-4 h-4" /></Link></div>
         ) : error && visibleDeals.length === 0 ? (
-          <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Couldn’t load this edit</h3><p className="text-sm text-slate-500 mt-1">{error}</p><button type="button" onClick={() => setRetryInitial((value) => value + 1)} className="mt-5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Try again</button></div>
+          <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Couldn’t load this department</h3><p className="text-sm text-slate-500 mt-1">{error}</p><button type="button" onClick={() => setRetryInitial((value) => value + 1)} className="mt-5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Try again</button></div>
         ) : visibleDeals.length === 0 ? (
           <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">No active deals here right now</h3><p className="text-sm text-slate-500 mt-1">New verified finds will appear here as they land.</p></div>
         ) : (
           <>
             {viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr items-stretch">{visibleDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" />)}</div> : <div>{visibleDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" />)}</div>}
             <div ref={sentinelRef} className="h-10" aria-hidden="true" />
-            {nextCursor ? <div className="text-center py-5 text-xs font-semibold text-slate-400">{loadingMore ? 'Loading more verified deals…' : 'More deals load as you scroll'}</div> : <div className="text-center py-8 mt-4 border-t border-emerald-950/10"><ShieldCheck className="w-4 h-4 mx-auto text-emerald-700" /><div className="mt-2 text-xs font-bold text-emerald-950"> </div></div>}
+            {nextCursor ? <div className="text-center py-5 text-xs font-semibold text-slate-400">{loadingMore ? 'Loading more verified deals…' : 'More deals load as you scroll'}</div> : <div className="text-center py-8 mt-4 border-t border-emerald-950/10"><ShieldCheck className="w-4 h-4 mx-auto text-emerald-700" /></div>}
             {error && <div role="status" className="text-center text-xs text-amber-800 py-3"><div>Couldn’t load the next page.</div><button type="button" onClick={() => { setError(null); setRetryPage((value) => value + 1); }} className="mt-2 font-bold text-emerald-900 border-b border-emerald-900">Retry loading</button></div>}
           </>
         )}
