@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { TrendingDown, Search, LayoutGrid, List, RotateCcw, ShieldCheck, Star, SlidersHorizontal, Sparkles, ArrowRight } from 'lucide-react';
 import DealCard, { formatPrice } from '@/components/DealCard';
 import { Image } from '@/components/ui/image';
-import { deals as dealsApi, categories as categoriesApi, editorial as editorialApi } from '@/lib/api';
+import { deals as dealsApi, editorial as editorialApi } from '@/lib/api';
+import { getActiveCategories } from '@/lib/publicCatalogCache';
 import { rankDeals } from '@/lib/dealRanking';
 import { loadInterests, personalizedRank, STORAGE_KEY, INTERESTS_CHANGED_EVENT } from '@/lib/feedPersonalization';
 import { loadDismissedDeals, DISMISSALS_CHANGED_EVENT } from '@/lib/feedDismissals';
@@ -53,7 +54,7 @@ export default function Home() {
     setSearchQuery(searchParams.get('q') || '');
     setActiveCat(searchParams.get('category') || 'all');
   }, [searchParams]);
-  useEffect(() => { Promise.all([categoriesApi.list(), editorialApi.picks(4).catch(() => ({ picks: [] }))]).then(([c, p]) => { setCategories(c || []); setPicks(p?.picks || []); }).catch(() => {}); }, []);
+  useEffect(() => { Promise.all([getActiveCategories(), editorialApi.picks(4).catch(() => ({ picks: [] }))]).then(([c, p]) => { setCategories(c || []); setPicks(p?.picks || []); }).catch(() => {}); }, []);
   useEffect(() => {
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
