@@ -24,6 +24,7 @@ export function BookmarksProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    if (window.location.pathname.startsWith('/admin')) return;
     fetchBookmarks();
   }, [fetchBookmarks]);
 
