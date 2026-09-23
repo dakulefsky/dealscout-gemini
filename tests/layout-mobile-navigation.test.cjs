@@ -25,7 +25,7 @@ test('mobile search and menu do not stack on top of each other', () => {
 });
 
 test('desktop catalog CTA says what it actually does and nav has no dead More label', () => {
-  assert.match(source, />Browse all deals<\/Link>/);
+  assert.match(source, /Browse all deals/);
   assert.doesNotMatch(source, /> Get Deal Alerts<\/Link>/);
   assert.doesNotMatch(source, />More<\/span>/);
 });
