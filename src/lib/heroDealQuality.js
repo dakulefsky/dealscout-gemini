@@ -1,4 +1,4 @@
-import { verificationFreshness } from './verificationFreshness';
+import { verificationFreshness } from './verificationFreshness.js';
 
 export const HERO_MIN_DISCOUNT_PERCENT = 30;
 
