@@ -22,7 +22,7 @@ const SORTS = [
   { key: 'price-low', label: 'Lowest price' },
   { key: 'price-high', label: 'Highest price' },
 ];
-const DISCOUNT_TIERS = [{ value: 0, label: '15%+ (all deals)' }, { value: 15, label: '15%+ off' }, { value: 25, label: '25%+ off' }, { value: 30, label: '30%+ off' }, { value: 50, label: '50%+ off' }];
+const DISCOUNT_TIERS = [{ value: 0, label: '15%+ (all deals)' }, { value: 25, label: '25%+ off' }, { value: 30, label: '30%+ off' }, { value: 50, label: '50%+ off' }];
 const PRICE_TIERS = [{ value: 'all', label: 'Any price' }, { value: 'under-50', label: 'Under $50', max: 50 }, { value: '50-150', label: '$50–$150', min: 50, max: 150 }, { value: '150-300', label: '$150–$300', min: 150, max: 300 }, { value: 'over-300', label: '$300+', min: 300 }];
 const CHAPTER_INTERVAL = 8;
 const REMOTE_PAGE_SIZE = 24;
@@ -172,7 +172,7 @@ export default function Home() {
       </section>
     )}
 
-    {showCuratedHome && topDeals.length > 0 && <section className="ds-shell py-8 sm:py-10"><div ref={dropSeenMarker} className="h-px" aria-hidden="true" /><div className="flex items-end justify-between gap-4 mb-5"><div><div className="ds-kicker">Fresh checks</div><h2 className="ds-section-title mt-1">Current</h2></div><Link to="/?category=all" className="text-xs font-bold text-emerald-900 inline-flex items-center gap-1">See all deals <ArrowRight className="w-3.5 h-3.5" /></Link></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{topDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} />)}</div></section>}
+    {showCuratedHome && topDeals.length > 0 && <section className="ds-shell py-8 sm:py-10"><div ref={dropSeenMarker} className="h-px" aria-hidden="true" /><div className="flex items-end justify-between gap-4 mb-5"><div><div className="ds-kicker">Recently checked</div><h2 className="ds-section-title mt-1">Latest</h2></div><Link to="/?category=all" className="text-xs font-bold text-emerald-900 inline-flex items-center gap-1">See all deals <ArrowRight className="w-3.5 h-3.5" /></Link></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{topDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} />)}</div></section>}
 
     {showCuratedHome && filteredPicks.length > 0 && <section className="border-y-2 border-emerald-950/15 bg-white"><div className="ds-shell py-9 sm:py-12"><div className="mb-5"><div className="ds-kicker"><Star className="w-3.5 h-3.5 inline mr-1.5 fill-emerald-800" />Editor’s picks</div><h2 className="ds-section-title mt-1">Selected deals</h2></div><div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">{filteredPicks.map((pick) => <div key={pick.asin}><DealCard deal={pick.deal} />{pick.editorialNote && <p className="hidden sm:block mt-2 text-[11px] leading-relaxed text-slate-600 border-t border-emerald-950/10 pt-2"><strong className="text-emerald-900">Why we picked it:</strong> {pick.editorialNote}</p>}</div>)}</div></div></section>}
 
