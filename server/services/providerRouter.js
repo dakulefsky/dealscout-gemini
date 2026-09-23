@@ -4,6 +4,7 @@ const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
 const { runProviderCall, getProviderThrottleStatus } = require('./providerThrottle');
 const { usageStatus } = require('./providerBudgetService');
+const { PUBLIC_MIN_DISCOUNT_PERCENT } = require('./publicDealPolicy');
 
 const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
 const PROVIDER_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
@@ -102,6 +103,11 @@ async function applyRainforestBulkRefreshes(existingDeals, verifiedItems, verifi
     const normalized = normalizeVerifiedProduct(item, 'RAINFOREST');
     const existing = normalized ? existingByAsin.get(normalized.asin) : null;
     if (!existing) continue;
+    if (normalized.discountPercent < PUBLIC_MIN_DISCOUNT_PERCENT) {
+      await deals.expire(existing.id, `Verified discount fell below ${PUBLIC_MIN_DISCOUNT_PERCENT}%`);
+      refreshedCount += 1;
+      continue;
+    }
     await deals.update(existing.id, {
       sale_price: normalized.salePrice,
       original_price: normalized.originalPrice,
