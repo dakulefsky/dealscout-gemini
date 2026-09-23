@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
 const SORTS = [
-  { key: 'best', label: 'Best for you' },
+  { key: 'best', label: 'Top deals' },
   { key: 'newest', label: 'Newest' },
   { key: 'discount', label: 'Biggest discount' },
   { key: 'price-low', label: 'Lowest price' },
@@ -160,7 +160,7 @@ export default function Home() {
                   {spotlightDeals.map((deal, index) => (
                     <Link key={deal.id || deal.asin} to={`/deal/${deal.id || deal.asin}`} className="group grid grid-cols-[72px_1fr] gap-3 py-4">
                       <div className={`h-16 p-1.5 ${index === 1 ? 'bg-[#e5dfd1]' : 'bg-white'}`}>
-                        <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-[1.03] transition-transform" />
+                        <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" loading={index === 0 ? 'eager' : 'lazy'} fetchPriority={index === 0 ? 'high' : 'auto'} className="w-full h-full group-hover:scale-[1.03] transition-transform" />
                       </div>
                       <div className="min-w-0">
                         <div className="text-[9px] uppercase tracking-[0.13em] font-black text-emerald-700">{trustworthyDiscountPercent(deal)}% off · checked</div>
