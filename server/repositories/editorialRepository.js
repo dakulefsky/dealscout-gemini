@@ -1,6 +1,6 @@
 const postgres = require('../storage/postgres');
 const deals = require('./dealRepository');
-const { isPublicDeal, freshPriceThreshold } = require('../services/publicDealPolicy');
+const { isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
 
 let schemaReady = false;
 const memory = new Map();
@@ -102,6 +102,7 @@ async function listPublicHumanPicks(limit = 12, nowSeconds = Math.floor(Date.now
       AND d.original_price > 0
       AND d.sale_price > 0
       AND d.sale_price < d.original_price
+      AND (100.0 * (d.original_price - d.sale_price) / d.original_price) >= ${PUBLIC_MIN_DISCOUNT_PERCENT}
       AND d.price_check_at IS NOT NULL
       AND d.price_check_at >= $1
       AND d.price_check_at <= $2
