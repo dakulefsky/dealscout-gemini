@@ -32,3 +32,12 @@ test('server passes active categories into homepage SEO rendering', () => {
   assert.match(server, /meta = seo\.homeMeta\(baseUrl, categories\)/);
   assert.match(server, /initialContent = homeInitialContent\(categories\)/);
 });
+
+
+test('release smoke protects Google-facing crawl signals', () => {
+  const smoke = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'release-smoke.mjs'), 'utf8');
+  assert.match(smoke, /public-home-indexable/);
+  assert.match(smoke, /robots-indexable/);
+  assert.match(smoke, /sitemap-indexable/);
+  assert.match(smoke, /data-server-crawl-content="home"/);
+});
