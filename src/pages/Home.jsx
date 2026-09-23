@@ -117,9 +117,9 @@ export default function Home() {
               <div className="flex items-end justify-between gap-4 border-b-2 border-emerald-950 pb-3">
                 <div>
                   <div className="ds-kicker">Departments</div>
-                  <h1 className="font-heading text-2xl sm:text-3xl font-bold text-emerald-950 mt-1">Shop the good stuff.</h1>
+                  <h1 className="font-heading text-2xl sm:text-3xl font-bold text-emerald-950 mt-1">Current deals by department</h1>
                 </div>
-                <div className="hidden sm:block text-[11px] uppercase tracking-[0.14em] font-black text-slate-500">We filter hard. You shop what survives.</div>
+                <div className="hidden sm:block text-[11px] uppercase tracking-[0.14em] font-black text-slate-500">Verified prices · live inventory</div>
               </div>
 
               <div className="grid md:grid-cols-[1.1fr_0.9fr] gap-x-8">
@@ -151,7 +151,7 @@ export default function Home() {
               <div className="flex items-end justify-between gap-3 border-b-2 border-emerald-950 pb-3">
                 <div>
                   <div className="ds-kicker">Worth it today</div>
-                  <h2 className="font-heading text-xl sm:text-2xl font-bold text-emerald-950 mt-1">Three we’d look at first.</h2>
+                  <h2 className="font-heading text-xl sm:text-2xl font-bold text-emerald-950 mt-1">Three strong ones.</h2>
                 </div>
               </div>
 
