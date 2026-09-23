@@ -88,7 +88,6 @@ export default function EditorialReview() {
     setBusyAsin(deal.asin);
     try {
       await dealsApi.delete(deal.id || deal.asin);
-      await editorialApi.remove(deal.asin).catch(() => null);
       setDeals((prev) => prev.filter((d) => d.asin !== deal.asin));
       setEditorialByAsin((prev) => {
         const next = { ...prev };

@@ -4,6 +4,7 @@ const deals = require('../repositories/dealRepository');
 const dealQueries = require('../repositories/dealQueryRepository');
 const dealFeed = require('../repositories/dealFeedRepository');
 const categories = require('../repositories/categoryRepository');
+const editorial = require('../repositories/editorialRepository');
 const { optionalAuth, requireAdmin } = require('../middleware/auth');
 const { isPublicDeal, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
 const { isAmazonUrl } = require('../services/amazonUrlService');
@@ -256,8 +257,19 @@ router.post('/purge-expired', requireAdmin, async (req, res) => {
 });
 
 router.delete('/:id', requireAdmin, async (req, res) => {
-  try { res.json({ success: true, deleted: await deals.remove(req.params.id) }); }
-  catch (err) { res.status(503).json({ error: err.message }); }
+  try {
+    const current = await deals.findByIdOrAsin(req.params.id);
+    if (!current) return res.status(404).json({ error: 'Deal not found' });
+    const deleted = await deals.remove(current.id);
+    if (!deleted) return res.status(404).json({ error: 'Deal not found' });
+    await editorial.remove(current.asin).catch((error) => {
+      console.warn(`[deals] editorial cleanup failed for ${current.asin}:`, error.message);
+    });
+    return res.json({ success: true, deleted: true });
+  } catch (err) {
+    console.error('[deals] delete failed:', err.message);
+    return res.status(503).json({ error: 'Deal could not be removed' });
+  }
 });
 
 module.exports = router;

@@ -18,6 +18,9 @@ function env() {
     GCP_ADMIN_SERVICE: 'dealscout',
     GCP_PUBLISHER_POOL: 'dealscout-publisher',
     GCP_RUNTIME_SERVICE_ACCOUNT: 'dealscout-runtime@project-123.iam.gserviceaccount.com',
+    PG_WEB_POOL_MAX: '4',
+    PG_ADMIN_POOL_MAX: '3',
+    PG_PUBLISHER_POOL_MAX: '2',
     CLOUD_SQL_CONNECTION_NAME: 'project-123:us-central1:dealscout-db',
     PUBLIC_WEB_URL: 'https://dealscout.example',
     CORS_ORIGINS: 'https://dealscout.example,https://admin.dealscout.example',
@@ -179,4 +182,37 @@ test('release refuses to collapse public and private services into one Cloud Run
   const invalid = env();
   invalid.GCP_ADMIN_SERVICE = invalid.GCP_WEB_SERVICE;
   assert.throws(() => buildReleasePlan(invalid), /must differ/);
+});
+
+
+test('release assigns explicit Cloud SQL pool budgets to each runtime role', async () => {
+  const { buildReleasePlan } = await loadModule();
+  const plan = buildReleasePlan(env());
+
+  const web = plan.commands[0].args;
+  const webEnv = web[web.indexOf('--set-env-vars') + 1];
+  assert.match(webEnv, /PG_POOL_MAX=4/);
+
+  const admin = plan.commands[1].args;
+  assert.equal(admin[admin.indexOf('--update-env-vars') + 1], 'PG_POOL_MAX=3');
+
+  const publisher = plan.commands[2].args;
+  const publisherEnv = publisher[publisher.indexOf('--set-env-vars') + 1];
+  assert.match(publisherEnv, /PG_POOL_MAX=2/);
+});
+
+test('release pool budgets default conservatively and reject unsafe values', async () => {
+  const { buildReleasePlan } = await loadModule();
+  const defaults = env();
+  delete defaults.PG_WEB_POOL_MAX;
+  delete defaults.PG_ADMIN_POOL_MAX;
+  delete defaults.PG_PUBLISHER_POOL_MAX;
+  const plan = buildReleasePlan(defaults);
+  assert.match(plan.commands[0].args[plan.commands[0].args.indexOf('--set-env-vars') + 1], /PG_POOL_MAX=4/);
+  assert.equal(plan.commands[1].args[plan.commands[1].args.indexOf('--update-env-vars') + 1], 'PG_POOL_MAX=3');
+  assert.match(plan.commands[2].args[plan.commands[2].args.indexOf('--set-env-vars') + 1], /PG_POOL_MAX=2/);
+
+  const invalid = env();
+  invalid.PG_WEB_POOL_MAX = '100';
+  assert.throws(() => buildReleasePlan(invalid), /PG_WEB_POOL_MAX must be an integer between 1 and 20/);
 });

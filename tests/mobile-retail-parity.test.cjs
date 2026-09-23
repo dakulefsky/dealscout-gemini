@@ -18,6 +18,8 @@ test('mobile detail and cards use the same terse retail language as web', () => 
   assert.match(detail, /MORE DEALS/);
   assert.match(detail, /Keep browsing/);
   assert.doesNotMatch(detail, /More deals you might like|your interests ranked first/);
-  assert.match(card, /borderTopWidth: 2/);
+  assert.match(card, /borderTopWidth: 3/);
   assert.match(card, /CHECKED NOW/);
+  assert.match(detail, /retryNonce/);
+  assert.match(detail, /Retry loading deal/);
 });

@@ -43,6 +43,7 @@ export default function DealDetailScreen() {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -76,7 +77,7 @@ export default function DealDetailScreen() {
       .catch((err) => { if (err?.name !== 'AbortError') setError(err?.message || 'Could not load this deal'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [id]);
+  }, [id, retryNonce]);
 
   async function toggleSave() {
     if (!id) return;
@@ -111,7 +112,7 @@ export default function DealDetailScreen() {
   }
 
   if (loading) return <SafeAreaView style={styles.center}><ActivityIndicator size="large" /></SafeAreaView>;
-  if (error || !deal) return <SafeAreaView style={styles.center}><Text style={styles.error}>{error || 'Deal not found'}</Text></SafeAreaView>;
+  if (error || !deal) return <SafeAreaView style={styles.center}><Text style={styles.error}>{error || 'Deal not found'}</Text>{error && <Pressable accessibilityRole="button" accessibilityLabel="Retry loading deal" onPress={() => setRetryNonce((value) => value + 1)} style={styles.retryButton}><Text style={styles.retryText}>Retry</Text></Pressable>}</SafeAreaView>;
 
   const salePrice = field(deal, 'salePrice', 'sale_price');
   const originalPrice = field(deal, 'originalPrice', 'original_price');
@@ -178,6 +179,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#f7f4ec' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#f7f4ec' },
   error: { color: '#991b1b', fontWeight: '700', textAlign: 'center' },
+  retryButton: { marginTop: 14, backgroundColor: '#174b32', paddingHorizontal: 22, paddingVertical: 12 },
+  retryText: { color: '#fff', fontWeight: '900' },
   content: { paddingBottom: 36 },
   imageWrap: { backgroundColor: '#fff', padding: 22, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#d8d2c5' },
   image: { width: '100%', aspectRatio: 1.15 },

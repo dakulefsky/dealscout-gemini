@@ -72,11 +72,11 @@ export default function DealCard({ deal, onSave, onOpen, onDismiss, saved = fals
 }
 
 const styles = StyleSheet.create({
-  card: { flex: 1, borderTopWidth: 2, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: '#c9d0cb', overflow: 'hidden', backgroundColor: '#fff' },
+  card: { flex: 1, borderTopWidth: 3, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: '#c9d0cb', overflow: 'hidden', backgroundColor: '#fff' },
   image: { width: '100%', aspectRatio: 1.25, backgroundColor: '#f7f5ef' },
   body: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8 },
-  discount: { alignSelf: 'flex-start', fontSize: 9, fontWeight: '900', letterSpacing: 0.7, color: '#064e3b', backgroundColor: '#dcebdc', paddingHorizontal: 6, paddingVertical: 3, marginBottom: 7 },
-  title: { minHeight: 38, color: '#0f172a', fontSize: 14, lineHeight: 19, fontWeight: '700' },
+  discount: { alignSelf: 'flex-start', fontSize: 9, fontWeight: '900', letterSpacing: 0.7, color: '#ffffff', backgroundColor: '#064e3b', paddingHorizontal: 6, paddingVertical: 3, marginBottom: 7 },
+  title: { minHeight: 38, color: '#0f172a', fontSize: 14, lineHeight: 18, fontWeight: '900' },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginTop: 8 },
   sale: { fontSize: 17, color: '#0f172a', fontWeight: '900' },
   original: { fontSize: 12, color: '#94a3b8', textDecorationLine: 'line-through' },
