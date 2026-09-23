@@ -23,9 +23,9 @@ test('homepage does not repeat spotlight merchandise in the deal drop', () => {
 
 test('consumer shell has brand masthead, retail search, and category navigation', () => {
   assert.match(layout, /Verified Amazon deals/);
-  assert.match(layout, /Search products, brands, or categories/);
+  assert.match(layout, /Search deals, brands, products/);
   assert.match(layout, /All Deals/);
-  assert.match(layout, /Browse all deals/);
+  assert.match(layout, /Browse all/);
   assert.doesNotMatch(layout, /Get Deal Alerts/);
 });
 
