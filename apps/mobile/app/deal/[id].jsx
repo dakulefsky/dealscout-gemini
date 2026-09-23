@@ -152,7 +152,7 @@ export default function DealDetailScreen() {
           <View style={styles.recommendations}>
             <View style={styles.sectionHeading}>
               <View style={styles.sectionCopy}>
-                <Text style={styles.sectionEyebrow}>SAME AISLE</Text>
+                <Text style={styles.sectionEyebrow}>KEEP BROWSING</Text>
                 <Text style={styles.sectionTitle}>Other live deals</Text>
                 
               </View>
