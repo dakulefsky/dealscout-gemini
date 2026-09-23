@@ -184,7 +184,7 @@ export default function AdminHome() {
             <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Globe2 className="w-5 h-5 text-emerald-600" /><div className="font-black text-slate-900">Web</div></div><span className="text-xs font-bold text-emerald-700">Live</span></div>
             <p className="text-sm text-slate-500 mt-3">Reads approved, verified deals only while their price check is inside the public freshness window.</p>
             <div className="mt-4 text-xs text-slate-500"><span className="font-bold text-slate-700">Visible deals:</span> {publicVisibleCount ?? '—'}</div>
-            <Link to="/" className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-emerald-700 hover:text-emerald-800">Open shopper site <ArrowRight className="w-4 h-4" /></Link>
+            <a href="https://dealscouted.com" className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-emerald-700 hover:text-emerald-800">Open shopper site <ArrowRight className="w-4 h-4" /></a>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-3xl p-5">
