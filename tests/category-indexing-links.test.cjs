@@ -17,7 +17,8 @@ test('category metadata exposes current deal links as an ItemList', () => {
 test('server-rendered category content includes live deal links for crawlers', () => {
   const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
   assert.match(server, /dealFeedRepository\.page\(\{ category: rows\[0\]\.name, limit: 12, sort: 'discount_desc' \}\)/);
-  assert.match(server, /categoryInitialContent\(rows\[0\], categoryDeals\.items\)/);
+  assert.match(server, /categoryInitialContent\(rows\[0\], categoryDeals\)/);
+  assert.match(server, /Category crawl links unavailable/);
   assert.match(server, /data-server-crawl-content="category"/);
 });
 
