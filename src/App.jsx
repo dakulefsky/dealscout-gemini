@@ -78,7 +78,8 @@ export default function App() {
                   <Route path="/admin/reset-password" element={<ResetPassword />} />
                   <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
                   <Route path="/admin/add-deal" element={<ProtectedRoute adminOnly><AddDeal /></ProtectedRoute>} />
-                  <Route path="/admin/editorial" element={<ProtectedRoute adminOnly><EditorialReview /></ProtectedRoute>} />
+                  <Route path="/admin/deals" element={<ProtectedRoute adminOnly><EditorialReview /></ProtectedRoute>} />
+                  <Route path="/admin/editorial" element={<Navigate to="/admin/deals" replace />} />
                   <Route path="/admin/operations" element={<Navigate to="/admin" replace />} />
 
                   <Route path="/login" element={<Navigate to="/" replace />} />
