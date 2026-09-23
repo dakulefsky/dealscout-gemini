@@ -3,6 +3,7 @@ const siteSettings = require('./siteRuntimeSettingsService');
 const JERUSALEM_GEONAME_ID = 281184;
 const NEW_YORK_GEONAME_ID = 5128581;
 const CURRENT_TTL_MS = 60 * 1000;
+const LOCATION_TTL_MS = 60 * 1000;
 const CALENDAR_TTL_MS = 6 * 60 * 60 * 1000;
 
 const LOCATIONS = Object.freeze({
@@ -30,6 +31,7 @@ const LOCATIONS = Object.freeze({
 
 const currentCache = new Map();
 const calendarCache = new Map();
+let selectedLocationCache = null;
 
 function locationConfig(location = 'jerusalem') {
   const key = String(location || '').trim().toLowerCase();
@@ -37,9 +39,12 @@ function locationConfig(location = 'jerusalem') {
   return LOCATIONS[key];
 }
 
-async function selectedLocation() {
+async function selectedLocation(nowMs = Date.now()) {
+  if (selectedLocationCache && nowMs - selectedLocationCache.at < LOCATION_TTL_MS) return selectedLocationCache.value;
   const setting = await siteSettings.get('closure_location');
-  return locationConfig(setting.value || 'jerusalem');
+  const value = locationConfig(setting.value || 'jerusalem');
+  selectedLocationCache = { at: nowMs, value };
+  return value;
 }
 
 async function fetchJson(url) {
@@ -135,6 +140,7 @@ async function upcomingClosures({ from = new Date(), limit = 16, location = 'jer
 function resetCaches() {
   currentCache.clear();
   calendarCache.clear();
+  selectedLocationCache = null;
 }
 
 module.exports = { JERUSALEM_GEONAME_ID, NEW_YORK_GEONAME_ID, LOCATIONS, locationConfig, selectedLocation, currentStatus, upcomingClosures, pairClosures, resetCaches };
