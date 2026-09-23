@@ -4,6 +4,11 @@ const { encodeCursor, decodeCursor } = require('../services/dealCursor');
 const { isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
 
 const DISCOUNT_SQL = '(100.0 * (original_price - sale_price) / original_price)';
+const BEST_SQL = `(
+  COALESCE(quality_score, 0) * 0.35
+  + ${DISCOUNT_SQL} * 0.9
+  + LEAST(18, LN(GREATEST((original_price - sale_price) + 1, 1)) / LN(10) * 9)
+)`;
 
 function derivedDiscount(row) {
   const original = Number(row?.original_price ?? row?.originalPrice);
@@ -13,6 +18,7 @@ function derivedDiscount(row) {
 }
 
 function normalizeSort(value) {
+  if (value === 'best') return 'best';
   if (value === 'discount_desc' || value === '-discount_percent') return 'discount_desc';
   if (value === 'price_asc') return 'price_asc';
   if (value === 'price_desc') return 'price_desc';
@@ -39,16 +45,29 @@ function normalizeFilters(options = {}) {
   };
 }
 
+function bestScore(row) {
+  const quality = Number(row?.quality_score ?? row?.qualityScore ?? 0);
+  const discount = derivedDiscount(row);
+  const original = Number(row?.original_price ?? row?.originalPrice ?? 0);
+  const sale = Number(row?.sale_price ?? row?.salePrice ?? 0);
+  const savings = Math.max(0, original - sale);
+  const meaningfulSavings = Math.min(18, Math.log10(savings + 1) * 9);
+  return quality * 0.35 + discount * 0.9 + meaningfulSavings;
+}
+
 function cursorFromRow(row, sort) {
-  const primary = sort === 'discount_desc'
-    ? derivedDiscount(row)
-    : sort === 'price_asc' || sort === 'price_desc'
-      ? Number(row.sale_price)
-      : Number(row.created_at);
+  const primary = sort === 'best'
+    ? bestScore(row)
+    : sort === 'discount_desc'
+      ? derivedDiscount(row)
+      : sort === 'price_asc' || sort === 'price_desc'
+        ? Number(row.sale_price)
+        : Number(row.created_at);
   return encodeCursor({ sort, primary, createdAt: row.created_at, id: row.id });
 }
 
 function orderBy(sort) {
+  if (sort === 'best') return `${BEST_SQL} DESC, created_at DESC, id DESC`;
   if (sort === 'discount_desc') return `${DISCOUNT_SQL} DESC, created_at DESC, id DESC`;
   if (sort === 'price_asc') return 'sale_price ASC, created_at DESC, id DESC';
   if (sort === 'price_desc') return 'sale_price DESC, created_at DESC, id DESC';
@@ -64,7 +83,7 @@ function addCursorPredicate(where, params, cursor, sort) {
     return;
   }
   const primary = `$${params.push(Number(cursor.primary))}`;
-  const field = sort === 'discount_desc' ? DISCOUNT_SQL : 'sale_price';
+  const field = sort === 'best' ? BEST_SQL : sort === 'discount_desc' ? DISCOUNT_SQL : 'sale_price';
   const op = sort === 'price_asc' ? '>' : '<';
   where.push(`(${field} ${op} ${primary} OR (${field} = ${primary} AND (created_at < ${created} OR (created_at = ${created} AND id < ${id}))))`);
 }
@@ -87,6 +106,7 @@ function fallbackSort(rows, sort) {
   return rows.sort((a, b) => {
     const createdDiff = Number(b.created_at) - Number(a.created_at);
     const idDiff = String(b.id).localeCompare(String(a.id));
+    if (sort === 'best') return bestScore(b) - bestScore(a) || createdDiff || idDiff;
     if (sort === 'discount_desc') return derivedDiscount(b) - derivedDiscount(a) || createdDiff || idDiff;
     if (sort === 'price_asc') return Number(a.sale_price) - Number(b.sale_price) || createdDiff || idDiff;
     if (sort === 'price_desc') return Number(b.sale_price) - Number(a.sale_price) || createdDiff || idDiff;
@@ -98,7 +118,7 @@ function afterCursor(row, cursor, sort) {
   if (!cursor) return true;
   const created = Number(row.created_at);
   if (sort === '-created_date') return created < cursor.createdAt || (created === cursor.createdAt && String(row.id) < cursor.id);
-  const value = sort === 'discount_desc' ? derivedDiscount(row) : Number(row.sale_price);
+  const value = sort === 'best' ? bestScore(row) : sort === 'discount_desc' ? derivedDiscount(row) : Number(row.sale_price);
   const primary = Number(cursor.primary);
   const primaryAfter = sort === 'price_asc' ? value > primary : value < primary;
   return primaryAfter || (value === primary && (created < cursor.createdAt || (created === cursor.createdAt && String(row.id) < cursor.id)));
@@ -161,4 +181,4 @@ async function page(options = {}) {
   };
 }
 
-module.exports = { page, normalizeSort, normalizeLimit, normalizeFilters, orderBy, derivedDiscount, DISCOUNT_SQL };
+module.exports = { page, normalizeSort, normalizeLimit, normalizeFilters, orderBy, derivedDiscount, bestScore, DISCOUNT_SQL, BEST_SQL };
