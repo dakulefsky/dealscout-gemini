@@ -159,7 +159,7 @@ export default function Layout({ children }) {
               {isAdminArea ? (
                 <>
                   {isAuthenticated && user?.role === 'admin' && <Link to="/admin" className="text-xs font-bold text-emerald-950 py-2">Dashboard</Link>}
-                  <Link to="/" className="text-xs font-semibold text-slate-600 hover:text-emerald-900 py-2">Shopper site</Link>
+                  <a href="https://dealscouted.com" className="text-xs font-semibold text-slate-600 hover:text-emerald-900 py-2">Shopper site</a>
                   {isAuthenticated && user?.role === 'admin' && <button onClick={logout} className="inline-flex items-center text-slate-600 hover:text-slate-900 py-2" aria-label="Log out"><LogOut className="h-4 w-4" /></button>}
                 </>
               ) : (

@@ -30,6 +30,12 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    const onAdminRoute = window.location.pathname.startsWith('/admin');
+    if (!onAdminRoute) {
+      setIsLoadingAuth(false);
+      setAuthChecked(true);
+      return;
+    }
     const token = localStorage.getItem('ds_token');
     if (token) {
       checkUserAuth();
@@ -43,7 +49,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setUser(null);
     setIsAuthenticated(false);
-    window.location.href = '/';
+    window.location.href = '/admin/access';
   };
 
   const navigateToLogin = () => {
