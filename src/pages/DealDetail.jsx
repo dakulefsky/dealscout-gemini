@@ -52,6 +52,8 @@ export default function DealDetail() {
   const [editorial, setEditorial] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [redirecting, setRedirecting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const { toast } = useToast();
@@ -60,6 +62,7 @@ export default function DealDetail() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
+    setLoadError(null);
     setEditorial(null);
     setRecommendations([]);
 
@@ -96,14 +99,15 @@ export default function DealDetail() {
           // Secondary content must never turn a valid core product into a not-found page.
         });
       })
-      .catch(() => {
+      .catch((error) => {
         if (!mounted) return;
         setDeal(null);
+        setLoadError(error);
         setLoading(false);
       });
 
     return () => { mounted = false; };
-  }, [id]);
+  }, [id, retryNonce]);
 
   const dealId = deal?.id || deal?.asin;
   const saved = isSaved(dealId);
@@ -173,12 +177,16 @@ export default function DealDetail() {
   if (loading) return <div className="ds-shell py-24 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-800" /></div>;
 
   if (!deal) {
+    const temporaryFailure = loadError && Number(loadError.status || 0) !== 404;
     return (
       <div className="ds-shell py-24 text-center">
-        <div className="ds-kicker">No longer available</div>
-        <h2 className="font-heading text-3xl font-bold text-emerald-950 mt-2">Deal not found</h2>
-        <p className="text-slate-500 mt-3 text-sm">This deal may have ended or is no longer available.</p>
-        <Link to="/" className="mt-6 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1"><ArrowLeft className="w-4 h-4" /> Back to deals</Link>
+        <div className="ds-kicker">{temporaryFailure ? 'Temporary load error' : 'No longer available'}</div>
+        <h2 className="font-heading text-3xl font-black text-emerald-950 mt-2">{temporaryFailure ? 'Couldn’t load this deal' : 'Deal not found'}</h2>
+        <p className="text-slate-500 mt-3 text-sm">{temporaryFailure ? 'The connection failed while loading this product.' : 'This deal may have ended or is no longer available.'}</p>
+        <div className="mt-6 flex items-center justify-center gap-5">
+          {temporaryFailure && <button type="button" onClick={() => setRetryNonce((value) => value + 1)} className="bg-emerald-950 text-white px-5 py-2.5 text-sm font-black">Retry</button>}
+          <Link to="/" className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1"><ArrowLeft className="w-4 h-4" /> Back to deals</Link>
+        </div>
       </div>
     );
   }
@@ -188,7 +196,7 @@ export default function DealDetail() {
   const categoryPath = categoryPathFromName(deal.category);
   const dealFacts = [
     deal.discountPercent > 0 ? { label: 'Discount', value: `${deal.discountPercent}% off`, icon: BadgePercent } : null,
-    savings > 0 ? { label: 'You save', value: formatPrice(savings), icon: CheckCircle2 } : null,
+    savings > 0 ? { label: 'Save', value: formatPrice(savings), icon: CheckCircle2 } : null,
     deal.sourceVerified ? { label: 'Price status', value: freshness.stale ? 'Check on Amazon' : freshness.label, icon: ShieldCheck } : null,
   ].filter(Boolean);
 
@@ -202,19 +210,19 @@ export default function DealDetail() {
 
       <div className="grid lg:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.9fr)] gap-8 lg:gap-12 pt-7 sm:pt-10 items-start">
         <main className="min-w-0">
-          <div className={`bg-[#f1ece1] border-t-2 border-x border-b border-emerald-950/15 aspect-[4/3] sm:aspect-[16/10] lg:aspect-[4/3] flex items-center justify-center p-7 sm:p-12 ${deal.isExpired ? 'grayscale-[0.75]' : ''}`}><Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} fittingType="contain" className="w-full h-full" alt={deal.title} /></div>
+          <div className={`bg-[#f1ece1] border-t-2 border-x border-b border-emerald-950/15 aspect-[4/3] sm:aspect-[16/10] lg:aspect-[4/3] flex items-center justify-center p-7 sm:p-12 ${deal.isExpired ? 'grayscale-[0.75]' : ''}`}><Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} fittingType="contain" loading="eager" fetchPriority="high" className="w-full h-full" alt={deal.title} /></div>
 
           {dealFacts.length > 0 && <section aria-label="Deal facts" className="border-x border-b border-emerald-950/15 bg-white px-4 sm:px-5 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">{dealFacts.map(({ label, value, icon: Icon }) => <div key={label} className="inline-flex items-center gap-2"><Icon className="w-3.5 h-3.5 text-emerald-800 shrink-0" /><span className="text-[9px] uppercase tracking-[0.12em] font-black text-slate-400">{label}</span><span className="text-xs font-black text-emerald-950">{value}</span></div>)}</section>}
 
-          {editorial?.isHumanPick && <section className="mt-8 border-y border-emerald-950/10 py-6 sm:py-7"><div className="ds-kicker inline-flex items-center gap-1.5"><Star className="w-3.5 h-3.5 fill-emerald-800" /> DealScout pick</div><h2 className="font-heading text-2xl font-bold text-emerald-950 mt-2">Why this one stood out</h2>{editorial.editorialNote && <p className="text-sm text-slate-600 leading-relaxed mt-3 max-w-2xl">{editorial.editorialNote}</p>}</section>}
+          {editorial?.isHumanPick && <section className="mt-8 border-y border-emerald-950/10 py-6 sm:py-7"><div className="ds-kicker inline-flex items-center gap-1.5"><Star className="w-3.5 h-3.5 fill-emerald-800" /> DealScout pick</div><h2 className="font-heading text-2xl font-bold text-emerald-950 mt-2">Editor note</h2>{editorial.editorialNote && <p className="text-sm text-slate-600 leading-relaxed mt-3 max-w-2xl">{editorial.editorialNote}</p>}</section>}
 
           <div className="mt-9"><AdSensePlaceholder format="in-content" slotId={import.meta.env.VITE_ADSENSE_IN_CONTENT_SLOT || ''} className="w-full" /><p className="text-[11px] text-slate-400 text-center mt-4">Product details and customer feedback are available on the current Amazon listing.</p></div>
         </main>
 
         <aside className="lg:sticky lg:top-24 min-w-0">
           <div className="flex items-center justify-between gap-4"><Link to={categoryPath} className="ds-kicker hover:text-emerald-700">{deal.category || 'Deal'}</Link><div className="flex items-center gap-1"><button type="button" onClick={handleShare} aria-label="Share deal" className="w-9 h-9 border border-emerald-950/15 flex items-center justify-center text-slate-500 hover:text-emerald-900 focus-visible:ring-2 focus-visible:ring-emerald-800">{copiedLink ? <CheckCircle2 className="w-4 h-4 text-emerald-700" /> : <Share2 className="w-4 h-4" />}</button><button type="button" onClick={handleSave} aria-label={saved ? `Remove ${deal.title} from saved deals` : `Save ${deal.title}`} className={`w-9 h-9 border flex items-center justify-center focus-visible:ring-2 focus-visible:ring-emerald-800 ${saved ? 'bg-emerald-950 text-white border-emerald-950' : 'border-emerald-950/15 text-slate-500 hover:text-emerald-900'}`}><Heart className={`w-4 h-4 ${saved ? 'fill-white' : ''}`} /></button></div></div>
-          <h1 className="font-heading text-3xl sm:text-4xl lg:text-[42px] font-bold leading-[1.03] text-emerald-950 mt-4">{deal.title}</h1>
-          <div className="mt-6 border-y-2 border-emerald-950/15 py-5"><div className="flex items-baseline gap-3 flex-wrap"><span className={`text-4xl sm:text-5xl font-black tracking-tight ${deal.isExpired ? 'text-slate-500 line-through' : 'text-emerald-950'}`}>{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-sm text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>{!deal.isExpired && savings > 0 && <div className="mt-3 flex items-center justify-between gap-3"><span className="text-sm font-bold text-emerald-800">You save {formatPrice(savings)}</span>{deal.discountPercent > 0 && <span className="text-xs font-black bg-[#dcebdc] text-emerald-950 px-2 py-1">{deal.discountPercent}% OFF</span>}</div>}</div>
+          <h1 className="font-heading text-3xl sm:text-4xl lg:text-[44px] font-black leading-[0.98] text-emerald-950 mt-4">{deal.title}</h1>
+          <div className="mt-6 border-y-[3px] border-emerald-950/20 py-5"><div className="flex items-baseline gap-3 flex-wrap"><span className={`text-4xl sm:text-5xl font-black tracking-tight ${deal.isExpired ? 'text-slate-500 line-through' : 'text-emerald-950'}`}>{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-sm text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>{!deal.isExpired && savings > 0 && <div className="mt-3 flex items-center justify-between gap-3"><span className="text-sm font-bold text-emerald-800">You save {formatPrice(savings)}</span>{deal.discountPercent > 0 && <span className="text-xs font-black bg-[#dcebdc] text-emerald-950 px-2 py-1">{deal.discountPercent}% OFF</span>}</div>}</div>
           {deal.sourceVerified && <div className={`mt-4 flex items-center gap-2 text-xs font-semibold ${freshness.stale ? 'text-amber-800' : 'text-slate-600'}`}><ShieldCheck className={`w-4 h-4 ${freshness.stale ? 'text-amber-600' : 'text-emerald-700'}`} /><span>{freshness.stale ? 'Price check is older than usual' : freshness.label}</span></div>}
           {freshness.stale && !deal.isExpired && <p className="text-xs text-amber-800 mt-2">Confirm the current offer on Amazon before buying.</p>}
           <button onClick={handleBuy} disabled={redirecting} className={`mt-7 inline-flex items-center justify-between gap-3 w-full px-5 py-4 font-bold text-sm transition disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-emerald-950 hover:bg-emerald-900 text-white'}`}><span className="inline-flex items-center gap-2">{redirecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}{redirecting ? 'Opening Amazon…' : deal.isExpired ? 'Check current price' : 'View deal on Amazon'}</span><ExternalLink className="w-4 h-4 opacity-70" /></button>
@@ -224,7 +232,7 @@ export default function DealDetail() {
         </aside>
       </div>
 
-      {recommendations.length > 0 && <section aria-labelledby="recommended-deals-heading" className="mt-14 sm:mt-16 pt-7 sm:pt-9 border-t border-emerald-950/15"><div className="flex items-end justify-between gap-5 mb-5 sm:mb-6"><div><div className="ds-kicker">Same aisle</div><h2 id="recommended-deals-heading" className="font-heading text-2xl sm:text-3xl font-bold text-emerald-950 mt-1">Other live deals</h2></div><Link to="/?category=all" className="hidden sm:inline-flex shrink-0 items-center gap-1 text-xs font-bold text-emerald-900 border-b border-emerald-900 pb-1">See all deals <ArrowRight className="w-3.5 h-3.5" /></Link></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr items-stretch">{recommendations.map((item) => <DealCard key={dealIdentity(item)} deal={item} />)}</div></section>}
+      {recommendations.length > 0 && <section aria-labelledby="recommended-deals-heading" className="mt-14 sm:mt-16 pt-7 sm:pt-9 border-t border-emerald-950/15"><div className="flex items-end justify-between gap-5 mb-5 sm:mb-6"><div><div className="ds-kicker">More deals</div><h2 id="recommended-deals-heading" className="font-heading text-2xl sm:text-3xl font-black text-emerald-950 mt-1">Keep browsing</h2></div><Link to="/?category=all" className="hidden sm:inline-flex shrink-0 items-center gap-1 text-xs font-bold text-emerald-900 border-b border-emerald-900 pb-1">See all deals <ArrowRight className="w-3.5 h-3.5" /></Link></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr items-stretch">{recommendations.map((item) => <DealCard key={dealIdentity(item)} deal={item} />)}</div></section>}
 
       <div className="fixed lg:hidden bottom-0 inset-x-0 z-40 border-t border-emerald-950/15 bg-[#fbfaf7]/95 backdrop-blur px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(13,63,45,0.08)]"><div className="ds-shell !px-0 flex items-center gap-3"><div className="min-w-0 flex-1"><div className="text-xl font-black text-emerald-950 truncate">{formatPrice(deal.salePrice)}</div>{savings > 0 && !deal.isExpired && <div className="text-[10px] text-emerald-700 font-bold">Save {formatPrice(savings)}</div>}</div><button onClick={handleBuy} disabled={redirecting} className={`shrink-0 inline-flex items-center justify-center gap-2 px-5 py-3 font-black text-sm disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 text-white' : 'bg-emerald-950 text-white'}`}>{redirecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingBag className="w-4 h-4" />}{deal.isExpired ? 'Check Amazon' : 'View on Amazon'}</button></div></div>
     </div>

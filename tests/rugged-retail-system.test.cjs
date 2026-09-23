@@ -15,6 +15,6 @@ test('shopper surfaces avoid slogan-heavy AI-template copy', () => {
 });
 
 test('deal cards use flat catalog treatment instead of floaty SaaS cards', () => {
-  assert.match(card, /border-t-2/);
+  assert.match(card, /border-t-\[3px\]/);
   assert.doesNotMatch(card, /hover:shadow|hover:-translate-y/);
 });

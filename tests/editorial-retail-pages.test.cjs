@@ -14,8 +14,8 @@ const saved = page('SavedDeals.jsx');
 test('category page uses the shared editorial retail shell instead of floating SaaS cards', () => {
   assert.match(category, /className="ds-shell py-7 sm:py-10 pb-20"/);
   assert.match(category, /border-y border-emerald-950\/10/);
-  assert.match(category, /font-heading text-3xl sm:text-4xl lg:text-5xl/);
-  assert.match(category, /What we look for in/);
+  assert.match(category, /font-heading text-4xl sm:text-5xl lg:text-\[58px\]/);
+  assert.match(category, /Buying \{category\.name\.toLowerCase\(\)\}/);
   assert.doesNotMatch(category, /rounded-3xl|shadow-xs/);
 });
 
@@ -27,7 +27,7 @@ test('deal detail is product-first and keeps core commerce actions intact', () =
   assert.match(detail, /toggleBookmark\(deal\)/);
   assert.match(detail, /navigator\.clipboard\.writeText/);
   assert.match(detail, /focus-visible:ring-2/);
-  assert.match(detail, /Other live deals/);
+  assert.match(detail, /Keep browsing/);
   assert.doesNotMatch(detail, /rounded-3xl/);
 });
 

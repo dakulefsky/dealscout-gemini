@@ -13,14 +13,14 @@ import { trustworthyDiscountPercent } from '../../../src/lib/heroDealQuality';
 const PAGE_SIZE = 24;
 const SEARCH_DEBOUNCE_MS = 250;
 const SORTS = [
-  { key: 'best', label: 'Best for you' },
+  { key: 'best', label: 'Top deals' },
   { key: 'newest', label: 'Newest' },
   { key: 'discount', label: 'Biggest discount' },
   { key: 'price-low', label: 'Lowest price' },
   { key: 'price-high', label: 'Highest price' },
 ];
 const DISCOUNT_TIERS = [
-  { value: 0, label: 'Any discount' },
+  { value: 0, label: '15%+ (all deals)' },
   { value: 15, label: '15%+' },
   { value: 25, label: '25%+' },
   { value: 30, label: '30%+' },

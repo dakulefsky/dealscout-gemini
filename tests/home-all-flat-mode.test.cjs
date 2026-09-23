@@ -10,7 +10,7 @@ test('All is an explicit flat catalog mode', () => {
   assert.match(source, /setSearchParams\(\{ category: 'all'/);
   assert.match(source, /showCuratedHome = !flatAllMode && !hasActiveFilters/);
   assert.match(source, /\(flatAllMode \|\| hasActiveFilters\) \? visibleDeals/);
-  assert.match(source, /flatAllMode \? 'All verified deals' : 'More worth a look'/);
+  assert.match(source, /flatAllMode \? 'All verified deals' : 'All deals'/);
 });
 
 test('flat All mode does not siphon deals into curated sections', () => {

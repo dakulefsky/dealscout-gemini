@@ -7,8 +7,8 @@ const seo = require('../server/services/seoService');
 test('homepage leads with departments and keeps standout deals secondary', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
   assert.match(source, /Departments/);
-  assert.match(source, /Current deals by department/);
-  assert.match(source, /Worth it today/);
+  assert.match(source, />Departments<\/h1>/);
+  assert.match(source, />Standouts<\/h2>/);
   assert.match(source, /trustworthyDiscountPercent\(deal\)/);
   assert.doesNotMatch(source, /What are you here for\?/);
 });

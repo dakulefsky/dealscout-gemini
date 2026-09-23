@@ -104,3 +104,42 @@ test('timeout handling uses injected/global timers rather than window timers', a
   });
   assert.equal(timerScheduled, true);
 });
+
+
+test('portable client retries one transient GET failure and then succeeds', async () => {
+  const { createDealScoutClient } = await loadCore();
+  let calls = 0;
+  const client = createDealScoutClient({
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) return jsonResponse({ error: 'temporary' }, { status: 503 });
+      return jsonResponse({ id: 'B012345678' });
+    },
+  });
+  const result = await client.deals.get('B012345678');
+  assert.equal(result.id, 'B012345678');
+  assert.equal(calls, 2);
+});
+
+test('portable client does not retry permanent shopper errors or mutations', async () => {
+  const { createDealScoutClient } = await loadCore();
+  let getCalls = 0;
+  const notFoundClient = createDealScoutClient({
+    fetchImpl: async () => {
+      getCalls += 1;
+      return jsonResponse({ error: 'not found' }, { status: 404 });
+    },
+  });
+  await assert.rejects(notFoundClient.deals.get('missing'), (error) => error.status === 404);
+  assert.equal(getCalls, 1);
+
+  let postCalls = 0;
+  const mutationClient = createDealScoutClient({
+    fetchImpl: async () => {
+      postCalls += 1;
+      return jsonResponse({ error: 'temporary' }, { status: 503 });
+    },
+  });
+  await assert.rejects(mutationClient.api.post('/api/test', { ok: true }), (error) => error.status === 503);
+  assert.equal(postCalls, 1);
+});

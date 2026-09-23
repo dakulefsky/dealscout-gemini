@@ -34,18 +34,44 @@ function createDealScoutClient({ baseUrl = '', fetchImpl = globalThis.fetch, get
     if (guestId) headers['x-guest-id'] = String(guestId);
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (token) headers.Authorization = `Bearer ${token}`;
-    const { controller, cleanup } = createTimeoutController(options.signal, options.timeoutMs ?? defaultTimeoutMs, timers);
-    try {
-      const response = await fetchImpl(`${resolvedBaseUrl}${path}`, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, signal: controller.signal });
-      let data = {};
-      const contentType = response.headers?.get?.('content-type') || '';
-      if (contentType.includes('application/json')) { try { data = await response.json(); } catch { data = {}; } }
-      if (!response.ok) { const error = new Error(data.error || `Request failed: ${response.status}`); error.status = response.status; error.code = data.code || null; error.requestId = data.requestId || response.headers?.get?.('x-request-id') || null; error.data = data; throw error; }
-      return data;
-    } catch (error) {
-      if (controller.signal.aborted && !options.signal?.aborted) { const timeoutError = new Error('Request timed out'); timeoutError.name = 'TimeoutError'; timeoutError.code = 'REQUEST_TIMEOUT'; throw timeoutError; }
-      throw error;
-    } finally { cleanup(); }
+    const maxAttempts = method === 'GET' && options.retryTransient !== false ? 2 : 1;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const { controller, cleanup } = createTimeoutController(options.signal, options.timeoutMs ?? defaultTimeoutMs, timers);
+      try {
+        const response = await fetchImpl(`${resolvedBaseUrl}${path}`, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, signal: controller.signal });
+        let data = {};
+        const contentType = response.headers?.get?.('content-type') || '';
+        if (contentType.includes('application/json')) { try { data = await response.json(); } catch { data = {}; } }
+        if (!response.ok) {
+          const error = new Error(data.error || `Request failed: ${response.status}`);
+          error.status = response.status;
+          error.code = data.code || null;
+          error.requestId = data.requestId || response.headers?.get?.('x-request-id') || null;
+          error.data = data;
+          throw error;
+        }
+        return data;
+      } catch (error) {
+        let normalized = error;
+        if (controller.signal.aborted && !options.signal?.aborted) {
+          normalized = new Error('Request timed out');
+          normalized.name = 'TimeoutError';
+          normalized.code = 'REQUEST_TIMEOUT';
+        }
+        lastError = normalized;
+        const status = Number(normalized?.status || 0);
+        const transient = normalized?.name === 'TimeoutError'
+          || status === 502 || status === 503 || status === 504
+          || (!status && normalized?.name !== 'AbortError');
+        if (attempt >= maxAttempts || !transient || options.signal?.aborted) throw normalized;
+      } finally {
+        cleanup();
+      }
+    }
+
+    throw lastError || new Error('Request failed');
   }
   const api = { get: (path, options) => request('GET', path, undefined, options), post: (path, body, options) => request('POST', path, body, options), put: (path, body, options) => request('PUT', path, body, options), patch: (path, body, options) => request('PATCH', path, body, options), delete: (path, options) => request('DELETE', path, undefined, options) };
   const auth = { me: () => api.get(`${SHOPPER_API}/auth/me`), login: (email, password) => api.post(`${SHOPPER_API}/auth/login`, { email, password }), register: (email, password) => api.post(`${SHOPPER_API}/auth/register`, { email, password }), verifyOtp: (email, otpCode) => api.post(`${SHOPPER_API}/auth/verify-otp`, { email, otpCode }), resendOtp: (email) => api.post(`${SHOPPER_API}/auth/resend-otp`, { email }), forgotPassword: (email) => api.post(`${SHOPPER_API}/auth/forgot-password`, { email }), resetPassword: (resetToken, newPassword) => api.post(`${SHOPPER_API}/auth/reset-password`, { resetToken, newPassword }) };

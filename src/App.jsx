@@ -8,9 +8,9 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminOperationsControls from '@/components/AdminOperationsControls';
 import { Toaster } from '@/components/ui/toaster';
 import Home from '@/pages/Home';
+import DealDetail from '@/pages/DealDetail';
 
 const CategoryPage = lazy(() => import('@/pages/CategoryPage'));
-const DealDetail = lazy(() => import('@/pages/DealDetail'));
 const SavedDeals = lazy(() => import('@/pages/SavedDeals'));
 const Disclosure = lazy(() => import('@/pages/Disclosure'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
@@ -78,7 +78,8 @@ export default function App() {
                   <Route path="/admin/reset-password" element={<ResetPassword />} />
                   <Route path="/admin" element={<ProtectedRoute adminOnly><AdminDashboard /></ProtectedRoute>} />
                   <Route path="/admin/add-deal" element={<ProtectedRoute adminOnly><AddDeal /></ProtectedRoute>} />
-                  <Route path="/admin/editorial" element={<ProtectedRoute adminOnly><EditorialReview /></ProtectedRoute>} />
+                  <Route path="/admin/deals" element={<ProtectedRoute adminOnly><EditorialReview /></ProtectedRoute>} />
+                  <Route path="/admin/editorial" element={<Navigate to="/admin/deals" replace />} />
                   <Route path="/admin/operations" element={<Navigate to="/admin" replace />} />
 
                   <Route path="/login" element={<Navigate to="/" replace />} />

@@ -6,8 +6,8 @@ const path = require('node:path');
 const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
 
 test('home leads with restrained department copy instead of explanatory personalization copy', () => {
-  assert.match(home, /Current deals by department/);
-  assert.match(home, /Verified prices · live inventory/);
+  assert.match(home, /Departments/);
+  assert.match(home, /15%\+ off · recently checked/);
   assert.doesNotMatch(home, /quietly learns which categories|Good deals\. No digging/);
 });
 
@@ -19,6 +19,6 @@ test('curated deal rows remain bounded and balanced where grids require it', () 
 });
 
 test('Deal Drop headline stays terse', () => {
-  assert.match(home, /Today’s edit/);
+  assert.match(home, /Current/);
   assert.doesNotMatch(home, /worth seeing right now|A quick hit of the strongest verified deals/);
 });

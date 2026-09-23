@@ -6,8 +6,8 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
 
 test('homepage no longer depends on an oversized hero image for first paint', () => {
-  assert.match(source, /Current deals by department/);
-  assert.doesNotMatch(source, /loading="eager" fetchPriority="high"/);
+  assert.match(source, />Departments<\/h1>/);
+  assert.match(source, /fetchPriority=\{index === 0 \? 'high' : 'auto'\}/);
 });
 
 test('homepage filter controls expose accessible names and state', () => {

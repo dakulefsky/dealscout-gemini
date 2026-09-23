@@ -9,8 +9,8 @@ const card = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'De
 const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.css'), 'utf8');
 
 test('homepage uses a department-led retail hierarchy instead of a SaaS hero', () => {
-  assert.match(home, /Current deals by department/);
-  assert.match(home, /Worth it today/);
+  assert.match(home, />Departments<\/h1>/);
+  assert.match(home, />Standouts<\/h2>/);
   assert.match(home, /spotlightDeals/);
   assert.doesNotMatch(home, /Better deals for real life|Featured deal|What are you here for/);
   assert.doesNotMatch(home, /bg-gradient-to-b from-white to-slate-50/);
@@ -32,12 +32,12 @@ test('consumer shell has brand masthead, retail search, and category navigation'
 test('deal cards are retail first and avoid universal rounded-card treatment', () => {
   assert.match(card, /bg-\[#f7f5f0\]/);
   assert.match(card, /ds-price/);
-  assert.match(card, /border-t-2/);
+  assert.match(card, /border-t-\[3px\]/);
   assert.doesNotMatch(card, /hover:shadow|hover:-translate-y/);
 });
 
 test('design tokens keep compact radii and restrained system typography', () => {
-  assert.match(css, /--radius: 0\.375rem/);
+  assert.match(css, /--radius: 0\.125rem/);
   assert.match(css, /--font-heading: Inter/);
   assert.match(css, /\.ds-section-title/);
 });

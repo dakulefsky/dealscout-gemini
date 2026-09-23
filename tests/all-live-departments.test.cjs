@@ -7,8 +7,8 @@ const web = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx
 const mobile = fs.readFileSync(path.join(__dirname, '..', 'apps', 'mobile', 'app', 'index.jsx'), 'utf8');
 
 test('category-first home does not arbitrarily hide active departments', () => {
-  assert.match(web, /categories\.slice\(5\)\.map/);
-  assert.doesNotMatch(web, /categories\.slice\(5, 11\)/);
+  assert.match(web, /categories\.map\(\(category, index\)/);
+  assert.doesNotMatch(web, /categories\.slice\(/);
   assert.match(mobile, /categories\.map\(\(category, index\)/);
   assert.doesNotMatch(mobile, /categories\.slice\(0, 8\)/);
 });
