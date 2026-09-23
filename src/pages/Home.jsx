@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { TrendingDown, Search, LayoutGrid, List, RotateCcw, ShieldCheck, Star, SlidersHorizontal, Sparkles, ArrowRight } from 'lucide-react';
+import { TrendingDown, Search, LayoutGrid, List, RotateCcw, Star, SlidersHorizontal, Sparkles, ArrowRight } from 'lucide-react';
 import DealCard, { formatPrice } from '@/components/DealCard';
 import { Image } from '@/components/ui/image';
 import { deals as dealsApi, categories as categoriesApi, editorial as editorialApi } from '@/lib/api';
