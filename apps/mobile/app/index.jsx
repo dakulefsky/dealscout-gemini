@@ -328,7 +328,7 @@ export default function HomeScreen() {
             <Text style={styles.ruleNote}>LIVE INVENTORY</Text>
           </View>
           <View style={styles.departmentList}>
-            {categories.slice(0, 8).map((category, index) => {
+            {categories.map((category, index) => {
               const name = category?.name || category?.id;
               if (!name) return null;
               return (
