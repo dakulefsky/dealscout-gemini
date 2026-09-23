@@ -22,3 +22,12 @@ test('production CSP does not opt back into unsafe eval', () => {
   assert.doesNotMatch(security, /unsafe-eval/);
   assert.match(security, /strict-dynamic/);
 });
+
+test('above-fold imagery and fingerprinted assets get production performance hints', () => {
+  const home = read('src/pages/Home.jsx');
+  const detail = read('src/pages/DealDetail.jsx');
+  const server = read('server.js');
+  assert.match(home, /fetchPriority=\{index === 0 \? 'high'/);
+  assert.match(detail, /loading="eager" fetchPriority="high"/);
+  assert.match(server, /max-age=31536000, immutable/);
+});
