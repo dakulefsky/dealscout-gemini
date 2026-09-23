@@ -7,7 +7,8 @@ import { LogOut, Settings, Heart, Search, X, Loader2, Menu } from 'lucide-react'
 import AffiliateBanner from '@/components/AffiliateBanner';
 import { deals as dealsApi, categories as categoriesApi } from '@/lib/api';
 
-const SEARCH_DEBOUNCE_MS = 200;
+const SEARCH_DEBOUNCE_MS = 250;
+const MIN_SEARCH_CHARS = 2;
 const NAV_LIMIT = 8;
 
 export default function Layout({ children }) {
@@ -48,7 +49,7 @@ export default function Layout({ children }) {
 
   useEffect(() => {
     const query = searchQuery.trim();
-    if (!query) {
+    if (query.length < MIN_SEARCH_CHARS) {
       setSearchResults([]);
       setSearchLoading(false);
       return undefined;
@@ -73,6 +74,8 @@ export default function Layout({ children }) {
     setIsSearchOpen(false);
     setMobileSearchOpen(false);
     setMobileMenuOpen(false);
+    const urlQuery = new URLSearchParams(location.search).get('q') || '';
+    setSearchQuery(urlQuery);
   }, [location.pathname, location.search]);
 
   function handleSearchSubmit(event) {
@@ -110,6 +113,11 @@ export default function Layout({ children }) {
             ref={mobile ? undefined : searchRef}
             autoFocus={mobile}
             type="search"
+            role="combobox"
+            aria-label="Search DealScout"
+            aria-autocomplete="list"
+            aria-expanded={isSearchOpen && searchQuery.trim().length >= MIN_SEARCH_CHARS}
+            aria-controls="dealscout-search-results"
             placeholder="Search deals, brands, products…"
             value={searchQuery}
             onChange={(event) => { setSearchQuery(event.target.value); setIsSearchOpen(true); }}
@@ -120,8 +128,8 @@ export default function Layout({ children }) {
         </div>
       </form>
 
-      {isSearchOpen && searchQuery.trim() && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-emerald-950/10 shadow-[0_10px_24px_rgba(23,52,40,0.12)] overflow-hidden z-50">
+      {isSearchOpen && searchQuery.trim().length >= MIN_SEARCH_CHARS && (
+        <div id="dealscout-search-results" role="listbox" aria-label="Deal search results" className="absolute top-full left-0 right-0 mt-2 bg-white border border-emerald-950/10 shadow-[0_10px_24px_rgba(23,52,40,0.12)] overflow-hidden z-50">
           {searchLoading ? (
             <div className="p-5 flex items-center justify-center gap-2 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…</div>
           ) : searchResults.length === 0 ? (
@@ -129,7 +137,7 @@ export default function Layout({ children }) {
           ) : (
             <div>
               {searchResults.map((deal) => (
-                <Link key={deal.id || deal.asin} to={`/deal/${deal.id || deal.asin}`} className="flex items-center gap-3 p-3 border-b border-emerald-950/5 last:border-b-0 hover:bg-stone-50">
+                <Link key={deal.id || deal.asin} role="option" aria-label={deal.title} to={`/deal/${deal.id || deal.asin}`} className="flex items-center gap-3 p-3 border-b border-emerald-950/5 last:border-b-0 hover:bg-stone-50">
                   <div className="w-12 h-12 bg-white p-1 shrink-0"><Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full" /></div>
                   <div className="flex-1 min-w-0"><h4 className="text-xs font-semibold text-slate-900 truncate">{deal.title}</h4><div className="text-[11px] mt-1"><span className="font-black text-emerald-950">${Number(deal.salePrice || 0).toFixed(2)}</span>{deal.discountPercent > 0 && <span className="ml-2 text-emerald-700 font-bold">{deal.discountPercent}% off</span>}</div></div>
                 </Link>
@@ -164,7 +172,7 @@ export default function Layout({ children }) {
                 </>
               ) : (
                 <>
-                  <button type="button" onClick={toggleMobileSearch} className="md:hidden w-9 h-9 flex items-center justify-center text-slate-700" title="Search"><Search className="h-4 w-4" /></button>
+                  <button type="button" onClick={toggleMobileSearch} className="md:hidden w-9 h-9 flex items-center justify-center text-slate-700" aria-label={mobileSearchOpen ? 'Close search' : 'Open search'} aria-expanded={mobileSearchOpen}><Search className="h-4 w-4" /></button>
                   <Link to="/saved" className="relative inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-900 py-2">
                     <Heart className={`h-4 w-4 ${savedDealIds.length ? 'text-rose-600 fill-rose-600' : ''}`} />
                     <span className="hidden sm:inline">Saved</span>
