@@ -7,5 +7,6 @@ const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflow
 
 test('public deployment always enables shopper-only mode', () => {
   assert.match(workflow, /PUBLIC_SURFACE_ONLY=true/);
-  assert.match(workflow, /private IAP-protected dealscout service/);
+  assert.match(workflow, /Public shopper and private admin must use different Cloud Run services/);
+  assert.match(workflow, /Deploy private admin revision/);
 });
