@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
 const SORTS = [
-  { key: 'best', label: 'Best for you' },
+  { key: 'best', label: 'Best deals' },
   { key: 'newest', label: 'Newest' },
   { key: 'discount', label: 'Biggest discount' },
   { key: 'price-low', label: 'Lowest price' },
