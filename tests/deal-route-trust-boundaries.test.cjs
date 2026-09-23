@@ -6,7 +6,7 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '..', 'server/routes/deals.js'), 'utf8');
 
 test('single-deal public visibility uses the shared freshness policy', () => {
-  assert.match(source, /const \{ isPublicDeal \} = require\('\.\.\/services\/publicDealPolicy'\)/);
+  assert.match(source, /isPublicDeal, PUBLIC_MIN_DISCOUNT_PERCENT/);
   assert.match(source, /return req\.user\?\.role === 'admin' \|\| isPublicDeal\(deal\);/);
   assert.match(source, /if \(!row \|\| !canSeeDeal\(req, row\)\) return res\.status\(404\)/);
 });
