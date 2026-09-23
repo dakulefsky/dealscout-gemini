@@ -7,10 +7,10 @@ const helper = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'feedCha
 const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
 
 test('feed chapters include personalized, price, budget and discovery lanes', () => {
-  assert.match(helper, /Because you’re checking out/);
+  assert.match(helper, /More in this department/);
   assert.match(helper, /Biggest price drops/);
-  assert.match(helper, /Good finds under \$25/);
-  assert.match(helper, /Something different/);
+  assert.match(helper, /Lower-priced finds/);
+  assert.match(helper, /More live deals/);
 });
 
 test('discovery excludes the shopper strongest interest categories', () => {
