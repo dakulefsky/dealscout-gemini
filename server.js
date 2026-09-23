@@ -26,7 +26,43 @@ function applyScriptNonce(html, nonce) {
 
 function closureHtml(reason = 'Shabbat or Yom Tov') {
   const safeReason = escapeHtml(reason);
-  return `<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="robots" content="noindex,nofollow"/><title>DealScout is closed right now</title><style>body{margin:0;background:#f7f3e8;color:#17231b;font-family:Arial,sans-serif;display:grid;min-height:100vh;place-items:center}.box{max-width:620px;padding:48px 28px;text-align:center}h1{font-family:Georgia,serif;font-size:42px;margin:0 0 18px}p{font-size:17px;line-height:1.6;color:#536158}.small{font-size:13px;margin-top:28px;color:#7b837e}</style></head><body><main class="box"><div>✦</div><h1>We’re closed right now.</h1><p>DealScout pauses the shopper website during ${safeReason} according to the closure location selected in Admin. Please come back after the work-forbidden period ends.</p><p class="small">Shabbat &amp; Yom Tov closure calendar</p></main></body></html>`;
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>DealScout — Closed for Shabbat</title>
+  <style>
+    :root{color-scheme:light;--ink:#173428;--paper:#f5f0e6;--muted:#6c736d;--rule:#b9b09f}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}
+    body{font-family:Arial,Helvetica,sans-serif;min-height:100vh;display:grid;place-items:center;padding:24px}
+    main{width:min(760px,100%);text-align:center;padding:52px 20px 44px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+    .etching{width:154px;height:118px;margin:0 auto 28px;color:var(--ink);opacity:.88}
+    h1{font-family:Georgia,'Times New Roman',serif;font-weight:600;font-size:clamp(38px,7vw,64px);line-height:.98;letter-spacing:-.035em;margin:0}
+    p{max-width:520px;margin:20px auto 0;font-size:15px;line-height:1.7;color:var(--muted)}
+    .small{font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-top:30px;color:#7d817c;font-weight:700}
+  </style>
+</head>
+<body>
+  <main>
+    <svg class="etching" viewBox="0 0 180 138" role="img" aria-label="Shabbat candlesticks" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M55 112h70M68 112c8-8 11-21 11-38v-7h22v7c0 17 3 30 11 38"/>
+        <path d="M74 67h32M77 62h26M81 57h18"/>
+        <path d="M84 57c0-8-6-11-6-18 0-7 5-13 12-21 7 8 12 14 12 21 0 7-6 10-6 18"/>
+        <path d="M89 52c-3-5-3-9 1-15 4 6 4 10 1 15"/>
+        <path d="M48 117c13 4 27 5 42 5s29-1 42-5M61 124c19 5 39 6 58 0"/>
+        <path d="M31 126c20 4 40 6 59 6 20 0 40-2 59-6" opacity=".55"/>
+        <path d="M41 23c7 2 12 6 16 12M139 23c-7 2-12 6-16 12" opacity=".45"/>
+      </g>
+    </svg>
+    <h1>Closed for Shabbat</h1>
+    <p>DealScout pauses the public site during ${safeReason}. The deals will still be here when we reopen.</p>
+    <div class="small">The site reopens automatically after the work-forbidden period</div>
+  </main>
+</body>
+</html>`;
 }
 
 function dealInitialContent(deal) {
@@ -103,6 +139,41 @@ async function startServer() {
     }
   });
 
+  // On the public shopper service, Shabbat/Yom Tov is a true static closure:
+  // no React shell and no shopper API execution. Crawler files and health probes
+  // remain available; the private IAP admin service is unaffected.
+  app.use(async (req, res, next) => {
+    if (process.env.PUBLIC_SURFACE_ONLY !== 'true') return next();
+    if (req.path === '/robots.txt' || req.path === '/sitemap.xml' || req.path === '/ads.txt' || req.path === '/api/health' || req.path === '/api/ready') return next();
+    try {
+      const closure = await jewishClosure.currentStatus();
+      if (!closure.closed) return next();
+      const retryAfter = '3600';
+      res.set('Retry-After', retryAfter);
+      res.set('Cache-Control', 'no-store');
+      if (req.path.startsWith('/api/')) {
+        return res.status(503).json({
+          closed: true,
+          reason: 'Shabbat or Yom Tov',
+          message: 'DealScout is closed right now.',
+        });
+      }
+      return res.status(503).type('html').send(closureHtml('Shabbat or Yom Tov'));
+    } catch (error) {
+      console.warn('[DealScout] Jewish closure calendar unavailable; failing closed:', error.message);
+      res.set('Retry-After', '300');
+      res.set('Cache-Control', 'no-store');
+      if (req.path.startsWith('/api/')) {
+        return res.status(503).json({
+          closed: true,
+          reason: 'Closure calendar unavailable',
+          message: 'DealScout is temporarily unavailable.',
+        });
+      }
+      return res.status(503).type('html').send(closureHtml('the Jewish closure calendar'));
+    }
+  });
+
   app.use('/api/v1', buildShopperApi({ version: 1 }));
   app.use('/api', buildShopperApi());
   app.use('/api/editorial', require('./server/routes/editorial.js'));
@@ -132,19 +203,6 @@ async function startServer() {
     app.use(express.static(distPath, { index: false }));
     app.use(async (req, res, next) => {
       if (req.path.startsWith('/api/')) return next();
-      if (!req.path.startsWith('/admin')) {
-        try {
-          const closure = await jewishClosure.currentStatus();
-          if (closure.closed) {
-            res.set('Retry-After', '3600');
-            return res.status(503).type('html').send(closureHtml('Shabbat or Yom Tov'));
-          }
-        } catch (error) {
-          console.warn('[DealScout] Jewish closure calendar unavailable; failing closed:', error.message);
-          res.set('Retry-After', '300');
-          return res.status(503).type('html').send(closureHtml('the Jewish closure calendar'));
-        }
-      }
       try {
         const baseUrl = seo.siteBase(req, publicWebUrl);
         let meta = seo.homeMeta(baseUrl);
