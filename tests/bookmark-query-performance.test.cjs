@@ -20,7 +20,7 @@ test('PostgreSQL saved deals use one parameterized join with full public visibil
 });
 
 test('JSON fallback saved deals use the shared public deal policy', () => {
-  assert.match(querySource, /const \{ isPublicDeal, freshPriceThreshold \} = require\('\.\.\/services\/publicDealPolicy'\)/);
+  assert.match(querySource, /isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT/);
   assert.match(querySource, /if \(!isPublicDeal\(deal\)\) return null/);
 });
 
