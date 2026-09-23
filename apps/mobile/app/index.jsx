@@ -13,7 +13,7 @@ import { trustworthyDiscountPercent } from '../../../src/lib/heroDealQuality';
 const PAGE_SIZE = 24;
 const SEARCH_DEBOUNCE_MS = 250;
 const SORTS = [
-  { key: 'best', label: 'Best for you' },
+  { key: 'best', label: 'Best deals' },
   { key: 'newest', label: 'Newest' },
   { key: 'discount', label: 'Biggest discount' },
   { key: 'price-low', label: 'Lowest price' },
