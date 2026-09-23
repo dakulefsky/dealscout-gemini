@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock3, Eraser, Globe2, History, Image, Loader2, MessageCircle, PauseCircle, PlayCircle, RefreshCw, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock3, Eraser, Globe2, History, Image, Loader2, MessageCircle, PauseCircle, PlayCircle, RefreshCw, ShieldCheck, Smartphone, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { deals as dealsApi, functions } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
@@ -176,6 +176,17 @@ export default function AdminHome() {
         <Stat label="Publishing issues" value={publicationUnavailable ? null : publicationIssues} hint={publicationUnavailable ? 'Automation health unavailable' : publicationIssues ? 'Failed or overdue jobs' : 'Queue healthy'} />
         <Stat label="Average discount" value={stats.avgDiscount != null ? `${Number(stats.avgDiscount).toFixed(0)}%` : null} />
       </div>
+
+      <section className="bg-white border-2 border-slate-900 rounded-3xl p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500"><Trash2 className="w-4 h-4" /> Deal management</div>
+            <h2 className="text-xl font-black text-slate-900 mt-1">Find or remove a deal</h2>
+            <p className="text-sm text-slate-500 mt-2">Search the catalog by title or ASIN, then permanently remove any deal when needed.</p>
+          </div>
+          <Link to="/admin/deals" className="inline-flex items-center justify-center gap-2 bg-slate-900 text-white px-4 py-3 rounded-xl text-sm font-black hover:bg-slate-800 shrink-0">Manage deals <ArrowRight className="w-4 h-4" /></Link>
+        </div>
+      </section>
 
       <section>
         <div className="mb-3"><div className="text-xs font-bold uppercase tracking-wider text-slate-500">Channel controls</div><h2 className="text-xl font-black text-slate-900 mt-1">Web, app, and WhatsApp Status</h2></div>
