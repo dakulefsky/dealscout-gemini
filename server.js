@@ -230,9 +230,15 @@ async function startServer() {
         } else if (categoryMatch) {
           const rows = await categoryRepository.list({ slug: decodeURIComponent(categoryMatch[1]), activeOnly: false });
           if (rows[0]) {
-            const categoryDeals = await dealFeedRepository.page({ category: rows[0].name, limit: 12, sort: 'discount_desc' });
-            meta = seo.categoryMeta(baseUrl, rows[0], categoryDeals.items);
-            initialContent = categoryInitialContent(rows[0], categoryDeals.items);
+            let categoryDeals = [];
+            try {
+              const page = await dealFeedRepository.page({ category: rows[0].name, limit: 12, sort: 'discount_desc' });
+              categoryDeals = page.items || [];
+            } catch (error) {
+              console.warn('[DealScout] Category crawl links unavailable:', error.message);
+            }
+            meta = seo.categoryMeta(baseUrl, rows[0], categoryDeals);
+            initialContent = categoryInitialContent(rows[0], categoryDeals);
           } else {
             status = 404;
             meta = { title: 'Category not found — DealScout', description: 'This deal category is not currently available.', canonical: null, robots: 'noindex,follow' };
