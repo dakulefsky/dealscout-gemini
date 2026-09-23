@@ -112,7 +112,6 @@ export default function Home() {
     {showCuratedHome && (
       <section className="border-b border-emerald-950/10 bg-[#f7f5ef]">
         <div className="ds-shell py-8 sm:py-11">
-          <div ref={dropSeenMarker} className="h-px" aria-hidden="true" />
           <div className="grid lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.72fr)] gap-7 lg:gap-10 items-start">
             <div>
               <div className="ds-kicker">Shop by category</div>
@@ -166,7 +165,7 @@ export default function Home() {
       </section>
     )}
 
-    {showCuratedHome && topDeals.length > 0 && <section className="ds-shell py-9 sm:py-12"><div className="flex items-end justify-between gap-4 mb-5"><div><div className="ds-kicker">Freshly checked</div><h2 className="ds-section-title mt-1">Today’s edit</h2></div><Link to="/?category=all" className="text-xs font-bold text-emerald-900 inline-flex items-center gap-1">See all deals <ArrowRight className="w-3.5 h-3.5" /></Link></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{topDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} />)}</div></section>}
+    {showCuratedHome && topDeals.length > 0 && <section className="ds-shell py-9 sm:py-12"><div ref={dropSeenMarker} className="h-px" aria-hidden="true" /><div className="flex items-end justify-between gap-4 mb-5"><div><div className="ds-kicker">Freshly checked</div><h2 className="ds-section-title mt-1">Today’s edit</h2></div><Link to="/?category=all" className="text-xs font-bold text-emerald-900 inline-flex items-center gap-1">See all deals <ArrowRight className="w-3.5 h-3.5" /></Link></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{topDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} />)}</div></section>}
 
     {showCuratedHome && filteredPicks.length > 0 && <section className="border-y border-emerald-950/10 bg-white"><div className="ds-shell py-9 sm:py-12"><div className="mb-5"><div className="ds-kicker"><Star className="w-3.5 h-3.5 inline mr-1.5 fill-emerald-800" />Editor’s shelf</div><h2 className="ds-section-title mt-1">Worth a closer look</h2></div><div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">{filteredPicks.map((pick) => <div key={pick.asin}><DealCard deal={pick.deal} />{pick.editorialNote && <p className="hidden sm:block mt-2 text-[11px] leading-relaxed text-slate-600 border-t border-emerald-950/10 pt-2"><strong className="text-emerald-900">Why we picked it:</strong> {pick.editorialNote}</p>}</div>)}</div></div></section>}
 
