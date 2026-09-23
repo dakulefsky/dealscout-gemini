@@ -69,10 +69,20 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
   function handleDealClick() { addCategoryInterest(deal.category, 2); }
   if (dismissed) return null;
 
+  const shortFreshness = freshness.ageSeconds == null
+    ? 'Check price'
+    : freshness.ageSeconds < 60
+      ? 'Checked now'
+      : freshness.ageSeconds < 3600
+        ? `Checked ${Math.floor(freshness.ageSeconds / 60)}m`
+        : freshness.ageSeconds < 86400
+          ? `Checked ${Math.floor(freshness.ageSeconds / 3600)}h`
+          : `Checked ${Math.floor(freshness.ageSeconds / 86400)}d`;
+
   const sourceBadge = !isExpired && deal.sourceVerified ? (
-    <span title={freshness.label} className={`inline-flex items-center gap-1 text-[9px] font-bold ${freshness.stale ? 'text-amber-700' : 'text-slate-500'}`}>
+    <span title={freshness.label} className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.05em] ${freshness.stale ? 'text-amber-700' : 'text-slate-500'}`}>
       <ShieldCheck className={`w-3 h-3 ${freshness.stale ? 'text-amber-600' : 'text-emerald-700'}`} />
-      {freshness.stale ? 'Check price' : 'Verified'}
+      {freshness.stale ? 'Check price' : shortFreshness}
     </span>
   ) : null;
 
