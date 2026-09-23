@@ -53,7 +53,7 @@ export default function EditorialReview() {
     if (filter === 'needs-review') return deal.status === 'PENDING_REVIEW';
     if (filter === 'picks') return e.isHumanPick;
     return true;
-  }), [deals, editorialByAsin, filter]);
+  }), [deals, editorialByAsin, filter, search]);
 
   function updateDraft(asin, patch) {
     setEditorialByAsin((prev) => ({ ...prev, [asin]: { ...(prev[asin] || emptyEditorial), ...patch } }));
