@@ -26,5 +26,5 @@ test('home creates a local freshness return loop and a finite caught-up state', 
   assert.match(returnLoop, /dealscout-feed-last-visit-v1/);
   assert.match(home, /refreshedSinceLastVisit/);
   assert.match(home, /deals refreshed since your last visit/);
-  assert.match(home, /You’ve seen today’s best deals/);
+  assert.doesNotMatch(home, /You’ve seen today’s best deals/);
 });
