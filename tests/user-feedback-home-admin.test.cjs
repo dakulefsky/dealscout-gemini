@@ -6,9 +6,9 @@ const read = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8')
 
 test('homepage department entry is complete and avoids awkward capped-deal copy', () => {
   const home = read('src/pages/Home.jsx');
-  assert.match(home, /Shop by department/);
+  assert.match(home, />Departments<\/h1>/);
   assert.match(home, /Browse all current deals/);
-  assert.match(home, /Standout deals/);
+  assert.match(home, />Standouts<\/h2>/);
   assert.doesNotMatch(home, /Three strong ones/);
   assert.doesNotMatch(home, /You’ve seen today’s best deals|Come back later for newly verified finds/);
 });
