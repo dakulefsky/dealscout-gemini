@@ -110,54 +110,68 @@ export default function Home() {
 
   return <div>
     {showCuratedHome && (
-      <section className="border-b border-emerald-950/10 bg-[#f7f5ef]">
-        <div className="ds-shell py-8 sm:py-11">
-          <div className="grid lg:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.72fr)] gap-7 lg:gap-10 items-start">
+      <section className="border-b border-emerald-950/15 bg-[#f3efe5]">
+        <div className="ds-shell py-7 sm:py-9">
+          <div className="grid lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.68fr)] gap-9 lg:gap-12 items-start">
             <div>
-              <div className="ds-kicker">Shop by category</div>
-              <h1 className="font-heading text-[42px] sm:text-[58px] lg:text-[66px] leading-[0.94] font-bold text-emerald-950 mt-3">What are you here for?</h1>
-              <p className="text-sm sm:text-base leading-relaxed text-slate-600 mt-4 max-w-2xl">Start with what you actually need. We’ll take you straight to the freshest verified deals in that part of Amazon.</p>
-
-              <div className="mt-7 grid sm:grid-cols-2 xl:grid-cols-3 border-t border-l border-emerald-950/10 bg-white">
-                {categories.slice(0, 9).map((category) => (
-                  <Link key={category.id || category.slug} to={`/category/${category.slug}`} className="group min-h-[132px] border-r border-b border-emerald-950/10 p-4 sm:p-5 flex flex-col justify-between hover:bg-[#f3f0e8] transition-colors">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-[0.14em] font-black text-slate-400">{Number(category.liveCount || 0)} live {Number(category.liveCount || 0) === 1 ? 'deal' : 'deals'}</div>
-                      <h2 className="font-heading text-xl font-bold text-emerald-950 mt-1.5">{category.name}</h2>
-                    </div>
-                    <div className="mt-4 flex items-center justify-between gap-3 text-xs font-bold text-emerald-800">
-                      <span>See {category.name.toLowerCase()}</span>
-                      <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
-                    </div>
-                  </Link>
-                ))}
+              <div className="flex items-end justify-between gap-4 border-b-2 border-emerald-950 pb-3">
+                <div>
+                  <div className="ds-kicker">Departments</div>
+                  <h1 className="font-heading text-2xl sm:text-3xl font-bold text-emerald-950 mt-1">Shop the good stuff.</h1>
+                </div>
+                <div className="hidden sm:block text-[11px] uppercase tracking-[0.14em] font-black text-slate-500">We filter hard. You shop what survives.</div>
               </div>
-              <Link to="/?category=all" className="mt-5 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Browse every deal <ArrowRight className="w-4 h-4" /></Link>
+
+              <div className="grid md:grid-cols-[1.1fr_0.9fr] gap-x-8">
+                <div className="divide-y divide-emerald-950/15">
+                  {categories.slice(0, 5).map((category, index) => (
+                    <Link key={category.id || category.slug} to={`/category/${category.slug}`} className={`group flex items-baseline justify-between gap-4 py-4 ${index === 0 ? 'pt-5' : ''}`}>
+                      <span className="font-heading text-[22px] sm:text-[26px] font-bold text-emerald-950 group-hover:translate-x-0.5 transition-transform">{category.name}</span>
+                      <span className="shrink-0 text-[10px] uppercase tracking-[0.12em] font-black text-slate-400">{Number(category.liveCount || 0)} live</span>
+                    </Link>
+                  ))}
+                </div>
+
+                <div className="md:border-l md:border-emerald-950/15 md:pl-8">
+                  <div className="grid grid-cols-2 md:grid-cols-1 divide-y divide-emerald-950/10">
+                    {categories.slice(5, 11).map((category) => (
+                      <Link key={category.id || category.slug} to={`/category/${category.slug}`} className="group min-h-12 flex items-center justify-between gap-3 py-3 border-b md:border-b-0 border-emerald-950/10">
+                        <span className="text-sm font-bold text-slate-800 group-hover:text-emerald-900">{category.name}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-800 group-hover:translate-x-0.5 transition" />
+                      </Link>
+                    ))}
+                  </div>
+                  <Link to="/?category=all" className="mt-5 inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.1em] text-emerald-900 border-b border-emerald-900 pb-1">All deals <ArrowRight className="w-3.5 h-3.5" /></Link>
+                </div>
+              </div>
               {refreshedSinceLastVisit > 0 && <div className="mt-5 text-xs font-semibold text-emerald-800"><Sparkles className="w-3.5 h-3.5 inline mr-1.5" />{refreshedSinceLastVisit} deals refreshed since your last visit</div>}
             </div>
 
-            <aside className="lg:border-l lg:border-emerald-950/10 lg:pl-7">
-              <div className="ds-kicker">Best right now</div>
-              <h2 className="font-heading text-2xl sm:text-3xl font-bold text-emerald-950 mt-2">A few deals worth noticing</h2>
-              <p className="text-xs sm:text-sm text-slate-500 mt-2 leading-relaxed">Only fresh, source-verified discounts of at least 30% make this rail.</p>
+            <aside className="lg:border-l lg:border-emerald-950/20 lg:pl-7">
+              <div className="flex items-end justify-between gap-3 border-b-2 border-emerald-950 pb-3">
+                <div>
+                  <div className="ds-kicker">Worth it today</div>
+                  <h2 className="font-heading text-xl sm:text-2xl font-bold text-emerald-950 mt-1">Three we’d look at first.</h2>
+                </div>
+              </div>
 
               {spotlightDeals.length > 0 ? (
-                <div className="mt-5 border-t border-emerald-950/10">
-                  {spotlightDeals.map((deal) => (
-                    <Link key={deal.id || deal.asin} to={`/deal/${deal.id || deal.asin}`} className="group grid grid-cols-[88px_1fr] gap-3 py-4 border-b border-emerald-950/10">
-                      <div className="h-20 bg-white p-2">
+                <div className="divide-y divide-emerald-950/15">
+                  {spotlightDeals.map((deal, index) => (
+                    <Link key={deal.id || deal.asin} to={`/deal/${deal.id || deal.asin}`} className="group grid grid-cols-[72px_1fr] gap-3 py-4">
+                      <div className={`h-16 p-1.5 ${index === 1 ? 'bg-[#e5dfd1]' : 'bg-white'}`}>
                         <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-[1.03] transition-transform" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-[10px] uppercase tracking-[0.12em] font-black text-emerald-700">{trustworthyDiscountPercent(deal)}% off</div>
-                        <h3 className="mt-1 text-sm font-bold text-slate-950 leading-snug line-clamp-2">{deal.title}</h3>
-                        <div className="mt-2 flex items-baseline gap-2"><span className="text-lg font-black text-emerald-950">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-[10px] text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>
+                        <div className="text-[9px] uppercase tracking-[0.13em] font-black text-emerald-700">{trustworthyDiscountPercent(deal)}% off · checked</div>
+                        <h3 className="mt-1 text-[13px] font-bold text-slate-950 leading-snug line-clamp-2">{deal.title}</h3>
+                        <div className="mt-1.5 flex items-baseline gap-2"><span className="text-base font-black text-emerald-950">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-[10px] text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>
                       </div>
                     </Link>
                   ))}
                 </div>
               ) : (
-                <div className="mt-5 border-y border-emerald-950/10 py-5 text-sm text-slate-500">No deal clears the standout threshold right now. The category pages still show all fresh verified finds.</div>
+                <div className="py-5 text-sm text-slate-500 border-b border-emerald-950/10">Nothing clears our standout threshold right now.</div>
               )}
             </aside>
           </div>
