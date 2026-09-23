@@ -1,6 +1,6 @@
 const deals = require('./dealRepository');
 const postgres = require('../storage/postgres');
-const { isPublicDeal, freshPriceThreshold } = require('../services/publicDealPolicy');
+const { isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
 
 const DISCOUNT_SQL = '(100.0 * (original_price - sale_price) / original_price)';
 
@@ -101,6 +101,7 @@ async function list(options = {}, { isAdmin = false } = {}) {
     where.push('original_price > 0');
     where.push('sale_price > 0');
     where.push('sale_price < original_price');
+    where.push(`${DISCOUNT_SQL} >= ${PUBLIC_MIN_DISCOUNT_PERCENT}`);
     where.push(`price_check_at IS NOT NULL AND price_check_at >= ${addParam(params, freshPriceThreshold(nowSeconds))}`);
     where.push(`price_check_at <= ${addParam(params, nowSeconds)}`);
   }
@@ -190,6 +191,7 @@ async function stats({ isAdmin = false } = {}) {
         AND original_price > 0
         AND sale_price > 0
         AND sale_price < original_price
+        AND ${DISCOUNT_SQL} >= ${PUBLIC_MIN_DISCOUNT_PERCENT}
         AND price_check_at IS NOT NULL
         AND price_check_at >= $1
         AND price_check_at <= $2
@@ -217,6 +219,7 @@ async function stats({ isAdmin = false } = {}) {
           AND original_price > 0
           AND sale_price > 0
           AND sale_price < original_price
+          AND ${DISCOUNT_SQL} >= ${PUBLIC_MIN_DISCOUNT_PERCENT}
           AND price_check_at IS NOT NULL
           AND price_check_at >= $2
           AND price_check_at <= $3
