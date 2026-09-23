@@ -33,7 +33,8 @@ test('native app consumes the shared platform-neutral shopper client instead of 
 test('native home mirrors the core website deal experience', () => {
   assert.match(home, /DEPARTMENTS/);
   assert.match(home, /LIVE INVENTORY/);
-  assert.match(home, /WORTH IT TODAY/);
+  assert.match(home, /30%\+ OFF/);
+  assert.match(home, /Standouts/);
   assert.match(home, /standoutFeatured/);
   assert.match(home, /deals\.page/);
   assert.match(home, /nextCursor/);
