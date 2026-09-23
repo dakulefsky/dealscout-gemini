@@ -26,7 +26,7 @@ test('native feed exposes the same server-backed shopper dimensions as web Home'
   assert.match(mobileHome, /discount_desc/);
   assert.match(mobileHome, /price_asc/);
   assert.match(mobileHome, /price_desc/);
-  assert.match(mobileHome, /Best for you/);
+  assert.match(mobileHome, /Top deals/);
   assert.match(mobileHome, /Biggest discount/);
 });
 
