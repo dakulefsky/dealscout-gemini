@@ -32,7 +32,7 @@ test('Home preserves previous visit during the session and checkpoints on pagehi
 
 test('return cue stays freshness-based without claiming every re-check is a new deal', () => {
   assert.match(home, /dealFreshnessTimestampMs\(deal\) > lastVisit/);
-  assert.match(home, /Freshly refreshed deals are waiting/);
+  assert.match(home, /deals refreshed since your last visit/);
   assert.doesNotMatch(home, /new .*since your last visit/);
 });
 

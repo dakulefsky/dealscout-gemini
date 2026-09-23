@@ -76,15 +76,20 @@ function dealInitialContent(deal) {
   return `<main data-server-crawl-content="deal"><article>${image}<p>${category}</p><h1>${title}</h1><p><strong>$${current.toFixed(2)}</strong>${original > current ? ` <del>$${original.toFixed(2)}</del>` : ''}</p>${savings > 0 ? `<p>Save $${savings.toFixed(2)} while this verified price is current.</p>` : ''}${productUrl}<p><a href="/">Browse more current deals</a></p></article></main>`;
 }
 
-function categoryInitialContent(category) {
+function categoryInitialContent(category, deals = []) {
   const name = escapeHtml(category.name || 'Deals');
   const description = escapeHtml(category.description || `Current ${name} deals and price drops.`);
   const count = Number(category.liveCount || 0);
-  return `<main data-server-crawl-content="category"><h1>${name} deals &amp; price drops</h1><p>${description}</p><p>${count} current ${count === 1 ? 'deal' : 'deals'} available.</p><p><a href="/">Browse all current deals</a></p></main>`;
+  const dealLinks = (deals || []).slice(0, 12).map((deal) => {
+    const title = escapeHtml(deal.title || 'Deal');
+    const current = Number(deal.sale_price ?? deal.salePrice ?? 0);
+    return `<li><a href="/deal/${encodeURIComponent(deal.id || deal.asin)}">${title}</a>${current > 0 ? ` — ${current.toFixed(2)}` : ''}</li>`;
+  }).join('');
+  return `<main data-server-crawl-content="category"><h1>${name} deals &amp; price drops</h1><p>${description}</p><p>${count} current ${count === 1 ? 'deal' : 'deals'} available.</p>${dealLinks ? `<section><h2>Current ${name} deals</h2><ul>${dealLinks}</ul></section>` : ''}<p><a href="/">Browse all current deals</a></p></main>`;
 }
 
 function homeInitialContent(categories = []) {
-  const links = categories.slice(0, 12).map((category) => `<li><a href="/category/${encodeURIComponent(category.slug)}">${escapeHtml(category.name)}</a></li>`).join('');
+  const links = categories.map((category) => `<li><a href="/category/${encodeURIComponent(category.slug)}">${escapeHtml(category.name)}</a></li>`).join('');
   return `<main data-server-crawl-content="home"><h1>Amazon deals &amp; price drops worth checking</h1><p>DealScout surfaces current Amazon discounts with recently verified prices and clear savings.</p>${links ? `<nav aria-label="Deal categories"><h2>Browse current deal categories</h2><ul>${links}</ul></nav>` : ''}</main>`;
 }
 
@@ -98,6 +103,7 @@ async function startServer() {
   const dealRepository = require('./server/repositories/dealRepository.js');
   const sitemapRepository = require('./server/repositories/sitemapRepository.js');
   const categoryRepository = require('./server/repositories/categoryRepository.js');
+  const dealFeedRepository = require('./server/repositories/dealFeedRepository.js');
   const seo = require('./server/services/seoService.js');
   const dealCron = require('./server/services/cronService.js');
   const jewishClosure = require('./server/services/jewishClosureService.js');
@@ -224,8 +230,15 @@ async function startServer() {
         } else if (categoryMatch) {
           const rows = await categoryRepository.list({ slug: decodeURIComponent(categoryMatch[1]), activeOnly: false });
           if (rows[0]) {
-            meta = seo.categoryMeta(baseUrl, rows[0]);
-            initialContent = categoryInitialContent(rows[0]);
+            let categoryDeals = [];
+            try {
+              const page = await dealFeedRepository.page({ category: rows[0].name, limit: 12, sort: 'discount_desc' });
+              categoryDeals = page.items || [];
+            } catch (error) {
+              console.warn('[DealScout] Category crawl links unavailable:', error.message);
+            }
+            meta = seo.categoryMeta(baseUrl, rows[0], categoryDeals);
+            initialContent = categoryInitialContent(rows[0], categoryDeals);
           } else {
             status = 404;
             meta = { title: 'Category not found — DealScout', description: 'This deal category is not currently available.', canonical: null, robots: 'noindex,follow' };

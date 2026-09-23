@@ -30,10 +30,12 @@ test('native feed exposes the same server-backed shopper dimensions as web Home'
   assert.match(mobileHome, /Biggest discount/);
 });
 
-test('native Deal Drop stays balanced, dismissal-aware and hidden under explicit filters', () => {
+test('native standout deals stay verified, balanced, dismissal-aware and hidden under filters', () => {
   assert.match(mobileHome, /visibleRankedItems = useMemo\(\(\) => rankedItems\.filter/);
-  assert.match(mobileHome, /balancedFeatured\(visibleRankedItems, 4\)/);
-  assert.match(mobileHome, /hasActiveFilters \? \[\] : balancedFeatured/);
+  assert.match(mobileHome, /standoutFeatured\(visibleRankedItems, 4\)/);
+  assert.match(mobileHome, /hasActiveFilters \? \[\] : standoutFeatured/);
+  assert.match(mobileHome, /trustworthyDiscountPercent/);
+  assert.match(mobileHome, /discount >= 30/);
   assert.match(mobileHome, /evenLength >= 2/);
 });
 

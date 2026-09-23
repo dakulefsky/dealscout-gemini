@@ -41,7 +41,7 @@ test('category shopper page contains evergreen guidance and internal category li
   const content = fs.readFileSync(path.join(root, 'src', 'lib', 'categorySeoContent.js'), 'utf8');
 
   assert.match(page, /categorySeoContent/);
-  assert.match(page, /Deal guide/);
+  assert.match(page, /Buying notes/);
   assert.match(page, /Related deal categories/);
   assert.match(page, /to=\{`\/category\/\$\{item\.slug\}`\}/);
   assert.match(content, /electronics:/);
