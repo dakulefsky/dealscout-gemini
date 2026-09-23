@@ -122,7 +122,7 @@ export default function Layout({ children }) {
             value={searchQuery}
             onChange={(event) => { setSearchQuery(event.target.value); setIsSearchOpen(true); }}
             onFocus={() => searchQuery.trim() && setIsSearchOpen(true)}
-            className="w-full pl-10 pr-9 h-11 border border-emerald-950/15 bg-stone-100/80 text-sm text-emerald-950 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-800/20 focus:border-emerald-800/30 focus:bg-white transition"
+            className="w-full pl-10 pr-9 h-10 border border-emerald-950/25 bg-white text-sm font-semibold text-emerald-950 placeholder:text-slate-500 focus:outline-none focus:ring-0 focus:border-emerald-950 transition"
           />
           {searchQuery && <button type="button" onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700" aria-label="Clear search"><X className="h-4 w-4" /></button>}
         </div>
@@ -153,12 +153,12 @@ export default function Layout({ children }) {
 
   return (
     <div className="min-h-screen bg-[#fbfaf7] flex flex-col font-sans text-slate-950">
-      <header className="sticky top-0 z-40 bg-[#fbfaf7]/95 backdrop-blur-md border-b border-emerald-950/10">
+      <header className="sticky top-0 z-40 bg-[#fbfaf7] border-b-2 border-emerald-950">
         <div className="ds-shell">
           <div className="h-16 sm:h-[72px] flex items-center gap-3 sm:gap-6">
             <Link to="/" className="shrink-0 leading-none">
-              <div className="font-heading text-[29px] sm:text-[36px] font-bold tracking-[-0.045em] text-emerald-950">DealScout</div>
-              <div className="hidden sm:block text-[9px] uppercase tracking-[0.14em] text-slate-500 mt-0.5">{isAdminArea ? 'Operations' : 'Verified Amazon deals'}</div>
+              <div className="font-heading text-[29px] sm:text-[35px] font-black tracking-[-0.055em] text-emerald-950">DealScout</div>
+              <div className="hidden sm:block text-[8px] uppercase tracking-[0.16em] font-black text-slate-500 mt-0.5">{isAdminArea ? 'Operations' : 'Verified Amazon deals'}</div>
             </Link>
 
             {!isAdminArea && <div className="relative flex-1 max-w-2xl hidden md:block">{searchBox(false)}</div>}
@@ -200,7 +200,7 @@ export default function Layout({ children }) {
             </nav>
           )}
 
-          {!isAdminArea && <div className="hidden md:flex items-center gap-7 h-10 overflow-x-auto text-[11px] uppercase tracking-[0.08em] font-bold text-slate-600 whitespace-nowrap border-t border-emerald-950/5">
+          {!isAdminArea && <div className="hidden md:flex items-center gap-7 h-9 overflow-x-auto text-[10px] uppercase tracking-[0.11em] font-black text-slate-600 whitespace-nowrap border-t border-emerald-950/10">
             <Link to="/?category=all" className="hover:text-emerald-900">All Deals</Link>
             {topCategories.map((category) => <Link key={category.id || category.slug} to={`/category/${category.slug}`} className="hover:text-emerald-900">{category.name}</Link>)}
           </div>}
