@@ -134,8 +134,8 @@ export default function DealDetailScreen() {
           </View>
           <View style={styles.facts}>
             {discount > 0 && <View style={styles.fact}><Text style={styles.factLabel}>DISCOUNT</Text><Text style={styles.factValue}>{Math.round(discount)}% off</Text></View>}
-            {savings > 0 && <View style={styles.fact}><Text style={styles.factLabel}>YOU SAVE</Text><Text style={styles.factValue}>{money(savings)}</Text></View>}
-            {deal.category && <View style={styles.fact}><Text style={styles.factLabel}>CATEGORY</Text><Text style={styles.factValue} numberOfLines={1}>{deal.category}</Text></View>}
+            {savings > 0 && <View style={styles.fact}><Text style={styles.factLabel}>SAVE</Text><Text style={styles.factValue}>{money(savings)}</Text></View>}
+            {deal.category && <View style={styles.fact}><Text style={styles.factLabel}>AISLE</Text><Text style={styles.factValue} numberOfLines={1}>{deal.category}</Text></View>}
           </View>
           <View style={styles.actions}>
             <Pressable accessibilityRole="button" accessibilityLabel={saved ? 'Remove from saved deals' : 'Save deal'} onPress={toggleSave} style={styles.secondaryButton}>
@@ -152,9 +152,9 @@ export default function DealDetailScreen() {
           <View style={styles.recommendations}>
             <View style={styles.sectionHeading}>
               <View style={styles.sectionCopy}>
-                <Text style={styles.sectionEyebrow}>KEEP SCOUTING</Text>
-                <Text style={styles.sectionTitle}>More deals you might like</Text>
-                <Text style={styles.sectionSubtitle}>Live deals, with similar categories and your interests ranked first.</Text>
+                <Text style={styles.sectionEyebrow}>SAME AISLE</Text>
+                <Text style={styles.sectionTitle}>Other live deals</Text>
+                
               </View>
               <Pressable accessibilityRole="button" accessibilityLabel="Browse all deals" onPress={() => router.push('/')}>
                 <Text style={styles.seeAll}>See all</Text>
@@ -187,8 +187,8 @@ const styles = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 16 },
   sale: { fontSize: 32, fontWeight: '900', color: '#17201b' },
   original: { fontSize: 15, color: '#827d72', textDecorationLine: 'line-through' },
-  facts: { flexDirection: 'row', borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#cfc8ba', marginTop: 22, paddingVertical: 14 },
-  fact: { flex: 1, paddingRight: 8 },
+  facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, borderTopWidth: 2, borderBottomWidth: 1, borderColor: '#c1baa9', marginTop: 22, paddingVertical: 12 },
+  fact: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   factLabel: { fontSize: 9, letterSpacing: 1.1, fontWeight: '900', color: '#7b756a', marginBottom: 4 },
   factValue: { fontSize: 13, fontWeight: '800', color: '#253028' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 24 },
@@ -202,8 +202,7 @@ const styles = StyleSheet.create({
   sectionCopy: { flex: 1 },
   sectionEyebrow: { fontSize: 10, letterSpacing: 1.4, fontWeight: '900', color: '#166534', marginBottom: 5 },
   sectionTitle: { fontSize: 23, lineHeight: 28, fontWeight: '900', color: '#17201b' },
-  sectionSubtitle: { marginTop: 5, fontSize: 12, lineHeight: 17, color: '#746f65' },
-  seeAll: { color: '#174b32', fontSize: 12, fontWeight: '900', textDecorationLine: 'underline' },
+    seeAll: { color: '#174b32', fontSize: 12, fontWeight: '900', textDecorationLine: 'underline' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -5 },
   cardWrap: { width: '50%', paddingHorizontal: 5, marginBottom: 12 },
 });
