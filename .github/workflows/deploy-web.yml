@@ -53,6 +53,9 @@ jobs:
 
       - name: Validate deployment configuration
         shell: bash
+        env:
+          GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          GCP_DEPLOY_SERVICE_ACCOUNT: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
           required=(
@@ -60,12 +63,18 @@ jobs:
             CLOUD_SQL_CONNECTION_NAME PUBLIC_WEB_URL CORS_ORIGINS
             AMAZON_ASSOCIATE_TAG GCP_DB_SECRETS GCP_WEB_SECRETS
           )
-          for key in "${required[@]}"; do
+          missing=()
+          for key in "${required[@]}" GCP_WORKLOAD_IDENTITY_PROVIDER GCP_DEPLOY_SERVICE_ACCOUNT; do
             if [ -z "${!key:-}" ]; then
-              echo "Missing required production repository variable: ${key}" >&2
-              exit 1
+              missing+=("$key")
             fi
           done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Missing production configuration (${#missing[@]}):" >&2
+            for key in "${missing[@]}"; do echo "- $key" >&2; done
+            echo "Set these in the repository or its production environment; the two GCP identity entries are GitHub secrets." >&2
+            exit 1
+          fi
           case "$PUBLIC_WEB_URL" in https://*) ;; *) echo "PUBLIC_WEB_URL must use https://" >&2; exit 1 ;; esac
           if [ "$GCP_WEB_SERVICE" = "$GCP_ADMIN_SERVICE" ]; then
             echo "Public shopper and private admin must use different Cloud Run services." >&2
@@ -148,15 +157,27 @@ jobs:
         run: |
           set -euo pipefail
           for service in "$GCP_WEB_SERVICE" "$GCP_ADMIN_SERVICE"; do
-            deployed_image="$(gcloud run services describe "$service" \
+            gcloud run services describe "$service" \
               --project "$GCP_PROJECT_ID" \
               --region "$GCP_REGION" \
-              --format='value(spec.template.spec.containers[0].image)')"
-            if [ "$deployed_image" != "$GCP_IMAGE" ]; then
-              echo "$service has image $deployed_image; expected $GCP_IMAGE" >&2
-              exit 1
-            fi
-            echo "$service is using $GCP_IMAGE"
+              --format=json | SERVICE_NAME="$service" node -e '
+                let json = "";
+                process.stdin.on("data", chunk => { json += chunk; });
+                process.stdin.on("end", () => {
+                  const service = JSON.parse(json);
+                  const image = service.spec?.template?.spec?.containers?.[0]?.image;
+                  const revision = service.status?.latestReadyRevisionName;
+                  const traffic = service.status?.traffic || [];
+                  if (image !== process.env.GCP_IMAGE || !revision ||
+                      traffic.length !== 1 || Number(traffic[0].percent) !== 100 ||
+                      traffic[0].revisionName !== revision) {
+                    console.error(`${process.env.SERVICE_NAME} is not serving 100% of the expected image on its latest ready revision`);
+                    process.exitCode = 1;
+                    return;
+                  }
+                  console.log(`${process.env.SERVICE_NAME}: ${revision}, 100% traffic, ${image}`);
+                });
+              '
           done
 
       - name: Verify deployed revision
