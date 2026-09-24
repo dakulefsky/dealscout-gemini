@@ -56,7 +56,7 @@ export default function DealCard({ deal, onSave, onOpen, onDismiss, saved = fals
           onPress={() => onDismiss?.(deal)}
           style={styles.dismissButton}
         >
-          <Text style={styles.dismissText}>Not interested</Text>
+          <Text style={styles.dismissText}>Hide</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -72,16 +72,16 @@ export default function DealCard({ deal, onSave, onOpen, onDismiss, saved = fals
 }
 
 const styles = StyleSheet.create({
-  card: { flex: 1, borderTopWidth: 2, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: '#c9d0cb', overflow: 'hidden', backgroundColor: '#fff' },
+  card: { flex: 1, minWidth: 0, borderTopWidth: 2, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: '#c9d0cb', backgroundColor: '#fff' },
   image: { width: '100%', aspectRatio: 1.25, backgroundColor: '#f7f5ef' },
   body: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8 },
   discount: { alignSelf: 'flex-start', fontSize: 9, fontWeight: '900', letterSpacing: 0.7, color: '#064e3b', backgroundColor: '#dcebdc', paddingHorizontal: 6, paddingVertical: 3, marginBottom: 7 },
-  title: { minHeight: 38, color: '#0f172a', fontSize: 14, lineHeight: 19, fontWeight: '700' },
-  priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7, marginTop: 8 },
-  sale: { fontSize: 17, color: '#0f172a', fontWeight: '900' },
-  original: { fontSize: 12, color: '#94a3b8', textDecorationLine: 'line-through' },
+  title: { color: '#0f172a', fontSize: 14, lineHeight: 19, fontWeight: '700' },
+  priceRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', gap: 7, marginTop: 8 },
+  sale: { fontSize: 17, color: '#0f172a', fontWeight: '900', flexShrink: 1 },
+  original: { fontSize: 12, color: '#94a3b8', textDecorationLine: 'line-through', flexShrink: 1 },
   checked: { marginTop: 6, fontSize: 9, letterSpacing: 0.7, fontWeight: '900', color: '#64748b' },
-  actions: { flexDirection: 'row', gap: 7, marginHorizontal: 10, marginBottom: 10 },
+  actions: { flexDirection: 'row', gap: 7, marginHorizontal: 10, marginBottom: 10, marginTop: 4 },
   dismissButton: { flex: 1.3, paddingVertical: 9, alignItems: 'center', borderWidth: 1, borderColor: '#d7ded8', backgroundColor: '#fff' },
   dismissText: { fontSize: 10, fontWeight: '800', color: '#64748b' },
   saveButton: { flex: 1, paddingVertical: 9, alignItems: 'center', backgroundColor: '#f3efe5' },
