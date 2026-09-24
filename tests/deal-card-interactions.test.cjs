@@ -7,8 +7,9 @@ const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', '
 
 test('deal-card action buttons are siblings of the product link instead of nested inside it', () => {
   assert.match(source, /const actionButtons = \(/);
-  assert.match(source, /<Link to=\{`\/deal\/\$\{dealId\}`\}[\s\S]*?<\/Link>\s*<div className="absolute right-3 top-3 sm:static">\{actionButtons\}<\/div>/);
-  assert.match(source, /<\/Link>\s*<div className="absolute top-2 right-2 z-10">\{actionButtons\}<\/div>/);
+  assert.match(source, /<Link to=\{`\/deal\/\$\{dealId\}`\}[\s\S]*?<\/Link>\s*\{actionButtons\}/);
+  assert.match(source, /<\/Link>\s*<div className="flex justify-end border-t border-emerald-950\/10 px-2 py-2">\{actionButtons\}<\/div>/);
+  assert.doesNotMatch(source, /absolute[^"\n]*>\{actionButtons\}/);
   assert.doesNotMatch(source, /<Link[^>]*>[\s\S]*?<button[^>]*>[\s\S]*?<\/button>[\s\S]*?<\/Link>/);
 });
 
