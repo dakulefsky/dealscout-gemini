@@ -104,8 +104,11 @@ jobs:
           set -euo pipefail
           IMAGE="${GCP_IMAGE_REPOSITORY}:${GITHUB_SHA}"
           echo "GCP_IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          # Keep waiting for the build result without streaming the default logs bucket.
+          # The deployer has Cloud Build Editor, but lacks project Viewer for log streaming.
           gcloud builds submit \
             --project "$GCP_PROJECT_ID" \
+            --suppress-logs \
             --tag "$IMAGE" \
             .
 
