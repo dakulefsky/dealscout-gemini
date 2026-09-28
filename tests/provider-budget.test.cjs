@@ -38,6 +38,14 @@ test('local budget counts attempts and blocks before exceeding daily cap', async
   assert.equal(status.remainingToday, 0);
 }));
 
+test('explicit manual daily override still counts usage and never bypasses monthly cap', async () => withLimits(1, 2, async () => {
+  const now = new Date('2026-09-02T12:00:00Z');
+  await budget.reserveRequest('rainforest', now);
+  await budget.reserveRequest('rainforest', now, { overrideDailyLimit: true });
+  assert.equal((await budget.usageStatus('rainforest', now)).dayCount, 2);
+  await assert.rejects(() => budget.reserveRequest('rainforest', now, { overrideDailyLimit: true }), (error) => error?.scope === 'month');
+}));
+
 test('non-billed provider has no hard request budget', async () => {
   const status = await budget.reserveRequest('amazon_paapi', new Date('2026-09-02T12:00:00Z'));
   assert.equal(status.limits.daily, null);

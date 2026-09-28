@@ -8,7 +8,7 @@ const providerRouter = fs.readFileSync(path.join(__dirname, '..', 'server/servic
 
 test('manual price verification has a maintenance-specific client timeout', () => {
   assert.match(apiCore, /MAINTENANCE_TIMEOUT_MS = 120000/);
-  assert.match(apiCore, /verifyPrices: \(limit = 15\) => api\.post\('\/api\/functions\/verify-prices', \{ limit \}, \{ timeoutMs: MAINTENANCE_TIMEOUT_MS \}\)/);
+  assert.match(apiCore, /verifyPrices: \(limit = 2\) => api\.post\('\/api\/functions\/verify-prices', \{ limit \}, \{ timeoutMs: MAINTENANCE_TIMEOUT_MS \}\)/);
   assert.match(apiCore, /export \{[^}]*MAINTENANCE_TIMEOUT_MS/);
 });
 

@@ -11,7 +11,7 @@ test('provider API pause is durable and enforced before budget reservation', () 
   assert.match(settings, /provider_api: Object\.freeze\(\{ enabled: true \}\)/);
   assert.match(throttle, /channelSettings\.get\('provider_api'\)/);
   assert.match(throttle, /PROVIDER_PAUSED/);
-  assert.ok(throttle.indexOf("channelSettings.get('provider_api')") < throttle.indexOf('reserveRequest(key)'), 'pause check must happen before provider budget reservation');
+  assert.ok(throttle.indexOf("channelSettings.get('provider_api')") < throttle.indexOf('reserveRequest(key'), 'pause check must happen before provider budget reservation');
 });
 
 test('admin exposes API pause plus Jerusalem and New York closure validation', () => {

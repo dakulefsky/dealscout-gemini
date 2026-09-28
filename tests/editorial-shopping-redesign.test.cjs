@@ -10,7 +10,7 @@ const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.css'), 'utf
 
 test('homepage uses a department-led retail hierarchy instead of a SaaS hero', () => {
   assert.match(home, />Departments<\/h1>/);
-  assert.match(home, />Standouts<\/h2>/);
+  assert.match(home, /hasStandouts \? 'Standouts' : 'Top deals'/);
   assert.match(home, /spotlightDeals/);
   assert.doesNotMatch(home, /Better deals for real life|Featured deal|What are you here for/);
   assert.doesNotMatch(home, /bg-gradient-to-b from-white to-slate-50/);

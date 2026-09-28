@@ -101,7 +101,7 @@ export default function AdminHome() {
     setBusy(name);
     try {
       const result = await fn();
-      toast({ title: success, description: describe ? describe(result) : undefined });
+      toast({ title: typeof success === 'function' ? success(result) : success, description: describe ? describe(result) : undefined });
       await load();
     } catch (error) {
       toast({ title: 'Action failed', description: error.message, variant: 'destructive' });
@@ -154,10 +154,10 @@ export default function AdminHome() {
           <div>
             <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider"><Clock3 className="w-4 h-4" /> Shared deal pull</div>
             <div className="text-3xl font-black mt-2">Next pull in {nextPull}</div>
-            <div className="text-sm text-slate-300 mt-2">Automatic discovery runs on the shared catalog. A manual pull uses the same ingestion path.</div>
+            <div className="text-sm text-slate-300 mt-2">Automatic discovery runs on the shared catalog. A manual pull can pass our daily Rainforest limit while respecting the monthly limit and your provider plan.</div>
             <div className="text-xs text-slate-400 mt-2">Last pull: {lastPull}</div>
           </div>
-          <Button disabled={actionInFlight} onClick={() => run('sync', () => functions.fetchDeals(15), 'Shared deal pull complete', (result) => `${result?.created || 0} new, ${result?.updated || 0} refreshed. Web, app, and WhatsApp Status now share the same catalog.`)} className="rounded-xl gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shrink-0">
+          <Button disabled={actionInFlight} onClick={() => run('sync', () => functions.fetchDeals(15, true), 'Shared deal pull complete', (result) => `${result?.created || 0} new, ${result?.updated || 0} refreshed. Web, app, and WhatsApp Status now share the same catalog.`)} className="rounded-xl gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shrink-0">
             {busy === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Pull deals now
           </Button>
         </div>
@@ -252,7 +252,7 @@ export default function AdminHome() {
       <section className="bg-white border border-slate-200 rounded-3xl p-6">
         <div className="flex items-center gap-2 mb-4"><ShieldCheck className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">Maintenance actions</h2></div>
         <div className="grid sm:grid-cols-2 gap-2">
-          <Button disabled={actionInFlight} onClick={() => run('verify', () => functions.verifyPrices(25), 'Prices checked', describePriceCheck)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'verify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check prices</Button>
+          <Button disabled={actionInFlight} onClick={() => run('verify', () => functions.verifyPrices(2), (result) => result.providerDeferred ? 'Price check paused' : 'Price check complete', describePriceCheck)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'verify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check prices (2 at a time)</Button>
           <Button disabled={actionInFlight} onClick={() => run('images', () => functions.repairImages(30), 'Image repair complete', (result) => `${result?.repaired || 0} repaired.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'images' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />} Repair images</Button>
           {cleanupCandidates > 0 && <Button disabled={actionInFlight} onClick={() => run('cleanup', () => functions.cleanupLegacyEnrichment(), 'Legacy copy cleaned', (result) => `${result?.cleaned || 0} rows cleaned.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-2 border-amber-200 text-amber-800 hover:bg-amber-50">{busy === 'cleanup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />} Clean {cleanupCandidates} known legacy {cleanupCandidates === 1 ? 'row' : 'rows'}</Button>}
         </div>

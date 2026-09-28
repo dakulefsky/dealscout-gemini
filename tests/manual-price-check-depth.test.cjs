@@ -5,16 +5,13 @@ const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'server/routes/functions.js'), 'utf8');
 
-test('manual price verification honors a bounded requested depth', () => {
-  assert.match(source, /requestedLimit = Math\.min\(50, Math\.max\(1, Number\(req\.body\?\.limit\) \|\| 15\)\)/);
-  assert.match(source, /while \(totals\.checkedCount < requestedLimit\)/);
-  assert.match(source, /await dealCron\.checkDealPricesAndAvailability\(\)/);
-  assert.match(source, /totals\.passes >= 10/);
+test('manual price verification requests one bounded batch per HTTP call', () => {
+  assert.match(source, /requestedLimit = Math\.min\(2, Math\.max\(1, Number\(req\.body\?\.limit\) \|\| 2\)\)/);
+  assert.match(source, /await dealCron\.checkDealPricesAndAvailability\(\{ maxChecks: requestedLimit \}\)/);
+  assert.doesNotMatch(source, /while \(totals\.checkedCount < requestedLimit\)/);
 });
 
-test('manual verification stops when provider capacity is deferred or no progress is possible', () => {
-  assert.match(source, /if \(result\?\.providerDeferred\)/);
-  assert.match(source, /providerDeferredReason/);
-  assert.match(source, /providerRetryAt/);
-  assert.match(source, /result\?\.skipped \|\| Number\(result\?\.checkedCount \|\| 0\) === 0/);
+test('manual verification reports the batch result to the admin client', () => {
+  assert.match(source, /\.\.\.result,/);
+  assert.match(source, /passes: 1,/);
 });

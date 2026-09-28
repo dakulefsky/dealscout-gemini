@@ -8,7 +8,7 @@ test('homepage department entry is complete and avoids awkward capped-deal copy'
   const home = read('src/pages/Home.jsx');
   assert.match(home, />Departments<\/h1>/);
   assert.match(home, /Browse all current deals/);
-  assert.match(home, />Standouts<\/h2>/);
+  assert.match(home, /hasStandouts \? 'Standouts' : 'Top deals'/);
   assert.doesNotMatch(home, /Three strong ones/);
   assert.doesNotMatch(home, /You’ve seen today’s best deals|Come back later for newly verified finds/);
 });

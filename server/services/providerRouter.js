@@ -224,7 +224,7 @@ async function fetchDealsList(options = {}) {
     try {
       const existing = await deals.listAll();
       const refreshExistingAsins = existing.map((deal) => deal.asin).filter(Boolean);
-      const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals({ ...options, refreshExistingAsins }));
+      const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals({ ...options, refreshExistingAsins }), { overrideDailyLimit: options.overrideDailyLimit === true });
       const verified = (result || []).map((item) => normalizeVerifiedProduct(item, 'RAINFOREST')).filter(Boolean);
       cacheRainforestBulkResults(verified);
       if (verified.length) return verified;

@@ -13,7 +13,7 @@ test('shopper system favors hard rules, compressed hierarchy, and terse copy', (
   assert.match(layout, /border-b-2 border-emerald-950/);
   assert.doesNotMatch(layout, /backdrop-blur-md/);
   assert.match(home, />Departments<\/h1>/);
-  assert.match(home, />Standouts<\/h2>/);
+  assert.match(home, /hasStandouts \? 'Standouts' : 'Top deals'/);
   assert.match(home, /15%\+ off · recently checked/);
   assert.doesNotMatch(home, /Three strong ones|Today’s edit|Worth a closer look/);
   assert.match(card, /border-t-\[3px\]/);
