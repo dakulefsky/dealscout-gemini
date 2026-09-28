@@ -100,6 +100,7 @@ export default function HomeScreen() {
   const requestRef = useRef(null);
   const paginationRequestRef = useRef(null);
   const feedGenerationRef = useRef(0);
+  const pendingSavesRef = useRef(new Set());
   const viewedAtRef = useRef(new Map());
   const dwellRecordedRef = useRef(new Set());
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 65 }).current;
@@ -188,6 +189,15 @@ export default function HomeScreen() {
   }, [feedParams]);
 
   useEffect(() => {
+    feedGenerationRef.current += 1;
+    requestRef.current?.abort();
+    paginationRequestRef.current?.abort();
+    paginationRequestRef.current = null;
+    setLoading(true);
+    setLoadingMore(false);
+    setError(null);
+    setItems([]);
+    setNextCursor(null);
     const timer = setTimeout(() => loadFirstPage(), query.trim() ? SEARCH_DEBOUNCE_MS : 0);
     return () => {
       clearTimeout(timer);
@@ -218,7 +228,8 @@ export default function HomeScreen() {
 
   const toggleSave = useCallback(async (deal) => {
     const id = idOf(deal);
-    if (!id) return;
+    if (!id || pendingSavesRef.current.has(id)) return;
+    pendingSavesRef.current.add(id);
     const wasSaved = savedIds.has(id);
     setSavedIds((current) => {
       const next = new Set(current);
@@ -239,6 +250,8 @@ export default function HomeScreen() {
         if (wasSaved) next.add(id); else next.delete(id);
         return next;
       });
+    } finally {
+      pendingSavesRef.current.delete(id);
     }
   }, [savedIds]);
 
