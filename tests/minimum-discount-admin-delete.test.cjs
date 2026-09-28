@@ -50,10 +50,13 @@ test('verified refreshes expire deals once the discount drops below the floor', 
 
 test('admin can find and permanently remove any verified deal', () => {
   const admin = read('src/pages/EditorialReview.jsx');
+  const routes = read('server/routes/deals.js');
   assert.match(admin, /Search title or ASIN/);
   assert.match(admin, /dealsApi\.delete\(deal\.id \|\| deal\.asin\)/);
   assert.match(admin, /Remove Permanently/);
   assert.match(admin, /window\.confirm/);
+  assert.match(routes, /await editorial\.remove\(current\.asin\)/);
+  assert.match(routes, /res\.status\(404\)\.json\(\{ error: 'Deal not found' \}\)/);
 });
 
 test('manual approval cannot bypass the discount floor', () => {

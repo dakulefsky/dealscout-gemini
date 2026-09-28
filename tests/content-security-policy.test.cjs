@@ -32,7 +32,8 @@ test('production CSP uses AdSense-supported nonce-based strict dynamic scripts',
     assert.equal(nextCalled, true);
     assert.match(res.locals.cspNonce, /^[A-Za-z0-9+/]+=*$/);
     assert.equal(headers['Content-Security-Policy'], contentSecurityPolicy(res.locals.cspNonce));
-    assert.match(headers['Content-Security-Policy'], /script-src 'nonce-[^']+' 'unsafe-inline' 'unsafe-eval' 'strict-dynamic' https: http:/);
+    assert.match(headers['Content-Security-Policy'], /script-src 'nonce-[^']+' 'strict-dynamic' https:/);
+    assert.doesNotMatch(headers['Content-Security-Policy'], /script-src[^;]*(?:'unsafe-inline'|'unsafe-eval'|http:)/);
     assert.match(headers['Content-Security-Policy'], /https:\/\/fonts\.googleapis\.com/);
     assert.match(headers['Content-Security-Policy'], /img-src 'self' data: blob: https:/);
     assert.match(headers['Content-Security-Policy'], /connect-src 'self' https:/);
