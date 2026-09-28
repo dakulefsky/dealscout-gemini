@@ -103,7 +103,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap"><span className="ds-kicker">{deal.category || 'Deal'}</span>{isExpired && <span className="text-[9px] text-amber-700 font-bold"><AlertCircle className="w-2.5 h-2.5 inline mr-0.5" />{hoursLeft ? `Deletes in ${hoursLeft}h` : 'Ended'}</span>}{sourceBadge}</div>
-            <h3 className={`text-sm sm:text-base font-semibold leading-snug line-clamp-2 ${isExpired ? 'line-through text-slate-500' : 'text-slate-950 group-hover:text-emerald-900'}`}>{deal.title}</h3>
+            <h3 className={`text-sm sm:text-base font-semibold leading-snug break-words ${isExpired ? 'line-through text-slate-500' : 'text-slate-950 group-hover:text-emerald-900'}`}>{deal.title}</h3>
             <div className="flex items-baseline gap-2 mt-2 flex-wrap"><span className="ds-price text-xl">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}{!isExpired && savings > 0 && <span className="text-[10px] font-bold text-emerald-700">Save {formatPrice(savings)}</span>}</div>
           </div>
         </Link>
@@ -121,7 +121,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
         </div>
         <div className="p-3 sm:p-3.5 flex flex-col flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1.5 min-h-[15px] flex-wrap"><span className="text-[9px] uppercase tracking-[0.12em] font-bold text-slate-500 break-words min-w-0">{deal.category || 'Deal'}</span>{sourceBadge}</div>
-          <h3 className={`text-[13px] sm:text-[14px] font-black leading-[1.18] line-clamp-2 min-h-[2.4rem] ${isExpired ? 'line-through text-slate-500' : 'text-slate-950 group-hover:text-emerald-900'}`}>{deal.title}</h3>
+          <h3 className={`text-[13px] sm:text-[14px] font-black leading-snug break-words min-h-[2.4rem] ${isExpired ? 'line-through text-slate-500' : 'text-slate-950 group-hover:text-emerald-900'}`}>{deal.title}</h3>
           <div className="mt-auto pt-3">
             <div className="flex items-baseline gap-1.5 flex-wrap"><span className="ds-price text-xl sm:text-[22px]">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-[10px] sm:text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>
             <div className="mt-1.5 flex items-center justify-between gap-2">{!isExpired && savings > 0 ? <span className="text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Save {formatPrice(savings)}</span> : <span /> }<ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-800 transition-colors" /></div>
