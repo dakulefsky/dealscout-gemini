@@ -1,6 +1,8 @@
 name: Deploy Web
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       run_smoke:
@@ -215,7 +217,7 @@ jobs:
           done
 
       - name: Verify deployed revision
-        if: ${{ inputs.run_smoke }}
+        if: ${{ github.event_name == 'push' || inputs.run_smoke }}
         env:
           DEALSCOUT_SMOKE_URL: ${{ vars.PUBLIC_WEB_URL }}
         run: npm run smoke:release
