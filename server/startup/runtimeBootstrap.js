@@ -35,7 +35,10 @@ async function initializeRuntime({
   if (isProduction) {
     assertProductionRuntime(process.env, { postgresConfigured: postgres.isConfigured(), role });
     const database = await postgres.health();
-    if (!database.healthy) throw new Error('PostgreSQL readiness check failed during production startup');
+    if (!database.healthy) {
+      const detail = database.error ? `: ${database.error}` : '';
+      throw new Error(`PostgreSQL readiness check failed during production startup${detail}`);
+    }
   }
 
   await ensureOperationalSchemas();
