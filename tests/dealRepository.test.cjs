@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const deals = require('../server/repositories/dealRepository');
+const db = require('../server/db');
 
 const repositorySource = fs.readFileSync(path.join(__dirname, '..', 'server', 'repositories', 'dealRepository.js'), 'utf8');
 
@@ -68,6 +69,24 @@ test('PostgreSQL upsert converges conflicts on ASIN and canonicalizes the primar
   assert.match(repositorySource, /ON CONFLICT \(asin\) DO UPDATE SET/);
   assert.match(repositorySource, /id=EXCLUDED\.id/);
   assert.doesNotMatch(repositorySource, /ON CONFLICT \(id\) DO UPDATE SET/);
+});
+
+test('editing a deal cannot create a second product under a different ASIN', async () => {
+  const originalRows = db.tables.deals;
+  const originalSave = db.saveDb;
+  db.tables.deals = [{ id: 'B000000007', asin: 'B000000007', title: 'Original', original_price: 100, sale_price: 75, source_verified: 1 }];
+  db.saveDb = () => {};
+  try {
+    await assert.rejects(deals.update('B000000007', { asin: 'B000000008' }), /ASIN cannot be changed/);
+    assert.equal(db.tables.deals.length, 1);
+    assert.equal(db.tables.deals[0].asin, 'B000000007');
+    const updated = await deals.update('B000000007', { asin: 'b000000007', title: 'Edited' });
+    assert.equal(updated.title, 'Edited');
+    assert.equal(db.tables.deals.length, 1);
+  } finally {
+    db.tables.deals = originalRows;
+    db.saveDb = originalSave;
+  }
 });
 
 test('production bootstrap never imports legacy seed, even if demo flag is set', () => {

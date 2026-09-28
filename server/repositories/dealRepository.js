@@ -194,6 +194,9 @@ async function upsert(input, options = {}) {
 async function update(value, changes) {
   const current = await findByIdOrAsin(value);
   if (!current) return null;
+  if (changes.asin !== undefined && canonicalIdentity(changes.asin) !== current.asin) {
+    throw new Error('ASIN cannot be changed on an existing deal; create a new deal instead');
+  }
   return upsert({ ...current, ...changes, id: changes.asin || current.asin, asin: changes.asin || current.asin, created_at: current.created_at });
 }
 

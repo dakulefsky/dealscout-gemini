@@ -171,6 +171,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
     if (b.asin !== undefined) {
       const asin = String(b.asin).trim().toUpperCase();
       if (!/^[A-Z0-9]{10}$/.test(asin)) throw new Error('Invalid ASIN');
+      if (asin !== deal.asin) throw new Error('ASIN cannot be changed on an existing deal; create a new deal instead');
       changes.asin = asin;
     }
     if (b.title !== undefined) changes.title = String(b.title).trim();
