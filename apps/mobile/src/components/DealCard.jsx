@@ -41,7 +41,7 @@ export default function DealCard({ deal, onSave, onOpen, onDismiss, saved = fals
         <Image source={imageUrl ? { uri: imageUrl } : undefined} style={styles.image} contentFit="contain" transition={150} />
         <View style={styles.body}>
           {discount > 0 && <Text style={styles.discount}>{Math.round(discount)}% OFF</Text>}
-          <Text numberOfLines={2} style={styles.title}>{deal?.title || 'Amazon deal'}</Text>
+          <Text style={styles.title}>{deal?.title || 'Amazon deal'}</Text>
           <View style={styles.priceRow}>
             {money(salePrice) && <Text style={styles.sale}>{money(salePrice)}</Text>}
             {money(originalPrice) && Number(originalPrice) > Number(salePrice) && <Text style={styles.original}>{money(originalPrice)}</Text>}
