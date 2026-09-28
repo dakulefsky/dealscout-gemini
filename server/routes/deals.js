@@ -4,6 +4,7 @@ const deals = require('../repositories/dealRepository');
 const dealQueries = require('../repositories/dealQueryRepository');
 const dealFeed = require('../repositories/dealFeedRepository');
 const categories = require('../repositories/categoryRepository');
+const editorial = require('../repositories/editorialRepository');
 const { optionalAuth, requireAdmin } = require('../middleware/auth');
 const { isPublicDeal, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
 const { isAmazonUrl } = require('../services/amazonUrlService');
@@ -256,7 +257,14 @@ router.post('/purge-expired', requireAdmin, async (req, res) => {
 });
 
 router.delete('/:id', requireAdmin, async (req, res) => {
-  try { res.json({ success: true, deleted: await deals.remove(req.params.id) }); }
+  try {
+    const current = await deals.findByIdOrAsin(req.params.id);
+    if (!current) return res.status(404).json({ error: 'Deal not found' });
+    const deleted = await deals.remove(current.id);
+    if (!deleted) return res.status(404).json({ error: 'Deal not found' });
+    await editorial.remove(current.asin);
+    res.json({ success: true, deleted });
+  }
   catch (err) { res.status(503).json({ error: err.message }); }
 });
 
