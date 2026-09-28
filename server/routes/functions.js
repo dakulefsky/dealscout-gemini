@@ -178,46 +178,16 @@ router.post('/sitestripe-import', requireAdmin, handleSiteStripeImportReq);
 
 router.post('/verify-prices', requireAdmin, async (req, res) => {
   try {
-    const requestedLimit = Math.min(50, Math.max(1, Number(req.body?.limit) || 15));
-    const totals = {
-      checkedCount: 0,
-      expiredCount: 0,
-      deferredCount: 0,
-      itemFailureCount: 0,
-      providerDeferred: false,
-      providerDeferredReason: null,
-      providerRetryAt: null,
-      passes: 0,
-    };
-    let eligibleCount = 0;
-    let lastBatchSize = 0;
-
-    while (totals.checkedCount < requestedLimit) {
-      const result = await dealCron.checkDealPricesAndAvailability();
-      totals.passes += 1;
-      totals.checkedCount += Number(result?.checkedCount || 0);
-      totals.expiredCount += Number(result?.expiredCount || 0);
-      totals.deferredCount += Number(result?.deferredCount || 0);
-      totals.itemFailureCount += Number(result?.itemFailureCount || 0);
-      eligibleCount = Math.max(eligibleCount, Number(result?.eligibleCount || 0));
-      lastBatchSize = Number(result?.batchSize || lastBatchSize || 0);
-
-      if (result?.providerDeferred) {
-        totals.providerDeferred = true;
-        totals.providerDeferredReason = result.providerDeferredReason || null;
-        totals.providerRetryAt = result.providerRetryAt || null;
-        break;
-      }
-      if (result?.skipped || Number(result?.checkedCount || 0) === 0) break;
-      if (totals.passes >= 10) break;
-    }
+    // Keep the synchronous request inside the browser and Cloud Run deadlines.
+    // Repeated clicks can work through the oldest unchecked inventory.
+    const requestedLimit = Math.min(2, Math.max(1, Number(req.body?.limit) || 2));
+    const result = await dealCron.checkDealPricesAndAvailability({ maxChecks: requestedLimit });
 
     res.json({
       success: true,
       requestedLimit,
-      ...totals,
-      eligibleCount,
-      batchSize: lastBatchSize,
+      ...result,
+      passes: 1,
       lifecycle: await deals.lifecycleStats(),
     });
   } catch (err) {
@@ -265,8 +235,9 @@ router.post('/rainforest-lookup', requireAdmin, async (req, res) => {
 router.post('/fetch-deals', requireAdmin, async (req, res) => {
   try {
     const maxResults = Math.min(50, Math.max(1, Number(req.body?.maxDeals) || 15));
-    const result = await dealCron.syncDailyDeals({ maxResults });
+    const result = await dealCron.syncDailyDeals({ maxResults, overrideDailyLimit: req.body?.overrideDailyLimit === true });
     if (result?.status === 'NOTICE' && result.error) return res.status(502).json({ error: result.error });
+    if (result?.status === 'DEFERRED') return providerErrorResponse(res, result, 'Provider deferred the pull');
     res.json({
       success: true,
       ...result,

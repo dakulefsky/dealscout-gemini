@@ -30,4 +30,11 @@ test('home interleaves a chapter every eight progressively revealed deals', () =
   assert.match(home, /CHAPTER_INTERVAL = 8/);
   assert.match(home, /start \+= CHAPTER_INTERVAL/);
   assert.match(home, /chapters\[Math\.floor\(start \/ CHAPTER_INTERVAL\)\]/);
+  assert.match(home, /chapters\.slice\(shownChapters\)\.map\(chapterBlock\)/);
+});
+
+test('small live catalogs still show featured deals on the home page', () => {
+  assert.match(home, /dropDeals\.length \? dropDeals : visibleDeals/);
+  assert.match(home, /standouts\.length \? standouts : candidates/);
+  assert.match(home, /exploreDeals\.length > 0 \|\| chapters\.length > 0/);
 });

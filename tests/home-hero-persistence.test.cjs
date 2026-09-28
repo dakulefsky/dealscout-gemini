@@ -13,6 +13,6 @@ test('homepage standout rail is selected from the live verified catalog', () => 
 });
 
 test('homepage remains useful when no deal clears the standout threshold', () => {
-  assert.match(home, /No 30%\+ standouts are verified right now/);
+  assert.match(home, /standouts\.length \? standouts : candidates/);
   assert.match(home, />Departments<\/h1>/);
 });

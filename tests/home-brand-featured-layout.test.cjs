@@ -11,9 +11,9 @@ test('home leads with restrained department copy instead of explanatory personal
   assert.doesNotMatch(home, /quietly learns which categories|Good deals\. No digging/);
 });
 
-test('curated deal rows remain bounded and balanced where grids require it', () => {
+test('curated deal rows remain bounded and show single available products', () => {
   assert.match(home, /function balancedFeatured\(items, maxItems = 8\)/);
-  assert.match(home, /const evenLength = bounded\.length - \(bounded\.length % 2\)/);
+  assert.match(home, /return \(items \|\| \[\]\)\.slice\(0, maxItems\)/);
   assert.match(home, /balancedFeatured\(freshDealDrop\(visibleDeals\.filter/);
   assert.match(home, /balancedFeatured\(picks\.filter/);
 });

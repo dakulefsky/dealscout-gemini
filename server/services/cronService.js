@@ -151,14 +151,14 @@ class DealCronService {
     });
   }
 
-  async checkDealPricesAndAvailability({ scheduled = false } = {}) {
+  async checkDealPricesAndAvailability({ scheduled = false, maxChecks = null } = {}) {
     return this.runDistributed(JOB_LOCKS.verifyPrices, 'verify-prices', async () => {
       const claim = await this.claimCadence('verify-prices', JOB_INTERVALS.verifyPrices, scheduled);
       if (!claim.acquired) return cadenceSkip('verify-prices', claim);
       this.lastPriceCheck = new Date();
       const all = await deals.listAll();
       const activeDeals = all.filter((deal) => !deal.is_expired && deal.status === 'APPROVED' && deal.source_verified === 1);
-      const batchSize = verificationBatchSize(activeDeals.length);
+      const batchSize = maxChecks == null ? verificationBatchSize(activeDeals.length) : Math.min(verificationBatchSize(activeDeals.length), Math.max(1, Math.floor(Number(maxChecks) || 1)));
       const candidateLimit = Math.min(100, Math.max(batchSize, batchSize * 3));
       const verificationCandidates = oldestCheckedFirst(activeDeals, candidateLimit || 1);
       let expiredCount = 0;
@@ -263,7 +263,7 @@ class DealCronService {
       let rejectedCount = 0;
 
       try {
-        const providerDeals = await fetchDealsList({ amazonDomain: 'amazon.com', maxResults, minDiscount });
+        const providerDeals = await fetchDealsList({ amazonDomain: 'amazon.com', maxResults, minDiscount, overrideDailyLimit: options.overrideDailyLimit === true && !scheduled });
         for (const item of providerDeals) {
           const quality = scoreVerifiedDeal(item);
           if (quality.decision === 'REJECT') { rejectedCount += 1; continue; }
@@ -328,7 +328,7 @@ class DealCronService {
         this.stats.lastError = err.message;
         if (shouldStopProviderBatch(err)) {
           const retryAt = await rescheduleProviderJob('discover-deals', err);
-          return { error: err.message, code: err.code, status: 'DEFERRED', nextDueAt: retryAt };
+          return { error: err.message, code: err.code, scope: err.scope, limit: err.limit, retryAfterMs: err.retryAfterMs, status: 'DEFERRED', nextDueAt: retryAt };
         }
         return { error: err.message, status: 'NOTICE' };
       } finally {

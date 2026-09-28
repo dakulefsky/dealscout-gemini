@@ -28,7 +28,7 @@ const CHAPTER_INTERVAL = 8;
 const REMOTE_PAGE_SIZE = 24;
 
 function dealIdentity(deal) { return String(deal?.id || deal?.asin || '').trim(); }
-function balancedFeatured(items, maxItems = 8) { const bounded = (items || []).slice(0, maxItems); const evenLength = bounded.length - (bounded.length % 2); return evenLength >= 2 ? bounded.slice(0, evenLength) : []; }
+function balancedFeatured(items, maxItems = 8) { return (items || []).slice(0, maxItems); }
 function mergeDeals(current, incoming) { const seen = new Set(current.map(dealIdentity)); return [...current, ...incoming.filter((deal) => { const id = dealIdentity(deal); if (!id || seen.has(id)) return false; seen.add(id); return true; })]; }
 function serverSort(sort) { if (sort === 'best') return 'best'; if (sort === 'discount') return 'discount_desc'; if (sort === 'price-low') return 'price_asc'; if (sort === 'price-high') return 'price_desc'; return '-created_date'; }
 
@@ -75,13 +75,16 @@ export default function Home() {
   const showCuratedHome = !flatAllMode && !hasActiveFilters;
   const spotlightDeals = useMemo(() => {
     if (!showCuratedHome) return [];
-    return visibleDeals
+    const candidates = visibleDeals
       .map((deal) => ({ deal, discount: trustworthyDiscountPercent(deal) }))
-      .filter((item) => item.discount >= 30)
+      .filter((item) => item.discount >= 15);
+    const standouts = candidates.filter((item) => item.discount >= 30);
+    return (standouts.length ? standouts : candidates)
       .sort((a, b) => b.discount - a.discount)
       .slice(0, 3)
       .map(({ deal }) => deal);
   }, [visibleDeals, showCuratedHome]);
+  const hasStandouts = spotlightDeals.some((deal) => trustworthyDiscountPercent(deal) >= 30);
   const spotlightIds = useMemo(() => new Set(spotlightDeals.map((deal) => deal.id || deal.asin)), [spotlightDeals]);
   const dropDeals = useMemo(() => showCuratedHome ? balancedFeatured(freshDealDrop(visibleDeals.filter((deal) => !spotlightIds.has(deal.id || deal.asin)), initialSeenDrop, 8), 8) : [], [visibleDeals, spotlightIds, initialSeenDrop, showCuratedHome]);
   const dropIds = useMemo(() => new Set([...spotlightIds, ...dropDeals.map((deal) => deal.id || deal.asin)]), [spotlightIds, dropDeals]);
@@ -101,12 +104,12 @@ export default function Home() {
   const resetAllFilters = () => { setActiveCat('all'); setSearchQuery(''); setMinDiscount(0); setPriceTier('all'); setSort('best'); setSearchParams({}); };
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
-  const topDeals = showCuratedHome ? dropDeals.slice(0, 4) : [];
+  const topDeals = showCuratedHome ? (dropDeals.length ? dropDeals : visibleDeals).slice(0, 4) : [];
 
   const feedGrid = (items) => viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr items-stretch">{items.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" />)}</div> : <div>{items.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" />)}</div>;
 
   const chapterBlock = (chapter) => <section key={chapter.key} className="my-10 pt-7 border-t border-emerald-950/10"><div className="flex items-end justify-between mb-5"><div><div className="ds-kicker">{chapter.eyebrow}</div><h3 className="ds-section-title mt-1">{chapter.title}</h3></div></div>{feedGrid(chapter.items)}</section>;
-  const exploreWithChapters = () => { const sections = []; for (let start = 0; start < progressiveDeals.length; start += CHAPTER_INTERVAL) { const chunk = progressiveDeals.slice(start, start + CHAPTER_INTERVAL); sections.push(<Fragment key={`chunk-${start}`}>{feedGrid(chunk)}</Fragment>); const chapter = chapters[Math.floor(start / CHAPTER_INTERVAL)]; if (chapter) sections.push(chapterBlock(chapter)); } return sections; };
+  const exploreWithChapters = () => { const sections = []; let shownChapters = 0; for (let start = 0; start < progressiveDeals.length; start += CHAPTER_INTERVAL) { const chunk = progressiveDeals.slice(start, start + CHAPTER_INTERVAL); sections.push(<Fragment key={`chunk-${start}`}>{feedGrid(chunk)}</Fragment>); const chapter = chapters[Math.floor(start / CHAPTER_INTERVAL)]; if (chapter) { sections.push(chapterBlock(chapter)); shownChapters += 1; } } sections.push(...chapters.slice(shownChapters).map(chapterBlock)); return sections; };
 
   return <div>
     {showCuratedHome && (
@@ -144,8 +147,8 @@ export default function Home() {
 
             <aside className="lg:border-l lg:border-emerald-950/20 lg:pl-7">
               <div className="border-b-2 border-emerald-950 pb-3">
-                <div className="ds-kicker">30%+ off</div>
-                <h2 className="font-heading text-2xl sm:text-[30px] font-black leading-none text-emerald-950 mt-1">Standouts</h2>
+                <div className="ds-kicker">{hasStandouts ? '30%+ off' : '15%+ off'}</div>
+                <h2 className="font-heading text-2xl sm:text-[30px] font-black leading-none text-emerald-950 mt-1">{hasStandouts ? 'Standouts' : 'Top deals'}</h2>
               </div>
 
               {spotlightDeals.length > 0 ? (
@@ -164,7 +167,7 @@ export default function Home() {
                   ))}
                 </div>
               ) : (
-                <div className="py-5 text-sm text-slate-500 border-b border-emerald-950/10">No 30%+ standouts are verified right now.</div>
+                <div className="py-5 text-sm text-slate-500 border-b border-emerald-950/10">No verified deals are available right now.</div>
               )}
             </aside>
           </div>
@@ -182,7 +185,7 @@ export default function Home() {
       <div className="border-y border-emerald-950/10 py-3 mb-7"><div className="flex items-center gap-2"><div className="relative flex-1 min-w-0"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input type="search" aria-label="Search deals" placeholder="Search deals" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-10 text-sm bg-white border-emerald-950/10 rounded-none" /></div><select aria-label="Sort deals" value={sort} onChange={(e) => setSort(e.target.value)} className="h-10 text-xs sm:text-sm font-semibold border border-emerald-950/10 px-2.5 bg-white text-slate-800 max-w-[132px] sm:max-w-none">{SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}</select><button type="button" aria-label="Toggle deal filters" aria-expanded={showFilters} onClick={() => setShowFilters((v) => !v)} className="h-10 w-10 border border-emerald-950/10 flex items-center justify-center md:hidden"><SlidersHorizontal className="w-4 h-4" /></button><div className="hidden md:flex items-center border border-emerald-950/10"><button type="button" aria-label="Grid view" aria-pressed={viewMode === 'grid'} onClick={() => setViewMode('grid')} className={`p-2 ${viewMode === 'grid' ? 'bg-emerald-950 text-white' : 'text-slate-500'}`}><LayoutGrid className="w-3.5 h-3.5" /></button><button type="button" aria-label="List view" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')} className={`p-2 ${viewMode === 'list' ? 'bg-emerald-950 text-white' : 'text-slate-500'}`}><List className="w-3.5 h-3.5" /></button></div></div>
         <div className={`${showFilters ? 'flex' : 'hidden'} md:flex flex-wrap items-center gap-2 mt-3`}><select aria-label="Minimum discount" value={minDiscount} onChange={(e) => setMinDiscount(Number(e.target.value))} className="h-9 text-xs bg-white border border-emerald-950/10 px-2.5">{DISCOUNT_TIERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select><select aria-label="Price range" value={priceTier} onChange={(e) => setPriceTier(e.target.value)} className="h-9 text-xs bg-white border border-emerald-950/10 px-2.5">{PRICE_TIERS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select><span className="text-xs text-slate-400 ml-auto hidden sm:inline">{availableDeals.length} loaded</span>{personalized && <button onClick={resetPersonalization} className="text-xs font-semibold text-slate-500 hover:text-slate-800">Reset recommendations</button>}{(hasActiveFilters || flatAllMode) && <button onClick={resetAllFilters} className="text-xs font-semibold text-rose-600 flex items-center gap-1"><RotateCcw className="w-3 h-3" /> Reset filters</button>}</div></div>
 
-      {!loading && !error && exploreDeals.length > 0 && <div className="mb-5"><div className="ds-kicker">{flatAllMode ? 'Full catalog' : 'Keep browsing'}</div><h2 className="ds-section-title mt-1">{flatAllMode ? 'All verified deals' : 'All deals'}</h2></div>}
+      {!loading && !error && (exploreDeals.length > 0 || chapters.length > 0) && <div className="mb-5"><div className="ds-kicker">{flatAllMode ? 'Full catalog' : 'Keep browsing'}</div><h2 className="ds-section-title mt-1">{flatAllMode ? 'All verified deals' : 'All deals'}</h2></div>}
       {loading ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="aspect-[4/3] bg-stone-100 animate-pulse" />)}</div> : error && deals.length === 0 ? <div className="text-center py-12 bg-white border border-emerald-950/10 p-8"><p>Couldn't load deals: {error}</p><Button onClick={() => setRetryNonce((value) => value + 1)} className="mt-4">Try Again</Button></div> : visibleDeals.length === 0 ? <div className="text-center py-16"><TrendingDown className="h-10 w-10 text-slate-300 mx-auto" /><h3 className="font-bold mt-3">No deals match your filters</h3><Button onClick={resetAllFilters} variant="outline" size="sm" className="mt-3">Reset Filters</Button></div> : <>{exploreWithChapters()}<div ref={feedSentinel} className="h-10" aria-hidden="true" />{hasMore && <div className="text-center py-6 text-xs font-semibold text-slate-400">{loadingMore ? 'Loading more verified deals…' : 'Loading more deals…'}</div>}</>}
     </section>
   </div>;

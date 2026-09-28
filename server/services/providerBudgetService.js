@@ -154,7 +154,7 @@ async function recordBlockedPostgres(client, provider, today) {
   `, [provider, today]);
 }
 
-async function reserveRequest(provider, now = new Date()) {
+async function reserveRequest(provider, now = new Date(), { overrideDailyLimit = false } = {}) {
   const key = cleanProvider(provider);
   const limits = limitsFor(key);
   if (!Number.isFinite(limits.daily) && !Number.isFinite(limits.monthly)) return emptyStatus(key);
@@ -164,8 +164,8 @@ async function reserveRequest(provider, now = new Date()) {
 
   if (!postgres.isConfigured()) {
     const status = localStatus(key, now);
-    if (status.dayCount >= limits.daily || status.monthCount >= limits.monthly) {
-      const scope = status.dayCount >= limits.daily ? 'day' : 'month';
+    if ((!overrideDailyLimit && status.dayCount >= limits.daily) || status.monthCount >= limits.monthly) {
+      const scope = status.monthCount >= limits.monthly ? 'month' : 'day';
       const limit = scope === 'day' ? limits.daily : limits.monthly;
       const entryKey = `${key}|${today}`;
       const entry = localUsage.get(entryKey) || { requestCount: 0, blockedCount: 0 };
@@ -201,8 +201,8 @@ async function reserveRequest(provider, now = new Date()) {
     const dayCount = Number(counts.rows[0]?.day_count || 0);
     const monthCount = Number(counts.rows[0]?.month_count || 0);
 
-    if (dayCount >= limits.daily || monthCount >= limits.monthly) {
-      const scope = dayCount >= limits.daily ? 'day' : 'month';
+    if ((!overrideDailyLimit && dayCount >= limits.daily) || monthCount >= limits.monthly) {
+      const scope = monthCount >= limits.monthly ? 'month' : 'day';
       const limit = scope === 'day' ? limits.daily : limits.monthly;
       await recordBlockedPostgres(client, key, today);
       budgetError = new ProviderBudgetExceededError(key, scope, limit);

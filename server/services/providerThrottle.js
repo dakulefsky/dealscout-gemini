@@ -122,7 +122,7 @@ async function runProviderCall(provider, task, options = {}) {
 
   // Reserve immediately before the outbound task. Failed network attempts still
   // consume the provider allowance, while paused/cooldown-blocked calls do not.
-  await reserveRequest(key);
+  await reserveRequest(key, new Date(), { overrideDailyLimit: options.overrideDailyLimit === true && key === 'rainforest' });
 
   const startedAt = nowMs();
   try {
