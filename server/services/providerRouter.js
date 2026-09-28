@@ -4,7 +4,8 @@ const { fetchStrictRainforestProduct } = require('./rainforestStrictAdapter');
 const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
 const { runProviderCall, getProviderThrottleStatus } = require('./providerThrottle');
 const { usageStatus } = require('./providerBudgetService');
-const { PUBLIC_MIN_DISCOUNT_PERCENT } = require('./publicDealPolicy');
+const { PUBLIC_MIN_DISCOUNT_PERCENT, isPublicDeal } = require('./publicDealPolicy');
+const { recordObservation } = require('./priceHistoryService');
 
 const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
 const PROVIDER_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
@@ -108,7 +109,7 @@ async function applyRainforestBulkRefreshes(existingDeals, verifiedItems, verifi
       refreshedCount += 1;
       continue;
     }
-    await deals.update(existing.id, {
+    const refreshed = await deals.update(existing.id, {
       sale_price: normalized.salePrice,
       original_price: normalized.originalPrice,
       discount_percent: normalized.discountPercent,
@@ -118,6 +119,13 @@ async function applyRainforestBulkRefreshes(existingDeals, verifiedItems, verifi
       source_sufficient: 1,
       source_provider: 'RAINFOREST',
     });
+    if (isPublicDeal(refreshed)) {
+      try {
+        await recordObservation({ asin: normalized.asin, salePrice: normalized.salePrice, originalPrice: normalized.originalPrice });
+      } catch (error) {
+        console.warn(`[ProviderRouter] Price alert observation for ${normalized.asin} skipped:`, error.message);
+      }
+    }
     refreshedCount += 1;
   }
 
