@@ -11,7 +11,7 @@ const { verificationBatchSize } = require('./verificationCapacity');
 const { rediscoveryLifecycleChanges } = require('./rediscoveryLifecycle');
 const { verifiedSourceChanges } = require('./verifiedDealRefresh');
 const { canAttemptRefresh } = require('./refreshRetryPolicy');
-const { PUBLIC_MIN_DISCOUNT_PERCENT } = require('./publicDealPolicy');
+const { PUBLIC_MIN_DISCOUNT_PERCENT, isPublicDeal } = require('./publicDealPolicy');
 
 const TWELVE_HOURS_SECONDS = 12 * 60 * 60;
 const THIRTY_MINUTES_SECONDS = 30 * 60;
@@ -199,10 +199,6 @@ class DealCronService {
             : 0;
           const discountEnded = liveInfo.isDeal === false || computedDiscount < PUBLIC_MIN_DISCOUNT_PERCENT;
 
-          if (Number.isFinite(original) && Number.isFinite(sale) && original > 0 && sale > 0 && sale <= original) {
-            await safeRecordObservation({ asin: deal.asin, salePrice: sale, originalPrice: original, sourceProvider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
-          }
-
           if (outOfStock || discountEnded) {
             await deals.expire(deal.id, outOfStock ? 'Product unavailable at verified source' : 'Verified deal ended');
             expiredCount += 1;
@@ -213,7 +209,10 @@ class DealCronService {
           if (Number.isFinite(sale) && sale > 0) changes.sale_price = sale;
           if (Number.isFinite(original) && Number.isFinite(sale) && original >= sale) changes.original_price = original;
           if (Number.isFinite(discount) && discount >= 0) changes.discount_percent = discount;
-          await deals.update(deal.id, changes);
+          const refreshed = await deals.update(deal.id, changes);
+          if (isPublicDeal(refreshed)) {
+            await safeRecordObservation({ asin: deal.asin, salePrice: sale, originalPrice: original, sourceProvider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
+          }
         } catch (err) {
           if (shouldStopProviderBatch(err)) {
             providerDeferred = true;
@@ -276,7 +275,6 @@ class DealCronService {
           const verifiedAt = Math.floor(Date.now() / 1000);
           if (publication.reason === 'EDITORIAL_HOLDBACK') holdbackCount += 1;
 
-          await safeRecordObservation({ asin: item.asin, salePrice: sale, originalPrice: original, sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER' });
           const existing = await deals.findByIdOrAsin(item.asin);
           if (existing) {
             const changes = {
@@ -288,8 +286,11 @@ class DealCronService {
               ...rediscoveryLifecycleChanges(existing, status),
               ...verifiedSourceChanges(existing, item),
             };
-            await deals.update(existing.id, changes);
+            const refreshed = await deals.update(existing.id, changes);
             await refreshStates.recordSuccess(item.asin, { provider: item.sourceProvider, at: verifiedAt });
+            if (isPublicDeal(refreshed)) {
+              await safeRecordObservation({ asin: item.asin, salePrice: sale, originalPrice: original, sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER' });
+            }
             updatedCount += 1;
             continue;
           }
@@ -329,6 +330,14 @@ class DealCronService {
         if (shouldStopProviderBatch(err)) {
           const retryAt = await rescheduleProviderJob('discover-deals', err);
           return { error: err.message, code: err.code, scope: err.scope, limit: err.limit, retryAfterMs: err.retryAfterMs, status: 'DEFERRED', nextDueAt: retryAt };
+        }
+        // A failed scheduled pull must not consume the entire 12-hour cadence.
+        if (scheduled) {
+          try {
+            await maintenanceCadence.reschedule('discover-deals', Math.floor(Date.now() / 1000) + THIRTY_MINUTES_SECONDS);
+          } catch (rescheduleError) {
+            console.warn('[DealCronService] Could not reschedule failed discovery:', rescheduleError.message);
+          }
         }
         return { error: err.message, status: 'NOTICE' };
       } finally {

@@ -1,4 +1,4 @@
-const SUPPORTED_SORTS = new Set(['-created_date', 'discount_desc', 'price_asc', 'price_desc']);
+const SUPPORTED_SORTS = new Set(['best', '-created_date', 'discount_desc', 'price_asc', 'price_desc']);
 
 function encodeCursor(payload) {
   const value = {

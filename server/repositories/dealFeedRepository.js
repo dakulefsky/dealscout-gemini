@@ -57,9 +57,9 @@ function bestScore(row) {
 
 function cursorFromRow(row, sort) {
   const primary = sort === 'best'
-    ? bestScore(row)
+    ? (row.sort_score ?? bestScore(row))
     : sort === 'discount_desc'
-      ? derivedDiscount(row)
+      ? (row.sort_score ?? derivedDiscount(row))
       : sort === 'price_asc' || sort === 'price_desc'
         ? Number(row.sale_price)
         : Number(row.created_at);
@@ -82,7 +82,7 @@ function addCursorPredicate(where, params, cursor, sort) {
     where.push(`(created_at < ${created} OR (created_at = ${created} AND id < ${id}))`);
     return;
   }
-  const primary = `$${params.push(Number(cursor.primary))}`;
+  const primary = `$${params.push(cursor.primary)}`;
   const field = sort === 'best' ? BEST_SQL : sort === 'discount_desc' ? DISCOUNT_SQL : 'sale_price';
   const op = sort === 'price_asc' ? '>' : '<';
   where.push(`(${field} ${op} ${primary} OR (${field} = ${primary} AND (created_at < ${created} OR (created_at = ${created} AND id < ${id}))))`);
@@ -168,7 +168,7 @@ async function page(options = {}) {
   addCursorPredicate(where, params, cursor, sort);
   params.push(limit + 1);
   const result = await postgres.query(`
-    SELECT * FROM deals
+    SELECT deals.*${sort === 'best' ? `, ${BEST_SQL} AS sort_score` : sort === 'discount_desc' ? `, ${DISCOUNT_SQL} AS sort_score` : ''} FROM deals
      WHERE ${where.join(' AND ')}
      ORDER BY ${orderBy(sort)}
      LIMIT $${params.length}

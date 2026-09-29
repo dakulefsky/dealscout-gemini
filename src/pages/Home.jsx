@@ -46,6 +46,7 @@ export default function Home() {
   const [initialSeenDrop] = useState(() => loadSeenDealDrop());
   const [lastVisit] = useState(() => loadPreviousVisit());
   const feedSentinel = useRef(null); const dropSeenMarker = useRef(null); const dealDropMarked = useRef(false);
+  const feedGeneration = useRef(0); const paginationRequest = useRef(null);
 
   const selectedPriceTier = useMemo(() => PRICE_TIERS.find((p) => p.value === priceTier) || PRICE_TIERS[0], [priceTier]);
   const feedParams = useMemo(() => ({ limit: REMOTE_PAGE_SIZE, sort: serverSort(sort), category: activeCat === 'all' ? '' : activeCat, q: searchQuery.trim(), minDiscount: minDiscount || '', minPrice: selectedPriceTier.min ?? '', maxPrice: selectedPriceTier.max ?? '' }), [activeCat, searchQuery, minDiscount, selectedPriceTier, sort]);
@@ -54,14 +55,27 @@ export default function Home() {
     setSearchQuery(searchParams.get('q') || '');
     setActiveCat(searchParams.get('category') || 'all');
   }, [searchParams]);
-  useEffect(() => { Promise.all([getActiveCategories(), editorialApi.picks(4).catch(() => ({ picks: [] }))]).then(([c, p]) => { setCategories(c || []); setPicks(p?.picks || []); }).catch(() => {}); }, []);
+  useEffect(() => {
+    let active = true;
+    getActiveCategories().then((items) => { if (active) setCategories(items || []); }).catch(() => {});
+    editorialApi.picks(4).then((result) => { if (active) setPicks(result?.picks || []); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
+    const generation = ++feedGeneration.current;
+    paginationRequest.current?.abort();
+    paginationRequest.current = null;
+    setLoading(true);
+    setLoadingMore(false);
+    setError(null);
+    setDeals([]);
+    setNextCursor(null);
+    setVisibleCount(INITIAL_FEED_SIZE);
     const timer = window.setTimeout(() => {
-      setLoading(true); setLoadingMore(false); setError(null); setDeals([]); setNextCursor(null); setVisibleCount(INITIAL_FEED_SIZE);
-      dealsApi.page(feedParams, { signal: controller.signal }).then((page) => { setDeals(page?.items || []); setNextCursor(page?.nextCursor || null); }).catch((e) => { if (e.name !== 'AbortError') setError(e.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+      dealsApi.page(feedParams, { signal: controller.signal }).then((page) => { if (controller.signal.aborted || generation !== feedGeneration.current) return; setDeals(page?.items || []); setNextCursor(page?.nextCursor || null); }).catch((e) => { if (!controller.signal.aborted && generation === feedGeneration.current && e.name !== 'AbortError') setError(e.message); }).finally(() => { if (!controller.signal.aborted && generation === feedGeneration.current) setLoading(false); });
     }, searchQuery.trim() ? 250 : 0);
-    return () => { window.clearTimeout(timer); controller.abort(); };
+    return () => { window.clearTimeout(timer); controller.abort(); paginationRequest.current?.abort(); };
   }, [feedParams, searchQuery, retryNonce]);
   useEffect(() => { const saveCheckpoint = () => checkpointVisit(); window.addEventListener('pagehide', saveCheckpoint); return () => window.removeEventListener('pagehide', saveCheckpoint); }, []);
   useEffect(() => { const refresh = () => setInterests(loadInterests()); window.addEventListener('focus', refresh); window.addEventListener('storage', refresh); window.addEventListener(INTERESTS_CHANGED_EVENT, refresh); return () => { window.removeEventListener('focus', refresh); window.removeEventListener('storage', refresh); window.removeEventListener(INTERESTS_CHANGED_EVENT, refresh); }; }, []);
@@ -98,7 +112,25 @@ export default function Home() {
   const refreshedSinceLastVisit = lastVisit > 0 ? availableDeals.filter((deal) => dealFreshnessTimestampMs(deal) > lastVisit).length : 0;
 
   useEffect(() => { setVisibleCount(INITIAL_FEED_SIZE); }, [interests, dismissals]);
-  const loadRemotePage = useCallback(() => { if (!nextCursor || loadingMore) return; setLoadingMore(true); dealsApi.page({ ...feedParams, cursor: nextCursor }).then((page) => { setDeals((current) => mergeDeals(current, page?.items || [])); setNextCursor(page?.nextCursor || null); }).catch((e) => setError(e.message)).finally(() => setLoadingMore(false)); }, [feedParams, loadingMore, nextCursor]);
+  const loadRemotePage = useCallback(() => {
+    if (!nextCursor || loadingMore || paginationRequest.current) return;
+    const generation = feedGeneration.current;
+    const controller = new AbortController();
+    paginationRequest.current = controller;
+    setLoadingMore(true);
+    dealsApi.page({ ...feedParams, cursor: nextCursor }, { signal: controller.signal })
+      .then((page) => {
+        if (controller.signal.aborted || generation !== feedGeneration.current) return;
+        setDeals((current) => mergeDeals(current, page?.items || []));
+        setNextCursor(page?.nextCursor || null);
+        setError(null);
+      })
+      .catch((e) => { if (!controller.signal.aborted && generation === feedGeneration.current) setError(e.message); })
+      .finally(() => {
+        if (paginationRequest.current === controller) paginationRequest.current = null;
+        if (generation === feedGeneration.current) setLoadingMore(false);
+      });
+  }, [feedParams, loadingMore, nextCursor]);
   useEffect(() => { const node = feedSentinel.current; if (!node || !hasMore || typeof IntersectionObserver === 'undefined') return undefined; const observer = new IntersectionObserver((entries) => { if (!entries.some((entry) => entry.isIntersecting)) return; if (hasLocalMore) setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)); else loadRemotePage(); }, { rootMargin: '700px 0px' }); observer.observe(node); return () => observer.disconnect(); }, [hasMore, hasLocalMore, exploreDeals.length, loadRemotePage]);
   useEffect(() => { const node = dropSeenMarker.current; if (!node || !dropDeals.length || dealDropMarked.current || typeof IntersectionObserver === 'undefined') return undefined; const observer = new IntersectionObserver((entries) => { if (!entries.some((entry) => entry.isIntersecting)) return; markDealDropSeen(dropDeals); dealDropMarked.current = true; observer.disconnect(); }, { rootMargin: '0px 0px -10% 0px' }); observer.observe(node); return () => observer.disconnect(); }, [dropDeals]);
 
@@ -179,6 +211,8 @@ export default function Home() {
     {showCuratedHome && topDeals.length > 0 && <section className="ds-shell py-8 sm:py-10"><div ref={dropSeenMarker} className="h-px" aria-hidden="true" /><div className="flex items-end justify-between gap-4 mb-5"><div><div className="ds-kicker">Recently checked</div><h2 className="ds-section-title mt-1">Latest</h2></div><Link to="/?category=all" className="text-xs font-bold text-emerald-900 inline-flex items-center gap-1">See all deals <ArrowRight className="w-3.5 h-3.5" /></Link></div><div className="grid grid-cols-2 md:grid-cols-4 gap-3">{topDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} />)}</div></section>}
 
     {showCuratedHome && filteredPicks.length > 0 && <section className="border-y-2 border-emerald-950/15 bg-white"><div className="ds-shell py-9 sm:py-12"><div className="mb-5"><div className="ds-kicker"><Star className="w-3.5 h-3.5 inline mr-1.5 fill-emerald-800" />Editor’s picks</div><h2 className="ds-section-title mt-1">Selected deals</h2></div><div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">{filteredPicks.map((pick) => <div key={pick.asin}><DealCard deal={pick.deal} />{pick.editorialNote && <p className="hidden sm:block mt-2 text-[11px] leading-relaxed text-slate-600 border-t border-emerald-950/10 pt-2"><strong className="text-emerald-900">Why we picked it:</strong> {pick.editorialNote}</p>}</div>)}</div></div></section>}
+
+    {showCuratedHome && <section className="border-y border-emerald-950/15 bg-[#f3efe5]"><div className="ds-shell py-6 sm:py-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"><div><div className="ds-kicker">More to explore</div><h2 className="font-heading text-2xl font-bold text-emerald-950 mt-1">Amazon memberships</h2><p className="text-sm text-slate-600 mt-1">Explore Prime, Prime Video, Audible, and Kindle Unlimited.</p></div><Link to="/memberships" className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wide text-emerald-950 border-b-2 border-emerald-950 pb-1 self-start">See memberships <ArrowRight className="w-4 h-4" /></Link></div></section>}
 
     <section className="ds-shell py-10 sm:py-12 pb-20">
       <div className="flex items-center gap-5 overflow-x-auto border-b border-emerald-950/10 pb-3 mb-5 text-sm whitespace-nowrap"><button onClick={() => { setActiveCat('all'); setSearchParams({ category: 'all', ...(searchQuery ? { q: searchQuery } : {}) }); }} className={`font-bold pb-2 border-b-2 ${activeCat === 'all' ? 'text-emerald-950 border-emerald-950' : 'text-slate-500 border-transparent'}`}>All</button>{categories.map((c) => <button key={c.id} onClick={() => { setActiveCat(c.name); setSearchParams({ category: c.name, ...(searchQuery ? { q: searchQuery } : {}) }); }} className={`font-semibold pb-2 border-b-2 ${activeCat?.toLowerCase() === c.name.toLowerCase() ? 'text-emerald-950 border-emerald-950' : 'text-slate-500 border-transparent'}`}>{c.name}</button>)}</div>

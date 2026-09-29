@@ -19,6 +19,7 @@ function buildShopperApi({ version = null } = {}) {
   router.use('/auth', require('./auth'));
   router.use('/deals', require('../middleware/verifiedAiIngestGuard').verifiedAiIngestGuard);
   router.use('/deals', require('./deals'));
+  router.use('/bounties', require('./bounties'));
   router.use('/categories', require('./categories'));
   router.use('/bookmarks', require('./bookmarks'));
   router.use('/notifications', require('./notifications'));
