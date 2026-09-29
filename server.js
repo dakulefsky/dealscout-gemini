@@ -258,6 +258,8 @@ async function startServer() {
           initialContent = homeInitialContent(categories);
         } else if (req.path === '/disclosure') {
           meta = { title: 'Affiliate Disclosure — DealScout', description: 'How DealScout uses Amazon affiliate links and how deal pricing is presented.', canonical: `${baseUrl}/disclosure` };
+        } else if (req.path === '/memberships') {
+          meta = { title: 'Amazon Memberships — DealScout', description: 'Explore Prime, Prime Video, Audible, and Kindle Unlimited on Amazon.', canonical: `${baseUrl}/memberships` };
         } else if (req.path === '/privacy') {
           meta = { title: 'Privacy Policy — DealScout', description: 'How DealScout uses guest identity, saved-deal, personalization, and service data.', canonical: `${baseUrl}/privacy` };
         } else if (req.path === '/support') {

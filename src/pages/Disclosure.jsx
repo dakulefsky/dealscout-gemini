@@ -58,7 +58,7 @@ export default function Disclosure() {
 
           <section>
             <h2 className="font-heading text-lg font-bold text-slate-900 mb-2">Affiliate relationships</h2>
-            <p>Affiliate compensation does not guarantee that a product will be featured or labeled a DealScout Pick. The goal is to surface useful deals while being clear about how the site may earn money.</p>
+            <p>DealScout may also earn from eligible Amazon membership sign-ups through links on the <Link to="/memberships" className="underline underline-offset-2">memberships page</Link>. Affiliate compensation does not guarantee that a product will be featured or labeled a DealScout Pick. The goal is to surface useful deals while being clear about how the site may earn money.</p>
           </section>
         </div>
       </article>

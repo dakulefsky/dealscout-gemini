@@ -38,6 +38,7 @@ function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now()
     ...categories.map((c) => ({ loc: `${baseUrl}/category/${encodeURIComponent(c.slug)}`, lastmod: iso(latestByCategory.get(String(c.name || '').trim().toLowerCase())) })),
     ...freshDeals.map((d) => ({ loc: `${baseUrl}/deal/${encodeURIComponent(d.id || d.asin)}`, lastmod: iso(d.price_check_at) })),
     { loc: `${baseUrl}/disclosure` },
+    { loc: `${baseUrl}/memberships` },
     { loc: `${baseUrl}/privacy` },
     { loc: `${baseUrl}/support` },
   ];

@@ -19,6 +19,6 @@ test('push disable uses an encoded path parameter supported by the server', () =
 });
 
 test('native app exports the shared notification client', () => {
-  assert.match(apiCore, /return \{ api, auth, deals, categories, bookmarks, notifications, editorial, ai, functions \}/);
+  assert.match(apiCore, /return \{ api, auth, deals, categories, bookmarks, notifications, editorial, bounties, ai, functions \}/);
   assert.match(mobileApi, /export const \{ deals, categories, bookmarks, auth, functions, notifications \} = client/);
 });

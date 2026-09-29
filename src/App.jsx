@@ -13,6 +13,7 @@ import DealDetail from '@/pages/DealDetail';
 const CategoryPage = lazy(() => import('@/pages/CategoryPage'));
 const SavedDeals = lazy(() => import('@/pages/SavedDeals'));
 const Disclosure = lazy(() => import('@/pages/Disclosure'));
+const Memberships = lazy(() => import('@/pages/Memberships'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
 const Support = lazy(() => import('@/pages/Support'));
 const Login = lazy(() => import('@/pages/Login'));
@@ -76,6 +77,7 @@ export default function App() {
                   <Route path="/deal/:id" element={<ProductRoute />} />
                   <Route path="/saved" element={<SavedDeals />} />
                   <Route path="/disclosure" element={<Disclosure />} />
+                  <Route path="/memberships" element={<Memberships />} />
                   <Route path="/privacy" element={<Privacy />} />
                   <Route path="/support" element={<Support />} />
 
