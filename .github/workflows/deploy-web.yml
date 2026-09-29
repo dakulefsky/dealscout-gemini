@@ -29,6 +29,7 @@ jobs:
       GCP_WEB_SERVICE: ${{ vars.GCP_WEB_SERVICE }}
       GCP_ADMIN_SERVICE: ${{ vars.GCP_ADMIN_SERVICE || 'dealscout' }}
       GCP_IMAGE_REPOSITORY: ${{ vars.GCP_IMAGE_REPOSITORY }}
+      GCP_MAINTENANCE_JOB: ${{ vars.GCP_MAINTENANCE_JOB || 'dealscout-refresh' }}
       GCP_RUNTIME_SERVICE_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
       CLOUD_SQL_CONNECTION_NAME: ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
       PUBLIC_WEB_URL: ${{ vars.PUBLIC_WEB_URL }}
@@ -222,6 +223,52 @@ jobs:
           DEALSCOUT_SMOKE_URL: ${{ vars.PUBLIC_WEB_URL }}
         run: npm run smoke:release
 
+      - name: Deploy scheduled deal maintenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME_ACCOUNT="${GCP_RUNTIME_SERVICE_ACCOUNT:-}"
+          if [ -z "$RUNTIME_ACCOUNT" ]; then
+            PROJECT_NUMBER="$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')"
+            RUNTIME_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+          fi
+          PROVIDER="${DEAL_DATA_PROVIDER:-auto}"
+          ENV_VARS="^|^NODE_ENV=production|PUBLIC_WEB_URL=${PUBLIC_WEB_URL}|CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME}|AMAZON_ASSOCIATE_TAG=${AMAZON_ASSOCIATE_TAG}|DEAL_DATA_PROVIDER=${PROVIDER}"
+          [ -n "${RAINFOREST_DOMAIN:-}" ] && ENV_VARS+="|RAINFOREST_DOMAIN=${RAINFOREST_DOMAIN}"
+          [ -n "${RAINFOREST_DAILY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|RAINFOREST_DAILY_REQUEST_LIMIT=${RAINFOREST_DAILY_REQUEST_LIMIT}"
+          [ -n "${RAINFOREST_MONTHLY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|RAINFOREST_MONTHLY_REQUEST_LIMIT=${RAINFOREST_MONTHLY_REQUEST_LIMIT}"
+          [ -n "${GEMINI_MODEL:-}" ] && ENV_VARS+="|GEMINI_MODEL=${GEMINI_MODEL}"
+          [ -n "${GEMINI_DAILY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|GEMINI_DAILY_REQUEST_LIMIT=${GEMINI_DAILY_REQUEST_LIMIT}"
+          [ -n "${GEMINI_MONTHLY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|GEMINI_MONTHLY_REQUEST_LIMIT=${GEMINI_MONTHLY_REQUEST_LIMIT}"
+          gcloud run jobs deploy "$GCP_MAINTENANCE_JOB" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --image "$GCP_IMAGE" --command node --args deal-maintenance.js \
+            --tasks 1 --max-retries 1 --task-timeout 20m \
+            --service-account "$RUNTIME_ACCOUNT" \
+            --set-cloudsql-instances "$CLOUD_SQL_CONNECTION_NAME" \
+            --set-env-vars "$ENV_VARS" \
+            --set-secrets "${GCP_DB_SECRETS},${GCP_WEB_SECRETS}" --quiet
+
+          gcloud run jobs add-iam-policy-binding "$GCP_MAINTENANCE_JOB" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --member "serviceAccount:${RUNTIME_ACCOUNT}" \
+            --role roles/run.invoker --quiet
+
+          SCHEDULE="dealscout-refresh"
+          JOB_URI="https://run.googleapis.com/v2/projects/${GCP_PROJECT_ID}/locations/${GCP_REGION}/jobs/${GCP_MAINTENANCE_JOB}:run"
+          SCHEDULER_ARGS=(
+            "$SCHEDULE" --project "$GCP_PROJECT_ID" --location "$GCP_REGION"
+            --schedule '0 * * * *' --time-zone Etc/UTC
+            --uri "$JOB_URI" --http-method POST
+            --oauth-service-account-email "$RUNTIME_ACCOUNT"
+            --max-retry-attempts 2 --quiet
+          )
+          if gcloud scheduler jobs describe "$SCHEDULE" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
+            gcloud scheduler jobs update http "${SCHEDULER_ARGS[@]}"
+          else
+            gcloud scheduler jobs create http "${SCHEDULER_ARGS[@]}"
+          fi
+
       - name: Deployment summary
         shell: bash
         run: |
@@ -231,6 +278,7 @@ jobs:
             echo "- Image: \`${GCP_IMAGE}\`"
             echo "- Service: \`${GCP_WEB_SERVICE}\`"
             echo "- Private service: \`${GCP_ADMIN_SERVICE}\`"
+            echo "- Scheduled refresh job: \`${GCP_MAINTENANCE_JOB}\` (hourly; database cadence controls provider calls)"
             echo "- Region: \`${GCP_REGION}\`"
             echo "- Public URL: ${PUBLIC_WEB_URL}"
           } >> "$GITHUB_STEP_SUMMARY"

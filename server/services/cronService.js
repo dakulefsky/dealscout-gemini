@@ -331,6 +331,14 @@ class DealCronService {
           const retryAt = await rescheduleProviderJob('discover-deals', err);
           return { error: err.message, code: err.code, scope: err.scope, limit: err.limit, retryAfterMs: err.retryAfterMs, status: 'DEFERRED', nextDueAt: retryAt };
         }
+        // A failed scheduled pull must not consume the entire 12-hour cadence.
+        if (scheduled) {
+          try {
+            await maintenanceCadence.reschedule('discover-deals', Math.floor(Date.now() / 1000) + THIRTY_MINUTES_SECONDS);
+          } catch (rescheduleError) {
+            console.warn('[DealCronService] Could not reschedule failed discovery:', rescheduleError.message);
+          }
+        }
         return { error: err.message, status: 'NOTICE' };
       } finally {
         this.isRunning = false;
