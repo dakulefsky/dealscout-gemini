@@ -2,6 +2,7 @@ const deals = require('./dealRepository');
 const postgres = require('../storage/postgres');
 const { encodeCursor, decodeCursor } = require('../services/dealCursor');
 const { isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
+const { uniqueQuantityFamilies, QUANTITY_FAMILY_SQL } = require('../services/dealVariantPolicy');
 
 const DISCOUNT_SQL = '(100.0 * (original_price - sale_price) / original_price)';
 const BEST_SQL = `(
@@ -57,9 +58,9 @@ function bestScore(row) {
 
 function cursorFromRow(row, sort) {
   const primary = sort === 'best'
-    ? bestScore(row)
+    ? (row.sort_score ?? bestScore(row))
     : sort === 'discount_desc'
-      ? derivedDiscount(row)
+      ? (row.sort_score ?? derivedDiscount(row))
       : sort === 'price_asc' || sort === 'price_desc'
         ? Number(row.sale_price)
         : Number(row.created_at);
@@ -82,7 +83,7 @@ function addCursorPredicate(where, params, cursor, sort) {
     where.push(`(created_at < ${created} OR (created_at = ${created} AND id < ${id}))`);
     return;
   }
-  const primary = `$${params.push(Number(cursor.primary))}`;
+  const primary = `$${params.push(cursor.primary)}`;
   const field = sort === 'best' ? BEST_SQL : sort === 'discount_desc' ? DISCOUNT_SQL : 'sale_price';
   const op = sort === 'price_asc' ? '>' : '<';
   where.push(`(${field} ${op} ${primary} OR (${field} = ${primary} AND (created_at < ${created} OR (created_at = ${created} AND id < ${id}))))`);
@@ -134,7 +135,9 @@ async function page(options = {}) {
   if (!postgres.isConfigured()) {
     let rows = (await deals.listAll()).filter((deal) => isPublicDeal(deal));
     rows = filterFallback(rows, filters);
-    rows = fallbackSort(rows, sort).filter((row) => afterCursor(row, cursor, sort));
+    rows = fallbackSort(rows, sort);
+    if (!filters.q) rows = uniqueQuantityFamilies(rows);
+    rows = rows.filter((row) => afterCursor(row, cursor, sort));
     const selected = rows.slice(0, limit + 1);
     const hasMore = selected.length > limit;
     const items = selected.slice(0, limit);
@@ -165,11 +168,21 @@ async function page(options = {}) {
   if (filters.minDiscount !== null) where.push(`${DISCOUNT_SQL} >= $${params.push(filters.minDiscount)}`);
   if (filters.minPrice !== null) where.push(`sale_price >= $${params.push(filters.minPrice)}`);
   if (filters.maxPrice !== null) where.push(`sale_price <= $${params.push(filters.maxPrice)}`);
-  addCursorPredicate(where, params, cursor, sort);
+  // Select one offer per quantity family before applying the cursor. Otherwise
+  // a hidden sibling can reappear on a later page.
+  const source = filters.q ? 'deals' : 'quantity_offers';
+  const prefix = filters.q ? '' : `WITH quantity_ranked AS (
+    SELECT deals.*, ROW_NUMBER() OVER (
+      PARTITION BY ${QUANTITY_FAMILY_SQL} ORDER BY ${orderBy(sort)}
+    ) AS quantity_rank FROM deals WHERE ${where.join(' AND ')}
+  ), quantity_offers AS (SELECT * FROM quantity_ranked WHERE quantity_rank = 1)`;
+  const pageWhere = filters.q ? where : [];
+  addCursorPredicate(pageWhere, params, cursor, sort);
   params.push(limit + 1);
   const result = await postgres.query(`
-    SELECT * FROM deals
-     WHERE ${where.join(' AND ')}
+    ${prefix}
+    SELECT ${source}.*${sort === 'best' ? `, ${BEST_SQL} AS sort_score` : sort === 'discount_desc' ? `, ${DISCOUNT_SQL} AS sort_score` : ''} FROM ${source}
+     ${pageWhere.length ? `WHERE ${pageWhere.join(' AND ')}` : ''}
      ORDER BY ${orderBy(sort)}
      LIMIT $${params.length}
   `, params);
