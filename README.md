@@ -44,6 +44,10 @@ npm run build
 
 GitHub's **Quality** workflow runs locked install, lint, tests, frontend build, and a production Docker build on pull requests.
 
+## Catalog categories
+
+Imports map familiar marketplace departments into the existing catalog. A meaningful new provider department, such as Books or Musical Instruments, is registered when an actual product is saved. Generic labels, links, IDs, and malformed category names stay in Other. Navigation shows a department only while it has fresh approved deals, and startup repairs recognizable older imports. Explicitly registered custom departments are preserved.
+
 ## Production deployment
 
 Build first, then start the Node server:

@@ -166,7 +166,7 @@ export default function Home() {
                 <div className="divide-y divide-emerald-950/15">
                   {spotlightDeals.map((deal, index) => (
                     <Link key={deal.id || deal.asin} to={`/deal/${deal.id || deal.asin}`} className="group grid grid-cols-[72px_1fr] gap-3 py-4">
-                      <div className={`h-16 p-1.5 ${index === 1 ? 'bg-[#e5dfd1]' : 'bg-white'}`}>
+                      <div className="h-16 p-1.5 bg-white">
                         <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" loading={index === 0 ? 'eager' : 'lazy'} fetchPriority={index === 0 ? 'high' : 'auto'} className="w-full h-full group-hover:scale-[1.03] transition-transform" />
                       </div>
                       <div className="min-w-0">

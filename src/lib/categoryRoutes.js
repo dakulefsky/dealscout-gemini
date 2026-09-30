@@ -20,9 +20,11 @@ export function categorySlugFromName(value) {
   const canonical = CATEGORY_SLUGS.get(normalized);
   if (canonical) return canonical;
   return normalized
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
     .replace(/&/g, ' and ')
+    .replace(/['’]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/^-+|-+$/g, '').slice(0, 80);
 }
 
 export function categoryPathFromName(value) {

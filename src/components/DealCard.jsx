@@ -7,6 +7,7 @@ import { useBookmarks } from '@/lib/BookmarksContext';
 import { verificationFreshness } from '@/lib/verificationFreshness';
 import { addCategoryInterest, reduceCategoryInterest, dwellWeight, loadInterests } from '@/lib/feedPersonalization';
 import { dismissDeal, isDealDismissed, restoreDeal } from '@/lib/feedDismissals';
+import { dealSavings } from '@/lib/dealSavings';
 
 export function formatPrice(price) {
   if (price == null || isNaN(price)) return '';
@@ -22,7 +23,7 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
   const isExpired = Boolean(deal.isExpired || deal.status === 'EXPIRED');
   const hoursLeft = deal.expiresInHours ? Math.max(1, Math.ceil(deal.expiresInHours)) : null;
   const freshness = verificationFreshness(deal.priceCheckAt);
-  const savings = Math.max(0, Number(deal.originalPrice || 0) - Number(deal.salePrice || 0));
+  const { amount: savings, percent: discountPercent } = dealSavings(deal);
   const cardRef = useRef(null);
   const viewedAt = useRef(null);
   const dwellRecorded = useRef(false);
@@ -99,12 +100,12 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
         <Link to={`/deal/${dealId}`} onClick={handleDealClick} aria-label={`View deal: ${deal.title}`} className="flex gap-4 items-center flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2">
           <div className={`relative w-28 h-24 sm:w-36 sm:h-28 shrink-0 p-2 bg-white ${isExpired ? 'grayscale-[0.8]' : ''}`}>
             <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-[1.03] transition-transform duration-200" />
-            {isExpired ? <span className="absolute top-1 left-1 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5">Ended</span> : deal.discountPercent > 0 ? <span className="absolute top-1 left-1 bg-emerald-100 text-emerald-950 text-[10px] font-black px-1.5 py-0.5">{deal.discountPercent}% OFF</span> : null}
+            {isExpired ? <span className="absolute top-1 left-1 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5">Ended</span> : null}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap"><span className="ds-kicker">{deal.category || 'Deal'}</span>{isExpired && <span className="text-[9px] text-amber-700 font-bold"><AlertCircle className="w-2.5 h-2.5 inline mr-0.5" />{hoursLeft ? `Deletes in ${hoursLeft}h` : 'Ended'}</span>}{sourceBadge}</div>
             <h3 className={`text-sm sm:text-base font-semibold leading-snug break-words ${isExpired ? 'line-through text-slate-500' : 'text-slate-950 group-hover:text-emerald-900'}`}>{deal.title}</h3>
-            <div className="flex items-baseline gap-2 mt-2 flex-wrap"><span className="ds-price text-xl">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}{!isExpired && savings > 0 && <span className="text-[10px] font-bold text-emerald-700">Save {formatPrice(savings)}</span>}</div>
+            <div className="flex items-baseline gap-2 mt-2 flex-wrap"><span className="ds-price text-xl">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}{discountPercent > 0 && <span className="text-xs font-black text-emerald-800 bg-emerald-50 px-1.5 py-0.5">{discountPercent}% off</span>}{!isExpired && savings > 0 && <span className="text-[10px] font-bold text-emerald-700">Save {formatPrice(savings)}</span>}</div>
           </div>
         </Link>
         {actionButtons}
@@ -115,15 +116,16 @@ export default function DealCard({ deal, viewMode = 'grid' }) {
   return (
     <div ref={cardRef} className={`group relative h-full min-w-0 flex flex-col bg-white border-t-[3px] border-x border-b border-emerald-950/20 ${isExpired ? 'opacity-65' : 'border-t-emerald-950'}`}>
       <Link to={`/deal/${dealId}`} onClick={handleDealClick} aria-label={`View deal: ${deal.title}`} className="flex flex-col flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700">
-        <div className={`relative aspect-[4/3] w-full shrink-0 overflow-hidden p-4 bg-[#f7f5f0] border-b border-emerald-950/5 ${isExpired ? 'grayscale-[0.8]' : ''}`}>
+        <div className={`relative aspect-[4/3] w-full shrink-0 overflow-hidden p-3 sm:p-4 bg-white border-b border-emerald-950/5 ${isExpired ? 'grayscale-[0.8]' : ''}`}>
           <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" className="w-full h-full group-hover:scale-[1.015] transition-transform duration-200" />
-          {isExpired ? <span className="absolute top-2 left-2 bg-slate-900 text-white text-[9px] font-bold px-2 py-1"><Clock className="w-2.5 h-2.5 inline mr-1" />Ended</span> : deal.discountPercent > 0 ? <span className="absolute top-2 left-2 bg-emerald-950 text-white text-[9px] font-black tracking-[0.08em] px-2 py-1">{deal.discountPercent}% OFF</span> : null}
+          {isExpired ? <span className="absolute top-2 left-2 bg-slate-900 text-white text-[9px] font-bold px-2 py-1"><Clock className="w-2.5 h-2.5 inline mr-1" />Ended</span> : null}
         </div>
         <div className="p-3 sm:p-3.5 flex flex-col flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1.5 min-h-[15px] flex-wrap"><span className="text-[9px] uppercase tracking-[0.12em] font-bold text-slate-500 break-words min-w-0">{deal.category || 'Deal'}</span>{sourceBadge}</div>
           <h3 className={`text-[13px] sm:text-[14px] font-black leading-snug break-words min-h-[2.4rem] ${isExpired ? 'line-through text-slate-500' : 'text-slate-950 group-hover:text-emerald-900'}`}>{deal.title}</h3>
           <div className="mt-auto pt-3">
             <div className="flex items-baseline gap-1.5 flex-wrap"><span className="ds-price text-xl sm:text-[22px]">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-[10px] sm:text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>
+            {discountPercent > 0 && <div className="mt-1.5 inline-flex bg-emerald-50 px-1.5 py-0.5 text-xs font-black text-emerald-800">{discountPercent}% off</div>}
             <div className="mt-1.5 flex items-center justify-between gap-2">{!isExpired && savings > 0 ? <span className="text-[10px] font-black uppercase tracking-[0.08em] text-emerald-800">Save {formatPrice(savings)}</span> : <span /> }<ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-800 transition-colors" /></div>
           </div>
         </div>

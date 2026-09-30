@@ -7,4 +7,6 @@ test('canonical category paths match DealScout category slugs', async () => {
   assert.equal(categoryPathFromName('Sports & Outdoors'), '/category/sports-outdoors');
   assert.equal(categoryPathFromName('Tools & Home Improvement'), '/category/tools-home-improvement');
   assert.equal(categoryPathFromName('Electronics'), '/category/electronics');
+  assert.equal(categoryPathFromName("Children's Books"), '/category/childrens-books');
+  assert.equal(categoryPathFromName('Musical Instruments'), '/category/musical-instruments');
 });

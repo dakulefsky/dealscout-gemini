@@ -150,6 +150,7 @@ async function upsert(input, options = {}) {
   if (!d.id || !/^[A-Z0-9]{10}$/.test(d.asin) || !d.title) throw new Error('Invalid deal record');
   if (!(d.original_price > 0) || !(d.sale_price > 0) || d.sale_price > d.original_price) throw new Error('Invalid deal prices');
   d.discount_percent = Number((((d.original_price - d.sale_price) / d.original_price) * 100).toFixed(1));
+  d.category = await require('./categoryRepository').ensureForDeal(d.category || 'Other');
 
   if (!postgres.isConfigured()) {
     const record = toJsonFallback(d);
