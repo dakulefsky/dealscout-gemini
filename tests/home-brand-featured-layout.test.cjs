@@ -13,4 +13,19 @@ test('home presents departments before products and an accessible browse toolbar
   assert.doesNotMatch(home, /Standouts|Selected deals|chapterBlock|Departments<\/h1>/);
   assert.match(home, /aria-label="Department"/);
   assert.match(home, /imagePriority=\{prioritizeImages && index < 2\}/);
+  assert.match(home, /featuredDealCandidates\(visibleDeals\)/);
+  assert.match(home, /Strong recorded discounts\. Check current prices on Amazon\./);
+  assert.match(home, /if \(!node \|\| !hasMore/);
+  assert.doesNotMatch(home, />Load more deals<\/button>/);
+  assert.match(home, /grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6/);
+});
+
+test('membership offers stay below shopping and out of primary navigation', () => {
+  const layout = fs.readFileSync(path.join(__dirname, '..', 'src/components/Layout.jsx'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'src/App.jsx'), 'utf8');
+  const offers = fs.readFileSync(path.join(__dirname, '..', 'src/components/MembershipOffers.jsx'), 'utf8');
+  assert.doesNotMatch(layout, /\/memberships|Prime & Audible/);
+  assert.doesNotMatch(app, /\/memberships|pages\/Memberships/);
+  assert.match(offers, /Memberships and subscriptions/);
+  assert.match(offers, /Offers, eligibility, and terms are set by Amazon/);
 });
