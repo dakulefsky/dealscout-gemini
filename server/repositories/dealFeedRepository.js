@@ -75,7 +75,7 @@ function orderBy(sort) {
   return 'created_at DESC, id DESC';
 }
 
-function addCursorPredicate(where, params, cursor, sort) {
+function addCursorPredicate(where, params, cursor, sort, balanced = false) {
   if (!cursor) return;
   const created = `$${params.push(cursor.createdAt)}`;
   const id = `$${params.push(cursor.id)}`;
@@ -84,7 +84,7 @@ function addCursorPredicate(where, params, cursor, sort) {
     return;
   }
   const primary = `$${params.push(cursor.primary)}`;
-  const field = sort === 'best' ? BEST_SQL : sort === 'discount_desc' ? DISCOUNT_SQL : 'sale_price';
+  const field = sort === 'best' ? (balanced ? 'sort_score' : BEST_SQL) : sort === 'discount_desc' ? DISCOUNT_SQL : 'sale_price';
   const op = sort === 'price_asc' ? '>' : '<';
   where.push(`(${field} ${op} ${primary} OR (${field} = ${primary} AND (created_at < ${created} OR (created_at = ${created} AND id < ${id}))))`);
 }
@@ -107,7 +107,7 @@ function fallbackSort(rows, sort) {
   return rows.sort((a, b) => {
     const createdDiff = Number(b.created_at) - Number(a.created_at);
     const idDiff = String(b.id).localeCompare(String(a.id));
-    if (sort === 'best') return bestScore(b) - bestScore(a) || createdDiff || idDiff;
+    if (sort === 'best') return (b.sort_score ?? bestScore(b)) - (a.sort_score ?? bestScore(a)) || createdDiff || idDiff;
     if (sort === 'discount_desc') return derivedDiscount(b) - derivedDiscount(a) || createdDiff || idDiff;
     if (sort === 'price_asc') return Number(a.sale_price) - Number(b.sale_price) || createdDiff || idDiff;
     if (sort === 'price_desc') return Number(b.sale_price) - Number(a.sale_price) || createdDiff || idDiff;
@@ -119,7 +119,7 @@ function afterCursor(row, cursor, sort) {
   if (!cursor) return true;
   const created = Number(row.created_at);
   if (sort === '-created_date') return created < cursor.createdAt || (created === cursor.createdAt && String(row.id) < cursor.id);
-  const value = sort === 'best' ? bestScore(row) : sort === 'discount_desc' ? derivedDiscount(row) : Number(row.sale_price);
+  const value = sort === 'best' ? (row.sort_score ?? bestScore(row)) : sort === 'discount_desc' ? derivedDiscount(row) : Number(row.sale_price);
   const primary = Number(cursor.primary);
   const primaryAfter = sort === 'price_asc' ? value > primary : value < primary;
   return primaryAfter || (value === primary && (created < cursor.createdAt || (created === cursor.createdAt && String(row.id) < cursor.id)));
@@ -129,6 +129,7 @@ async function page(options = {}) {
   const sort = normalizeSort(options.sort);
   const limit = normalizeLimit(options.limit);
   const filters = normalizeFilters(options);
+  const balanced = sort === 'best' && !filters.category && !filters.q;
   const cursor = decodeCursor(options.cursor, sort);
   if (options.cursor && !cursor) throw new Error('Invalid cursor');
 
@@ -137,6 +138,18 @@ async function page(options = {}) {
     rows = filterFallback(rows, filters);
     rows = fallbackSort(rows, sort);
     if (!filters.q) rows = uniqueQuantityFamilies(rows);
+    if (balanced) {
+      // Round-robin departments, with the strongest deal in each department
+      // first. Calculate over the complete eligible set before pagination.
+      const counts = new Map();
+      rows = rows.map((row) => {
+        const category = String(row.category || '').trim().toLowerCase();
+        const position = counts.get(category) || 0;
+        counts.set(category, position + 1);
+        return { ...row, sort_score: bestScore(row) - position * 1000 };
+      });
+      rows = fallbackSort(rows, sort);
+    }
     rows = rows.filter((row) => afterCursor(row, cursor, sort));
     const selected = rows.slice(0, limit + 1);
     const hasMore = selected.length > limit;
@@ -170,20 +183,25 @@ async function page(options = {}) {
   if (filters.maxPrice !== null) where.push(`sale_price <= $${params.push(filters.maxPrice)}`);
   // Select one offer per quantity family before applying the cursor. Otherwise
   // a hidden sibling can reappear on a later page.
-  const source = filters.q ? 'deals' : 'quantity_offers';
-  const prefix = filters.q ? '' : `WITH quantity_ranked AS (
+  const source = balanced ? 'balanced_offers' : filters.q ? 'deals' : 'quantity_offers';
+  let prefix = filters.q ? '' : `WITH quantity_ranked AS (
     SELECT deals.*, ROW_NUMBER() OVER (
       PARTITION BY ${QUANTITY_FAMILY_SQL} ORDER BY ${orderBy(sort)}
     ) AS quantity_rank FROM deals WHERE ${where.join(' AND ')}
   ), quantity_offers AS (SELECT * FROM quantity_ranked WHERE quantity_rank = 1)`;
+  if (balanced) prefix += `, balanced_offers AS (
+    SELECT quantity_offers.*, ${BEST_SQL} - 1000 * (ROW_NUMBER() OVER (
+      PARTITION BY LOWER(TRIM(COALESCE(category, ''))) ORDER BY ${orderBy(sort)}
+    ) - 1) AS sort_score FROM quantity_offers
+  )`;
   const pageWhere = filters.q ? where : [];
-  addCursorPredicate(pageWhere, params, cursor, sort);
+  addCursorPredicate(pageWhere, params, cursor, sort, balanced);
   params.push(limit + 1);
   const result = await postgres.query(`
     ${prefix}
-    SELECT ${source}.*${sort === 'best' ? `, ${BEST_SQL} AS sort_score` : sort === 'discount_desc' ? `, ${DISCOUNT_SQL} AS sort_score` : ''} FROM ${source}
+    SELECT ${source}.*${sort === 'best' && !balanced ? `, ${BEST_SQL} AS sort_score` : sort === 'discount_desc' ? `, ${DISCOUNT_SQL} AS sort_score` : ''} FROM ${source}
      ${pageWhere.length ? `WHERE ${pageWhere.join(' AND ')}` : ''}
-     ORDER BY ${orderBy(sort)}
+     ORDER BY ${balanced ? 'sort_score DESC, created_at DESC, id DESC' : orderBy(sort)}
      LIMIT $${params.length}
   `, params);
   const hasMore = result.rows.length > limit;

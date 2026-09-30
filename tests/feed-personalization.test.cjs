@@ -22,6 +22,6 @@ test('deal cards give saves stronger weight than passive dwell', () => {
 
 test('best-for-you ranking keeps base deal quality before category personalization', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
-  assert.match(source, /personalizedRank\(rankDeals\(list\), interests\)/);
+  assert.match(source, /personalizedRank\(activeCat === 'all'[\s\S]*\? list : rankDeals\(list\), interests\)/);
   assert.match(source, /Reset recommendations/);
 });

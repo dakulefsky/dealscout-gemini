@@ -8,7 +8,7 @@ const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.js
 test('homepage standout rail is selected from the live verified catalog', () => {
   assert.match(home, /trustworthyDiscountPercent\(deal\)/);
   assert.match(home, /filter\(\(item\) => item\.discount >= 30\)/);
-  assert.match(home, /slice\(0, 3\)/);
+  assert.match(home, /balancedFeatured\([\s\S]*map\(\(\{ deal \}\) => deal\), 3\)/);
   assert.match(home, /const spotlightIds/);
 });
 

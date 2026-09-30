@@ -13,7 +13,7 @@ test('home leads with restrained department copy instead of explanatory personal
 
 test('curated deal rows remain bounded and show single available products', () => {
   assert.match(home, /function balancedFeatured\(items, maxItems = 8\)/);
-  assert.match(home, /return \(items \|\| \[\]\)\.slice\(0, maxItems\)/);
+  assert.match(home, /selected\.length < maxItems/);
   assert.match(home, /balancedFeatured\(freshDealDrop\(visibleDeals\.filter/);
   assert.match(home, /balancedFeatured\(picks\.filter/);
 });

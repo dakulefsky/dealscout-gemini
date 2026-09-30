@@ -6,7 +6,7 @@ import { Image } from '@/components/ui/image';
 import { LogOut, Settings, Heart, Search, X, Loader2, Menu } from 'lucide-react';
 import AffiliateBanner from '@/components/AffiliateBanner';
 import { deals as dealsApi } from '@/lib/api';
-import { getActiveCategories } from '@/lib/publicCatalogCache';
+import { useActiveCategories } from '@/lib/useActiveCategories';
 
 const SEARCH_DEBOUNCE_MS = 250;
 const MIN_SEARCH_CHARS = 2;
@@ -23,14 +23,9 @@ export default function Layout({ children }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [categoriesList, setCategoriesList] = useState([]);
   const searchRef = useRef(null);
   const isAdminArea = location.pathname.startsWith('/admin');
-
-  useEffect(() => {
-    if (isAdminArea) return;
-    getActiveCategories().then((result) => setCategoriesList(result || [])).catch(() => setCategoriesList([]));
-  }, [isAdminArea]);
+  const categoriesList = useActiveCategories(!isAdminArea);
 
   useEffect(() => {
     const handleKeyDown = (event) => {

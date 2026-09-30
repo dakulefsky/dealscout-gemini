@@ -26,6 +26,7 @@ async function ensureOperationalSchemas() {
     channelSettingsService.ensureSchema(),
   ]);
   await bookmarkRepository.ensureSchema();
+  await categoryRepository.repairImportedCategories();
 }
 
 async function initializeRuntime({

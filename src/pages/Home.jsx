@@ -4,7 +4,7 @@ import { TrendingDown, Search, LayoutGrid, List, RotateCcw, Star, SlidersHorizon
 import DealCard, { formatPrice } from '@/components/DealCard';
 import { Image } from '@/components/ui/image';
 import { deals as dealsApi, editorial as editorialApi } from '@/lib/api';
-import { getActiveCategories } from '@/lib/publicCatalogCache';
+import { useActiveCategories } from '@/lib/useActiveCategories';
 import { rankDeals } from '@/lib/dealRanking';
 import { loadInterests, personalizedRank, STORAGE_KEY, INTERESTS_CHANGED_EVENT } from '@/lib/feedPersonalization';
 import { loadDismissedDeals, DISMISSALS_CHANGED_EVENT } from '@/lib/feedDismissals';
@@ -29,13 +29,24 @@ const CHAPTER_INTERVAL = 8;
 const REMOTE_PAGE_SIZE = 24;
 
 function dealIdentity(deal) { return String(deal?.id || deal?.asin || '').trim(); }
-function balancedFeatured(items, maxItems = 8) { return (items || []).slice(0, maxItems); }
+function balancedFeatured(items, maxItems = 8) {
+  const remaining = [...(items || [])]; const selected = [];
+  while (remaining.length && selected.length < maxItems) {
+    const categories = new Set();
+    for (let index = 0; index < remaining.length && selected.length < maxItems;) {
+      const category = String(remaining[index]?.category || remaining[index]?.deal?.category || '').toLowerCase();
+      if (categories.has(category)) { index += 1; continue; }
+      categories.add(category); selected.push(remaining.splice(index, 1)[0]);
+    }
+  }
+  return selected;
+}
 function mergeDeals(current, incoming) { const seen = new Set(current.map(dealIdentity)); return [...current, ...incoming.filter((deal) => { const id = dealIdentity(deal); if (!id || seen.has(id)) return false; seen.add(id); return true; })]; }
 function serverSort(sort) { if (sort === 'best') return 'best'; if (sort === 'discount') return 'discount_desc'; if (sort === 'price-low') return 'price_asc'; if (sort === 'price-high') return 'price_desc'; return '-created_date'; }
 
 export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [deals, setDeals] = useState([]); const [categories, setCategories] = useState([]); const [picks, setPicks] = useState([]);
+  const [deals, setDeals] = useState([]); const categories = useActiveCategories(); const [picks, setPicks] = useState([]);
   const [loading, setLoading] = useState(true); const [loadingMore, setLoadingMore] = useState(false); const [error, setError] = useState(null); const [retryNonce, setRetryNonce] = useState(0);
   const [nextCursor, setNextCursor] = useState(null);
   const [activeCat, setActiveCat] = useState(searchParams.get('category') || 'all'); const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
@@ -54,7 +65,7 @@ export default function Home() {
     setSearchQuery(searchParams.get('q') || '');
     setActiveCat(searchParams.get('category') || 'all');
   }, [searchParams]);
-  useEffect(() => { Promise.all([getActiveCategories(), editorialApi.picks(4).catch(() => ({ picks: [] }))]).then(([c, p]) => { setCategories(c || []); setPicks(p?.picks || []); }).catch(() => {}); }, []);
+  useEffect(() => { editorialApi.picks(4).then((p) => setPicks(p?.picks || [])).catch(() => {}); }, []);
   useEffect(() => {
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
@@ -68,7 +79,7 @@ export default function Home() {
   useEffect(() => { const refresh = () => setDismissals(loadDismissedDeals()); window.addEventListener('focus', refresh); window.addEventListener('storage', refresh); window.addEventListener(DISMISSALS_CHANGED_EVENT, refresh); return () => { window.removeEventListener('focus', refresh); window.removeEventListener('storage', refresh); window.removeEventListener(DISMISSALS_CHANGED_EVENT, refresh); }; }, []);
 
   const availableDeals = useMemo(() => deals.filter((deal) => !dismissals[dealIdentity(deal)]), [deals, dismissals]);
-  const visibleDeals = useMemo(() => { const list = [...availableDeals]; if (sort === 'best') return personalizedRank(rankDeals(list), interests); if (sort === 'discount') return list.sort((a, b) => (b.discountPercent || 0) - (a.discountPercent || 0)); if (sort === 'price-low') return list.sort((a, b) => (a.salePrice || 0) - (b.salePrice || 0)); if (sort === 'price-high') return list.sort((a, b) => (b.salePrice || 0) - (a.salePrice || 0)); return list.sort((a, b) => dealCreatedTimestampMs(b) - dealCreatedTimestampMs(a)); }, [availableDeals, sort, interests]);
+  const visibleDeals = useMemo(() => { const list = [...availableDeals]; if (sort === 'best') return personalizedRank(activeCat === 'all' && !searchQuery.trim() ? list : rankDeals(list), interests); if (sort === 'discount') return list.sort((a, b) => (b.discountPercent || 0) - (a.discountPercent || 0)); if (sort === 'price-low') return list.sort((a, b) => (a.salePrice || 0) - (b.salePrice || 0)); if (sort === 'price-high') return list.sort((a, b) => (b.salePrice || 0) - (a.salePrice || 0)); return list.sort((a, b) => dealCreatedTimestampMs(b) - dealCreatedTimestampMs(a)); }, [availableDeals, sort, interests, activeCat, searchQuery]);
 
   const filteredPicks = useMemo(() => balancedFeatured(picks.filter((pick) => !dismissals[dealIdentity(pick.deal) || String(pick.asin || '')]), 4), [picks, dismissals]);
   const flatAllMode = activeCat === 'all' && searchParams.get('category') === 'all' && searchQuery.trim() === '' && minDiscount === 0 && priceTier === 'all' && sort === 'best';
@@ -80,10 +91,9 @@ export default function Home() {
       .map((deal) => ({ deal, discount: trustworthyDiscountPercent(deal) }))
       .filter((item) => item.discount >= 15);
     const standouts = candidates.filter((item) => item.discount >= 30);
-    return (standouts.length ? standouts : candidates)
+    return balancedFeatured((standouts.length ? standouts : candidates)
       .sort((a, b) => b.discount - a.discount)
-      .slice(0, 3)
-      .map(({ deal }) => deal);
+      .map(({ deal }) => deal), 3);
   }, [visibleDeals, showCuratedHome]);
   const hasStandouts = spotlightDeals.some((deal) => trustworthyDiscountPercent(deal) >= 30);
   const spotlightIds = useMemo(() => new Set(spotlightDeals.map((deal) => deal.id || deal.asin)), [spotlightDeals]);

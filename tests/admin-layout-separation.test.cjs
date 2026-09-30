@@ -10,5 +10,5 @@ test('admin routes do not render shopper-only chrome', () => {
   assert.match(layout, /!isAdminArea && <AffiliateBanner \/>/);
   assert.match(layout, /!isAdminArea && <footer/);
   assert.match(layout, /isAdminArea \? 'Operations' : 'Verified Amazon deals'/);
-  assert.match(layout, /if \(isAdminArea\) return;/);
+  assert.match(layout, /useActiveCategories\(!isAdminArea\)/);
 });
