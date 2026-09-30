@@ -3,10 +3,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const home = fs.readFileSync(path.join(__dirname, '..', 'src/pages/Home.jsx'), 'utf8');
-test('browsing supports scrolling and a keyboard-accessible Load more fallback', () => {
+test('all deal feeds continue loading as shoppers scroll', () => {
   assert.match(home, /new IntersectionObserver/);
   assert.match(home, /rootMargin: '700px 0px'/);
-  assert.match(home, /Load more deals/);
+  assert.doesNotMatch(home, />Load more deals<\/button>/);
+  assert.match(home, /if \(!node \|\| !hasMore/);
   assert.match(home, /nextVisibleCount\(current, exploreDeals.length\)/);
   assert.match(home, /const hasMore = hasLocalMore \|\| Boolean\(nextCursor\)/);
 });

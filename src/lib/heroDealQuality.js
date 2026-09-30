@@ -16,6 +16,28 @@ export function trustworthyDiscountPercent(deal, nowMs = Date.now()) {
   return Math.max(0, supported);
 }
 
+export function featuredDealCandidates(deals, nowMs = Date.now(), minimumDiscount = 15) {
+  const rows = (deals || []).map((deal) => {
+    const verifiedDiscount = trustworthyDiscountPercent(deal, nowMs);
+    if (verifiedDiscount > 0) return { deal, discount: verifiedDiscount, needsPriceCheck: false };
+
+    if (!deal || deal.isExpired || deal.status === 'EXPIRED' || deal.sourceVerified !== true) return null;
+    const original = Number(deal.originalPrice);
+    const sale = Number(deal.salePrice);
+    if (!Number.isFinite(original) || !Number.isFinite(sale) || original <= 0 || sale <= 0 || sale >= original) return null;
+
+    const computed = ((original - sale) / original) * 100;
+    const reported = Number(deal.discountPercent);
+    const discount = Math.max(0, Number.isFinite(reported) && reported > 0 ? Math.min(reported, computed) : computed);
+    return discount > 0 ? { deal, discount, needsPriceCheck: true } : null;
+  }).filter(Boolean);
+
+  const eligible = rows.filter((row) => row.discount >= minimumDiscount);
+  const fresh = eligible.filter((row) => !row.needsPriceCheck);
+  const candidates = fresh.length ? fresh : eligible;
+  return candidates.sort((a, b) => b.discount - a.discount);
+}
+
 export function selectHeroDeal(deals, nowMs = Date.now()) {
   return (deals || [])
     .map((deal) => ({ deal, discount: trustworthyDiscountPercent(deal, nowMs) }))

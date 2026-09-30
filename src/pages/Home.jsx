@@ -2,14 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, TrendingDown, Search, LayoutGrid, List, RotateCcw, SlidersHorizontal, ShoppingBag, Laptop, House, Shirt, HeartPulse, PawPrint, Blocks } from 'lucide-react';
 import DealCard from '@/components/DealCard';
+import MembershipOffers from '@/components/MembershipOffers';
 import { deals as dealsApi } from '@/lib/api';
 import { useActiveCategories } from '@/lib/useActiveCategories';
 import { rankDeals } from '@/lib/dealRanking';
+import { interleaveCategories } from '@/lib/feedDiversity';
 import { loadInterests, personalizedRank, STORAGE_KEY, INTERESTS_CHANGED_EVENT } from '@/lib/feedPersonalization';
 import { loadDismissedDeals, DISMISSALS_CHANGED_EVENT } from '@/lib/feedDismissals';
 import { checkpointVisit, dealCreatedTimestampMs } from '@/lib/feedReturnLoop';
 import { INITIAL_FEED_SIZE, nextVisibleCount } from '@/lib/progressiveFeed';
-import { trustworthyDiscountPercent } from '@/lib/heroDealQuality';
+import { featuredDealCandidates } from '@/lib/heroDealQuality';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -75,7 +77,7 @@ export default function Home() {
     const generation = ++feedGeneration.current;
     paginationRequest.current?.abort();
     paginationRequest.current = null;
-    setLoading(true); setLoadingMore(false); setError(null); setDeals([]); setNextCursor(null); setVisibleCount(Math.min(INITIAL_FEED_SIZE, 8));
+    setLoading(true); setLoadingMore(false); setError(null); setDeals([]); setNextCursor(null); setVisibleCount(Math.min(INITIAL_FEED_SIZE, 12));
     const timer = window.setTimeout(() => {
       dealsApi.page(feedParams, { signal: controller.signal }).then((page) => { if (controller.signal.aborted || generation !== feedGeneration.current) return; setDeals(page?.items || []); setNextCursor(page?.nextCursor || null); }).catch((e) => { if (!controller.signal.aborted && generation === feedGeneration.current && e.name !== 'AbortError') setError(e.message); }).finally(() => { if (!controller.signal.aborted && generation === feedGeneration.current) setLoading(false); });
     }, searchQuery.trim() ? 250 : 0);
@@ -86,20 +88,18 @@ export default function Home() {
   useEffect(() => { const refresh = () => setDismissals(loadDismissedDeals()); window.addEventListener('focus', refresh); window.addEventListener('storage', refresh); window.addEventListener(DISMISSALS_CHANGED_EVENT, refresh); return () => { window.removeEventListener('focus', refresh); window.removeEventListener('storage', refresh); window.removeEventListener(DISMISSALS_CHANGED_EVENT, refresh); }; }, []);
 
   const availableDeals = useMemo(() => deals.filter((deal) => !dismissals[dealIdentity(deal)]), [deals, dismissals]);
-  const visibleDeals = useMemo(() => { const list = [...availableDeals]; if (sort === 'best') return personalizedRank(activeCat === 'all' && !searchQuery.trim() ? list : rankDeals(list), interests); if (sort === 'discount') return list.sort((a, b) => (b.discountPercent || 0) - (a.discountPercent || 0)); if (sort === 'price-low') return list.sort((a, b) => (a.salePrice || 0) - (b.salePrice || 0)); if (sort === 'price-high') return list.sort((a, b) => (b.salePrice || 0) - (a.salePrice || 0)); return list.sort((a, b) => dealCreatedTimestampMs(b) - dealCreatedTimestampMs(a)); }, [availableDeals, sort, interests, activeCat, searchQuery]);
+  const visibleDeals = useMemo(() => { const list = [...availableDeals]; if (sort === 'best') { const ranked = personalizedRank(activeCat === 'all' && !searchQuery.trim() ? list : rankDeals(list), interests); return activeCat === 'all' && !searchQuery.trim() ? interleaveCategories(ranked) : ranked; } if (sort === 'discount') return list.sort((a, b) => (b.discountPercent || 0) - (a.discountPercent || 0)); if (sort === 'price-low') return list.sort((a, b) => (a.salePrice || 0) - (b.salePrice || 0)); if (sort === 'price-high') return list.sort((a, b) => (b.salePrice || 0) - (a.salePrice || 0)); return list.sort((a, b) => dealCreatedTimestampMs(b) - dealCreatedTimestampMs(a)); }, [availableDeals, sort, interests, activeCat, searchQuery]);
 
   const flatAllMode = activeCat === 'all' && searchParams.get('category') === 'all' && searchQuery.trim() === '' && minDiscount === 0 && priceTier === 'all' && sort === 'best';
   const hasActiveFilters = activeCat !== 'all' || searchQuery.trim() !== '' || minDiscount > 0 || priceTier !== 'all' || sort !== 'best';
   const showCuratedHome = !flatAllMode && !hasActiveFilters;
   const spotlightDeals = useMemo(() => {
     if (!showCuratedHome) return [];
-    const candidates = visibleDeals
-      .map((deal) => ({ deal, discount: trustworthyDiscountPercent(deal) }))
-      .filter((item) => item.discount >= 15);
+    const candidates = featuredDealCandidates(visibleDeals);
     const standouts = candidates.filter((item) => item.discount >= 30);
     return balancedFeatured((standouts.length ? standouts : candidates)
       .sort((a, b) => b.discount - a.discount)
-      .map(({ deal }) => deal), 4);
+      .map(({ deal, needsPriceCheck }) => ({ ...deal, _spotlightNeedsPriceCheck: needsPriceCheck })), 3);
   }, [visibleDeals, showCuratedHome]);
   const spotlightIds = useMemo(() => new Set(spotlightDeals.map(dealIdentity)), [spotlightDeals]);
   const exploreDeals = useMemo(() => showCuratedHome ? visibleDeals.filter((deal) => !spotlightIds.has(dealIdentity(deal))) : visibleDeals, [visibleDeals, showCuratedHome, spotlightIds]);
@@ -107,7 +107,7 @@ export default function Home() {
   const hasLocalMore = visibleCount < exploreDeals.length;
   const hasMore = hasLocalMore || Boolean(nextCursor);
 
-  useEffect(() => { setVisibleCount(Math.min(INITIAL_FEED_SIZE, 8)); }, [interests, dismissals]);
+  useEffect(() => { setVisibleCount(Math.min(INITIAL_FEED_SIZE, 12)); }, [interests, dismissals]);
   const loadRemotePage = useCallback(() => {
     if (!nextCursor || loading || loadingMore || paginationRequest.current) return;
     const generation = feedGeneration.current;
@@ -127,13 +127,13 @@ export default function Home() {
         if (generation === feedGeneration.current) setLoadingMore(false);
       });
   }, [feedParams, loading, loadingMore, nextCursor]);
-  useEffect(() => { const node = feedSentinel.current; if (showCuratedHome || !node || !hasMore || typeof IntersectionObserver === 'undefined') return undefined; const observer = new IntersectionObserver((entries) => { if (!entries.some((entry) => entry.isIntersecting)) return; if (hasLocalMore) setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)); else loadRemotePage(); }, { rootMargin: '700px 0px' }); observer.observe(node); return () => observer.disconnect(); }, [showCuratedHome, hasMore, hasLocalMore, exploreDeals.length, loadRemotePage]);
+  useEffect(() => { const node = feedSentinel.current; if (!node || !hasMore || typeof IntersectionObserver === 'undefined') return undefined; const observer = new IntersectionObserver((entries) => { if (!entries.some((entry) => entry.isIntersecting)) return; if (hasLocalMore) setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)); else loadRemotePage(); }, { rootMargin: '700px 0px' }); observer.observe(node); return () => observer.disconnect(); }, [hasMore, hasLocalMore, exploreDeals.length, loadRemotePage]);
 
   const resetAllFilters = () => { setActiveCat('all'); setSearchQuery(''); setMinDiscount(0); setPriceTier('all'); setSort('best'); setSearchParams({}); };
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
 
-  const feedGrid = (items, prioritizeImages = false) => viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 auto-rows-fr items-stretch">{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" imagePriority={prioritizeImages && index < 2} />)}</div> : <div>{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" imagePriority={prioritizeImages && index < 2} />)}</div>;
+  const feedGrid = (items, prioritizeImages = false) => viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 auto-rows-fr items-stretch">{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" imagePriority={prioritizeImages && index < 2} />)}</div> : <div>{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" imagePriority={prioritizeImages && index < 2} />)}</div>;
 
   return <div className="bg-white">
     <div className="ds-shell py-6 sm:py-8">
@@ -158,18 +158,13 @@ export default function Home() {
       {showCuratedHome && !loading && <section aria-labelledby="best-deals-heading" className="mb-8 border border-slate-300 border-t-4 border-t-slate-800 bg-[#f7f5ef] px-3 sm:px-5 py-5">
         <div className="flex items-baseline justify-between gap-3 mb-4">
           <h2 id="best-deals-heading" className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Best deals</h2>
-          <span className="text-xs text-slate-600">Featured savings</span>
+          <Link to="/?category=all" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-emerald-900">See all deals <ArrowRight aria-hidden="true" className="w-3.5 h-3.5" /></Link>
         </div>
-        {spotlightDeals.length > 0 ? feedGrid(spotlightDeals, true) : <p className="text-sm text-slate-600">No freshly checked top deals right now. Browse the current catalog below and confirm prices on Amazon.</p>}
-      </section>}
-
-      {showCuratedHome && <section aria-label="Amazon memberships" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-y border-slate-200 py-4 my-6">
-        <div><h2 className="text-lg font-semibold text-slate-900">Prime, Audible & more</h2><p className="text-sm text-slate-600 mt-1">Amazon memberships for shopping, watching, listening, and reading.</p></div>
-        <Link to="/memberships" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900 underline underline-offset-4">View memberships<ArrowRight aria-hidden="true" className="w-4 h-4" /></Link>
+        {spotlightDeals.length > 0 ? <>{spotlightDeals.some((deal) => deal._spotlightNeedsPriceCheck) && <p className="text-xs text-amber-800 mb-3">Strong recorded discounts. Check current prices on Amazon.</p>}{feedGrid(spotlightDeals, true)}</> : <p className="text-sm text-slate-600">No current verified discounts to feature. Browse the full selection below.</p>}
       </section>}
 
       <section aria-labelledby="browse-deals-heading" className="border-t border-slate-200 bg-slate-50 -mx-3 sm:-mx-5 px-3 sm:px-5 py-7 mt-10">
-        <h2 id="browse-deals-heading" className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 mb-5">{flatAllMode ? 'All verified deals' : hasActiveFilters ? 'Matching deals' : 'Browse deals'}</h2>
+        <div className="flex items-end justify-between gap-4 mb-5"><div><h2 id="browse-deals-heading" className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">{flatAllMode ? 'All verified deals' : hasActiveFilters ? 'Matching deals' : 'Browse deals'}</h2>{!hasActiveFilters && <p className="mt-1 text-sm text-slate-600">A fresh mix from across the departments. More appear as you browse.</p>}</div>{!hasActiveFilters && <Link to="/?category=all" className="hidden sm:inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-900 underline underline-offset-4">See all deals <ArrowRight aria-hidden="true" className="w-3.5 h-3.5" /></Link>}</div>
         <div className="bg-slate-50 border border-slate-200 rounded-md p-3 sm:p-4 mb-5">
           <div className="flex items-center gap-2">
             <div className="relative flex-1 min-w-0"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input type="search" aria-label="Search deals" placeholder="Search products" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-10 text-sm bg-white border-slate-200 rounded-md" /></div>
@@ -191,11 +186,12 @@ export default function Home() {
           </div>
         </div>
 
-        {loading ? <div role="status" aria-label="Loading deals" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="aspect-[3/4] bg-slate-50 rounded-md animate-pulse" />)}</div>
+        {loading ? <div role="status" aria-label="Loading deals" className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="aspect-[3/4] bg-slate-50 rounded-md animate-pulse" />)}</div>
           : error && deals.length === 0 ? <div role="alert" className="text-center py-12"><p>Couldn’t load deals. Please try again.</p><Button onClick={() => setRetryNonce((value) => value + 1)} className="mt-4">Try again</Button></div>
           : visibleDeals.length === 0 ? <div className="text-center py-12"><TrendingDown className="h-8 w-8 text-slate-300 mx-auto" /><h3 className="font-semibold mt-3">{hasActiveFilters ? 'No deals match your filters' : 'No current deals right now'}</h3>{hasActiveFilters && <Button onClick={resetAllFilters} variant="outline" size="sm" className="mt-3">Reset filters</Button>}</div>
-          : <>{feedGrid(progressiveDeals)}<div ref={feedSentinel} className="h-10" aria-hidden="true" />{error && <div role="status" className="text-center text-sm text-amber-800 py-3">Couldn’t load more deals. <button onClick={loadRemotePage} className="underline font-semibold">Try again</button></div>}{hasMore && !error && <div className="text-center py-4 text-sm text-slate-500">{loadingMore ? 'Loading more deals…' : <button onClick={() => hasLocalMore ? setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)) : loadRemotePage()} className="border border-slate-200 rounded-md bg-white px-5 py-2 hover:bg-slate-50">Load more deals</button>}</div>}{!hasMore && !error && <div role="status" className="text-center py-5 text-sm text-slate-600">You’ve reached the end of the current deals. <Link to="/?category=all" className="font-semibold underline underline-offset-4">Browse all departments</Link></div>}</>}
+          : <>{feedGrid(progressiveDeals)}<div ref={feedSentinel} className="h-10" aria-hidden="true" />{loadingMore && <p role="status" className="text-center py-5 text-sm text-slate-500">Finding more deals…</p>}{error && <div role="status" className="text-center text-sm text-amber-800 py-3">Couldn’t load more deals. <button onClick={loadRemotePage} className="underline font-semibold">Try again</button></div>}{!hasMore && !error && <div role="status" className="text-center py-5 text-sm text-slate-600">You’ve reached the end of the current deals. <Link to="/?category=all" className="font-semibold underline underline-offset-4">Browse all departments</Link></div>}</>}
       </section>
+      {showCuratedHome && <MembershipOffers />}
     </div>
   </div>;
 }
