@@ -4,14 +4,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const seo = require('../server/services/seoService');
 
-test('homepage leads with departments and keeps standout deals secondary', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
-  assert.match(source, /Departments/);
-  assert.match(source, />Departments<\/h1>/);
-  assert.match(source, /hasStandouts \? 'Standouts' : 'Top deals'/);
-  assert.match(source, /trustworthyDiscountPercent\(deal\)/);
-  assert.doesNotMatch(source, /What are you here for\?/);
-});
 
 test('homepage SEO exposes crawlable category hub structured data', () => {
   const meta = seo.homeMeta('https://dealscouted.com', [

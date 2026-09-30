@@ -2,23 +2,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-
-const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
-
-test('home leads with restrained department copy instead of explanatory personalization copy', () => {
-  assert.match(home, /Departments/);
-  assert.match(home, /15%\+ off · recently checked/);
-  assert.doesNotMatch(home, /quietly learns which categories|Good deals\. No digging/);
-});
-
-test('curated deal rows remain bounded and show single available products', () => {
-  assert.match(home, /function balancedFeatured\(items, maxItems = 8\)/);
-  assert.match(home, /selected\.length < maxItems/);
-  assert.match(home, /balancedFeatured\(freshDealDrop\(visibleDeals\.filter/);
-  assert.match(home, /balancedFeatured\(picks\.filter/);
-});
-
-test('Deal Drop headline stays terse', () => {
-  assert.match(home, /Latest/);
-  assert.doesNotMatch(home, /worth seeing right now|A quick hit of the strongest verified deals/);
+const home = fs.readFileSync(path.join(__dirname, '..', 'src/pages/Home.jsx'), 'utf8');
+test('home presents a concise heading followed by products and an accessible browse toolbar', () => {
+  assert.match(home, /Today’s deals/);
+  assert.match(home, /aria-labelledby="best-deals-heading"/);
+  assert.match(home, /aria-labelledby="browse-deals-heading"/);
+  assert.doesNotMatch(home, /Standouts|Selected deals|chapterBlock|Departments<\/h1>/);
+  assert.match(home, /aria-label="Department"/);
+  assert.match(home, /imagePriority=\{prioritizeImages && index < 2\}/);
 });
