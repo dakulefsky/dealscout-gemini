@@ -47,17 +47,24 @@ export default function CategoryPage() {
   const [retryPage, setRetryPage] = useState(0);
   const [retryInitial, setRetryInitial] = useState(0);
   const sentinelRef = useRef(null);
+  const feedGeneration = useRef(0);
+  const paginationRequest = useRef(null);
 
   useEffect(() => {
     const controller = new AbortController();
+    const generation = ++feedGeneration.current;
+    paginationRequest.current?.abort();
+    paginationRequest.current = null;
     setLoading(true);
+    setLoadingMore(false);
     setError(null);
+    setCategory(null);
     setDeals([]);
     setNextCursor(null);
 
     categoriesApi.list({ activeOnly: 0 })
       .then((cats) => {
-        if (controller.signal.aborted) return null;
+        if (controller.signal.aborted || generation !== feedGeneration.current) return null;
         setAllCategories(Array.isArray(cats) ? cats : []);
         const found = cats?.find((c) => c.slug === slug || c.name.toLowerCase() === slug?.toLowerCase());
         setCategory(found || null);
@@ -65,36 +72,43 @@ export default function CategoryPage() {
         return dealsApi.page({ category: found.name, sort: serverSort(sort), limit: PAGE_SIZE }, { signal: controller.signal });
       })
       .then((page) => {
-        if (!page || controller.signal.aborted) return;
+        if (!page || controller.signal.aborted || generation !== feedGeneration.current) return;
         setDeals(page.items || []);
         setNextCursor(page.nextCursor || null);
       })
       .catch((err) => {
-        if (err.name !== 'AbortError') setError(err.message || 'Could not load category deals');
+        if (!controller.signal.aborted && generation === feedGeneration.current && err.name !== 'AbortError') setError(err.message || 'Could not load category deals');
       })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+      .finally(() => { if (!controller.signal.aborted && generation === feedGeneration.current) setLoading(false); });
 
-    return () => controller.abort();
+    return () => { controller.abort(); paginationRequest.current?.abort(); };
   }, [slug, sort, retryInitial]);
 
   useEffect(() => {
     const node = sentinelRef.current;
-    if (!node || !nextCursor || loadingMore || typeof IntersectionObserver === 'undefined' || !category) return undefined;
+    if (!node || !nextCursor || loading || loadingMore || typeof IntersectionObserver === 'undefined' || !category) return undefined;
     const observer = new IntersectionObserver((entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) return;
+      if (!entries.some((entry) => entry.isIntersecting) || paginationRequest.current) return;
+      const generation = feedGeneration.current;
+      const controller = new AbortController();
+      paginationRequest.current = controller;
       setLoadingMore(true);
-      dealsApi.page({ category: category.name, sort: serverSort(sort), limit: PAGE_SIZE, cursor: nextCursor })
+      dealsApi.page({ category: category.name, sort: serverSort(sort), limit: PAGE_SIZE, cursor: nextCursor }, { signal: controller.signal })
         .then((page) => {
+          if (controller.signal.aborted || generation !== feedGeneration.current) return;
           setDeals((current) => mergeDeals(current, page.items || []));
           setNextCursor(page.nextCursor || null);
           setError(null);
         })
-        .catch((err) => setError(err.message || 'Could not load more deals'))
-        .finally(() => setLoadingMore(false));
+        .catch((err) => { if (!controller.signal.aborted && generation === feedGeneration.current) setError(err.message || 'Could not load more deals'); })
+        .finally(() => {
+          if (paginationRequest.current === controller) paginationRequest.current = null;
+          if (generation === feedGeneration.current) setLoadingMore(false);
+        });
     }, { rootMargin: '700px 0px' });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [category, loadingMore, nextCursor, retryPage, sort]);
+  }, [category, loading, loadingMore, nextCursor, retryPage, sort]);
 
   const visibleDeals = useMemo(() => {
     const list = [...deals];
@@ -137,10 +151,10 @@ export default function CategoryPage() {
       <main className="pt-7 sm:pt-9">
         {loading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="border border-emerald-950/10 bg-white animate-pulse"><div className="aspect-[4/3] bg-stone-100" /><div className="p-4 space-y-3"><div className="h-3 bg-stone-100" /><div className="h-6 w-24 bg-stone-100" /></div></div>)}</div>
-        ) : !category ? (
-          <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Category not found</h3><p className="text-sm text-slate-500 mt-1">This category may have moved or no longer exists.</p><Link to="/?category=all" className="mt-5 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Browse all deals <ArrowRight className="w-4 h-4" /></Link></div>
         ) : error && visibleDeals.length === 0 ? (
           <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Couldn’t load this department</h3><p className="text-sm text-slate-500 mt-1">{error}</p><button type="button" onClick={() => setRetryInitial((value) => value + 1)} className="mt-5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Try again</button></div>
+        ) : !category ? (
+          <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Category not found</h3><p className="text-sm text-slate-500 mt-1">This category may have moved or no longer exists.</p><Link to="/?category=all" className="mt-5 inline-flex items-center gap-1.5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Browse all deals <ArrowRight className="w-4 h-4" /></Link></div>
         ) : visibleDeals.length === 0 ? (
           <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">No active deals here right now</h3><p className="text-sm text-slate-500 mt-1">No current inventory.</p></div>
         ) : (

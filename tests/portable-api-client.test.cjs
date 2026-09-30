@@ -105,6 +105,30 @@ test('timeout handling uses injected/global timers rather than window timers', a
   assert.equal(timerScheduled, true);
 });
 
+test('manual imports allow provider lookup time without retrying paid mutations', async () => {
+  const { createDealScoutClient, MAINTENANCE_TIMEOUT_MS, DEFAULT_TIMEOUT_MS } = await loadCore();
+  const durations = [];
+  const requests = [];
+  const client = createDealScoutClient({
+    timers: {
+      AbortControllerImpl: globalThis.AbortController,
+      setTimeoutImpl(_callback, duration) { durations.push(duration); return durations.length; },
+      clearTimeoutImpl() {},
+    },
+    fetchImpl: async (url, options) => {
+      requests.push({ url, body: JSON.parse(options.body || '{}') });
+      return jsonResponse({ ok: true });
+    },
+  });
+  await client.functions.siteStripeImport('B012345678');
+  await client.functions.siteStripeImport({ input: 'B012345678', autoApprove: false });
+  await client.api.get('/api/v1/meta');
+  assert.deepEqual(durations, [MAINTENANCE_TIMEOUT_MS, MAINTENANCE_TIMEOUT_MS, DEFAULT_TIMEOUT_MS]);
+  assert.equal(requests[0].body.input, 'B012345678');
+  assert.equal(requests[1].body.autoApprove, false);
+  assert.equal(requests.filter((r) => r.url.endsWith('sitestripe-import')).length, 2);
+});
+
 
 test('portable client retries one transient GET failure and then succeeds', async () => {
   const { createDealScoutClient } = await loadCore();
