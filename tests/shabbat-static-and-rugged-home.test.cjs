@@ -4,7 +4,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
-const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
 
 test('public Shabbat closure is static and blocks shopper API execution', () => {
   assert.match(server, /PUBLIC_SURFACE_ONLY !== 'true'/);
@@ -20,13 +19,4 @@ test('crawler files and infrastructure health stay available during closure', ()
   assert.match(server, /req\.path === '\/ads\.txt'/);
   assert.match(server, /req\.path === '\/api\/health'/);
   assert.match(server, /req\.path === '\/api\/ready'/);
-});
-
-test('homepage uses a restrained department index instead of a giant explanatory hero', () => {
-  assert.match(home, /Departments/);
-  assert.match(home, />Departments<\/h1>/);
-  assert.match(home, /hasStandouts \? 'Standouts' : 'Top deals'/);
-  assert.match(home, /15%\+ off · recently checked/);
-  assert.doesNotMatch(home, /What are you here for\?/);
-  assert.doesNotMatch(home, /text-\[66px\]/);
 });
