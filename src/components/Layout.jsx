@@ -190,6 +190,7 @@ export default function Layout({ children }) {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1">
                 <Link to="/?category=all" className="py-2 text-sm font-bold text-emerald-950">All deals</Link>
                 <Link to="/saved" className="py-2 text-sm font-semibold text-slate-700">Saved deals</Link>
+                <Link to="/memberships" className="py-2 text-sm font-semibold text-slate-700">Amazon memberships</Link>
                 {topCategories.map((category) => <Link key={category.id || category.slug} to={`/category/${category.slug}`} className="py-2 text-sm font-semibold text-slate-700 hover:text-emerald-900">{category.name}</Link>)}
                 {isAuthenticated && user?.role === 'admin' && <Link to="/admin" className="py-2 text-sm font-semibold text-slate-700">Admin</Link>}
               </div>
@@ -198,6 +199,7 @@ export default function Layout({ children }) {
 
           {!isAdminArea && <div className="hidden md:flex items-center gap-7 h-9 overflow-x-auto text-[10px] uppercase tracking-[0.11em] font-black text-slate-600 whitespace-nowrap border-t border-emerald-950/10">
             <Link to="/?category=all" className="hover:text-emerald-900">All Deals</Link>
+            <Link to="/memberships" className="hover:text-emerald-900">Prime & Audible</Link>
             {topCategories.map((category) => <Link key={category.id || category.slug} to={`/category/${category.slug}`} className="hover:text-emerald-900">{category.name}</Link>)}
           </div>}
         </div>
@@ -211,7 +213,7 @@ export default function Layout({ children }) {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div className="md:col-span-2"><div className="font-heading text-2xl font-bold">DealScout</div><p className="text-sm text-emerald-100/70 mt-2 max-w-md">Current deals with recently checked prices.</p></div>
             <div><h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-200/60 mb-3">Categories</h4><ul className="space-y-2 text-xs">{categoriesList.slice(0, 5).map((category) => <li key={category.id}><Link to={`/category/${category.slug}`} className="text-emerald-50/80 hover:text-white">{category.name}</Link></li>)}</ul></div>
-            <div><h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-200/60 mb-3">More</h4><ul className="space-y-2 text-xs"><li><Link to="/disclosure" className="text-emerald-50/80 hover:text-white">Affiliate Disclosure</Link></li><li><Link to="/privacy" className="text-emerald-50/80 hover:text-white">Privacy</Link></li><li><Link to="/support" className="text-emerald-50/80 hover:text-white">Support</Link></li><li><Link to="/saved" className="text-emerald-50/80 hover:text-white">Saved Deals</Link></li></ul></div>
+            <div><h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-200/60 mb-3">More</h4><ul className="space-y-2 text-xs"><li><Link to="/memberships" className="text-emerald-50/80 hover:text-white">Amazon memberships</Link></li><li><Link to="/disclosure" className="text-emerald-50/80 hover:text-white">Affiliate Disclosure</Link></li><li><Link to="/privacy" className="text-emerald-50/80 hover:text-white">Privacy</Link></li><li><Link to="/support" className="text-emerald-50/80 hover:text-white">Support</Link></li><li><Link to="/saved" className="text-emerald-50/80 hover:text-white">Saved Deals</Link></li></ul></div>
           </div>
           <div className="pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10px] text-emerald-100/50 text-center sm:text-left"><span>&copy; {new Date().getFullYear()} DealScout. Amazon and the Amazon logo are trademarks of Amazon.com, Inc.</span><span>As an Amazon Associate I earn from qualifying purchases.</span></div>
         </div>

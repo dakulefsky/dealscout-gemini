@@ -8,6 +8,7 @@ import { verificationFreshness } from '@/lib/verificationFreshness';
 import { addCategoryInterest, reduceCategoryInterest, dwellWeight, loadInterests } from '@/lib/feedPersonalization';
 import { dismissDeal, isDealDismissed, restoreDeal } from '@/lib/feedDismissals';
 import { dealSavings } from '@/lib/dealSavings';
+import { splitProductTitle } from '@/lib/productTitle';
 
 export function formatPrice(price) {
   if (price == null || isNaN(price)) return '';
@@ -18,7 +19,7 @@ export default function DealCard({ deal, viewMode = 'grid', imagePriority = fals
   const { isSaved, toggleBookmark } = useBookmarks();
   const { toast } = useToast();
   const dealId = deal.id || deal.asin;
-  const cardTitle = String(deal.title || '').split(/\s+\|\s+/)[0];
+  const cardTitle = splitProductTitle(deal.title).name;
   const saved = isSaved(dealId);
   const [dismissed, setDismissed] = useState(() => isDealDismissed(dealId));
   const isExpired = Boolean(deal.isExpired || deal.status === 'EXPIRED');

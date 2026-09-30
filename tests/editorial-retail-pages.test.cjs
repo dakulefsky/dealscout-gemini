@@ -20,8 +20,8 @@ test('category page uses the shared editorial retail shell instead of floating S
 });
 
 test('deal detail is product-first and keeps core commerce actions intact', () => {
-  assert.match(detail, /grid lg:grid-cols-\[minmax\(0,1\.55fr\)_minmax\(340px,0\.9fr\)\]/);
-  assert.match(detail, /bg-\[#f1ece1\]/);
+  assert.match(detail, /grid lg:grid-cols-\[minmax\(0,0\.85fr\)_minmax\(340px,1\.15fr\)\]/);
+  assert.match(detail, /bg-white border border-slate-200 h-64 sm:h-80/);
   assert.match(detail, /View deal on Amazon/);
   assert.match(detail, /functions\.amazonRedirect\(deal\.productUrl\)/);
   assert.match(detail, /toggleBookmark\(deal\)/);

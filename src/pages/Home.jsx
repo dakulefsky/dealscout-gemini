@@ -75,7 +75,7 @@ export default function Home() {
     const generation = ++feedGeneration.current;
     paginationRequest.current?.abort();
     paginationRequest.current = null;
-    setLoading(true); setLoadingMore(false); setError(null); setDeals([]); setNextCursor(null); setVisibleCount(INITIAL_FEED_SIZE);
+    setLoading(true); setLoadingMore(false); setError(null); setDeals([]); setNextCursor(null); setVisibleCount(Math.min(INITIAL_FEED_SIZE, 8));
     const timer = window.setTimeout(() => {
       dealsApi.page(feedParams, { signal: controller.signal }).then((page) => { if (controller.signal.aborted || generation !== feedGeneration.current) return; setDeals(page?.items || []); setNextCursor(page?.nextCursor || null); }).catch((e) => { if (!controller.signal.aborted && generation === feedGeneration.current && e.name !== 'AbortError') setError(e.message); }).finally(() => { if (!controller.signal.aborted && generation === feedGeneration.current) setLoading(false); });
     }, searchQuery.trim() ? 250 : 0);
@@ -107,7 +107,7 @@ export default function Home() {
   const hasLocalMore = visibleCount < exploreDeals.length;
   const hasMore = hasLocalMore || Boolean(nextCursor);
 
-  useEffect(() => { setVisibleCount(INITIAL_FEED_SIZE); }, [interests, dismissals]);
+  useEffect(() => { setVisibleCount(Math.min(INITIAL_FEED_SIZE, 8)); }, [interests, dismissals]);
   const loadRemotePage = useCallback(() => {
     if (!nextCursor || loading || loadingMore || paginationRequest.current) return;
     const generation = feedGeneration.current;
@@ -127,7 +127,7 @@ export default function Home() {
         if (generation === feedGeneration.current) setLoadingMore(false);
       });
   }, [feedParams, loading, loadingMore, nextCursor]);
-  useEffect(() => { const node = feedSentinel.current; if (!node || !hasMore || typeof IntersectionObserver === 'undefined') return undefined; const observer = new IntersectionObserver((entries) => { if (!entries.some((entry) => entry.isIntersecting)) return; if (hasLocalMore) setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)); else loadRemotePage(); }, { rootMargin: '700px 0px' }); observer.observe(node); return () => observer.disconnect(); }, [hasMore, hasLocalMore, exploreDeals.length, loadRemotePage]);
+  useEffect(() => { const node = feedSentinel.current; if (showCuratedHome || !node || !hasMore || typeof IntersectionObserver === 'undefined') return undefined; const observer = new IntersectionObserver((entries) => { if (!entries.some((entry) => entry.isIntersecting)) return; if (hasLocalMore) setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)); else loadRemotePage(); }, { rootMargin: '700px 0px' }); observer.observe(node); return () => observer.disconnect(); }, [showCuratedHome, hasMore, hasLocalMore, exploreDeals.length, loadRemotePage]);
 
   const resetAllFilters = () => { setActiveCat('all'); setSearchQuery(''); setMinDiscount(0); setPriceTier('all'); setSort('best'); setSearchParams({}); };
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
@@ -155,16 +155,21 @@ export default function Home() {
         </div> : <Link to="/?category=all" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900 underline underline-offset-4">Browse all deals<ArrowRight aria-hidden="true" className="w-4 h-4" /></Link>}
       </nav>}
 
-      {showCuratedHome && !loading && spotlightDeals.length > 0 && <section aria-labelledby="best-deals-heading" className="mb-9">
+      {showCuratedHome && !loading && <section aria-labelledby="best-deals-heading" className="mb-8 border border-slate-300 border-t-4 border-t-slate-800 bg-[#f7f5ef] px-3 sm:px-5 py-5">
         <div className="flex items-baseline justify-between gap-3 mb-4">
           <h2 id="best-deals-heading" className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Best deals</h2>
-          <span className="text-xs text-slate-500">Recently checked</span>
+          <span className="text-xs text-slate-600">Featured savings</span>
         </div>
-        {feedGrid(spotlightDeals, true)}
+        {spotlightDeals.length > 0 ? feedGrid(spotlightDeals, true) : <p className="text-sm text-slate-600">No freshly checked top deals right now. Browse the current catalog below and confirm prices on Amazon.</p>}
+      </section>}
+
+      {showCuratedHome && <section aria-label="Amazon memberships" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-y border-slate-200 py-4 my-6">
+        <div><h2 className="text-lg font-semibold text-slate-900">Prime, Audible & more</h2><p className="text-sm text-slate-600 mt-1">Amazon memberships for shopping, watching, listening, and reading.</p></div>
+        <Link to="/memberships" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900 underline underline-offset-4">View memberships<ArrowRight aria-hidden="true" className="w-4 h-4" /></Link>
       </section>}
 
       <section aria-labelledby="browse-deals-heading" className="border-t border-slate-200 bg-slate-50 -mx-3 sm:-mx-5 px-3 sm:px-5 py-7 mt-10">
-        <h2 id="browse-deals-heading" className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 mb-5">{flatAllMode ? 'All verified deals' : hasActiveFilters ? 'Matching deals' : 'More deals'}</h2>
+        <h2 id="browse-deals-heading" className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 mb-5">{flatAllMode ? 'All verified deals' : hasActiveFilters ? 'Matching deals' : 'Browse deals'}</h2>
         <div className="bg-slate-50 border border-slate-200 rounded-md p-3 sm:p-4 mb-5">
           <div className="flex items-center gap-2">
             <div className="relative flex-1 min-w-0"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input type="search" aria-label="Search deals" placeholder="Search products" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-10 text-sm bg-white border-slate-200 rounded-md" /></div>
@@ -189,7 +194,7 @@ export default function Home() {
         {loading ? <div role="status" aria-label="Loading deals" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="aspect-[3/4] bg-slate-50 rounded-md animate-pulse" />)}</div>
           : error && deals.length === 0 ? <div role="alert" className="text-center py-12"><p>Couldn’t load deals. Please try again.</p><Button onClick={() => setRetryNonce((value) => value + 1)} className="mt-4">Try again</Button></div>
           : visibleDeals.length === 0 ? <div className="text-center py-12"><TrendingDown className="h-8 w-8 text-slate-300 mx-auto" /><h3 className="font-semibold mt-3">{hasActiveFilters ? 'No deals match your filters' : 'No current deals right now'}</h3>{hasActiveFilters && <Button onClick={resetAllFilters} variant="outline" size="sm" className="mt-3">Reset filters</Button>}</div>
-          : <>{feedGrid(progressiveDeals)}<div ref={feedSentinel} className="h-10" aria-hidden="true" />{error && <div role="status" className="text-center text-sm text-amber-800 py-3">Couldn’t load more deals. <button onClick={loadRemotePage} className="underline font-semibold">Try again</button></div>}{hasMore && !error && <div className="text-center py-4 text-sm text-slate-500">{loadingMore ? 'Loading more deals…' : <button onClick={() => hasLocalMore ? setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)) : loadRemotePage()} className="border border-slate-200 rounded-md bg-white px-5 py-2 hover:bg-slate-50">Load more deals</button>}</div>}</>}
+          : <>{feedGrid(progressiveDeals)}<div ref={feedSentinel} className="h-10" aria-hidden="true" />{error && <div role="status" className="text-center text-sm text-amber-800 py-3">Couldn’t load more deals. <button onClick={loadRemotePage} className="underline font-semibold">Try again</button></div>}{hasMore && !error && <div className="text-center py-4 text-sm text-slate-500">{loadingMore ? 'Loading more deals…' : <button onClick={() => hasLocalMore ? setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)) : loadRemotePage()} className="border border-slate-200 rounded-md bg-white px-5 py-2 hover:bg-slate-50">Load more deals</button>}</div>}{!hasMore && !error && <div role="status" className="text-center py-5 text-sm text-slate-600">You’ve reached the end of the current deals. <Link to="/?category=all" className="font-semibold underline underline-offset-4">Browse all departments</Link></div>}</>}
       </section>
     </div>
   </div>;

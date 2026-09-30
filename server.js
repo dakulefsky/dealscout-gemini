@@ -256,6 +256,8 @@ async function startServer() {
           const categories = await categoryRepository.list({ activeOnly: true });
           meta = seo.homeMeta(baseUrl, categories);
           initialContent = homeInitialContent(categories);
+        } else if (req.path === '/memberships') {
+          meta = { title: 'Amazon Memberships — DealScout', description: 'Explore Prime, Prime Video, Audible, and Kindle Unlimited on Amazon.', canonical: `${baseUrl}/memberships` };
         } else if (req.path === '/disclosure') {
           meta = { title: 'Affiliate Disclosure — DealScout', description: 'How DealScout uses Amazon affiliate links and how deal pricing is presented.', canonical: `${baseUrl}/disclosure` };
         } else if (req.path === '/privacy') {

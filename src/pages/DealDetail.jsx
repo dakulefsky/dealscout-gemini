@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { Image } from '@/components/ui/image';
 import { useToast } from '@/components/ui/use-toast';
 import DealCard, { formatPrice } from '@/components/DealCard';
+import { splitProductTitle } from '@/lib/productTitle';
 import { verificationFreshness } from '@/lib/verificationFreshness';
 import { categoryPathFromName } from '@/lib/categoryRoutes';
 import { addCategoryInterest, loadInterests, personalizedRank } from '@/lib/feedPersonalization';
@@ -194,6 +195,7 @@ export default function DealDetail() {
   const freshness = verificationFreshness(deal.priceCheckAt);
   const savings = Math.max(0, Number(deal.originalPrice || 0) - Number(deal.salePrice || 0));
   const categoryPath = categoryPathFromName(deal.category);
+  const productTitle = splitProductTitle(deal.title);
   const dealFacts = [
     deal.discountPercent > 0 ? { label: 'Discount', value: `${deal.discountPercent}% off`, icon: BadgePercent } : null,
     savings > 0 ? { label: 'Save', value: formatPrice(savings), icon: CheckCircle2 } : null,
@@ -208,9 +210,9 @@ export default function DealDetail() {
 
       {deal.isExpired && <div className="border-b border-amber-300 bg-amber-50 py-3 px-1 flex items-start gap-3 text-amber-900"><AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" /><div><p className="text-sm font-bold">This deal has ended</p><p className="text-xs mt-0.5">Amazon may now show a different price or offer.</p></div></div>}
 
-      <div className="grid lg:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.9fr)] gap-8 lg:gap-12 pt-7 sm:pt-10 items-start">
+      <div className="grid lg:grid-cols-[minmax(0,0.85fr)_minmax(340px,1.15fr)] gap-7 lg:gap-10 pt-6 sm:pt-8 items-start max-w-5xl mx-auto">
         <main className="min-w-0">
-          <div className={`bg-[#f1ece1] border-t-2 border-x border-b border-emerald-950/15 aspect-[4/3] sm:aspect-[16/10] lg:aspect-[4/3] flex items-center justify-center p-7 sm:p-12 ${deal.isExpired ? 'grayscale-[0.75]' : ''}`}><Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} fittingType="contain" loading="eager" fetchPriority="high" className="w-full h-full" alt={deal.title} /></div>
+          <div className={`bg-white border border-slate-200 h-64 sm:h-80 flex items-center justify-center p-6 sm:p-8 ${deal.isExpired ? 'grayscale-[0.75]' : ''}`}><Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} fittingType="contain" loading="eager" fetchPriority="high" className="w-full h-full" alt={deal.title} /></div>
 
           {dealFacts.length > 0 && <section aria-label="Deal facts" className="border-x border-b border-emerald-950/15 bg-white px-4 sm:px-5 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">{dealFacts.map(({ label, value, icon: Icon }) => <div key={label} className="inline-flex items-center gap-2"><Icon className="w-3.5 h-3.5 text-emerald-800 shrink-0" /><span className="text-[9px] uppercase tracking-[0.12em] font-black text-slate-400">{label}</span><span className="text-xs font-black text-emerald-950">{value}</span></div>)}</section>}
 
@@ -221,8 +223,9 @@ export default function DealDetail() {
 
         <aside className="lg:sticky lg:top-24 min-w-0">
           <div className="flex items-center justify-between gap-4"><Link to={categoryPath} className="ds-kicker hover:text-emerald-700">{deal.category || 'Deal'}</Link><div className="flex items-center gap-1"><button type="button" onClick={handleShare} aria-label="Share deal" className="w-9 h-9 border border-emerald-950/15 flex items-center justify-center text-slate-500 hover:text-emerald-900 focus-visible:ring-2 focus-visible:ring-emerald-800">{copiedLink ? <CheckCircle2 className="w-4 h-4 text-emerald-700" /> : <Share2 className="w-4 h-4" />}</button><button type="button" onClick={handleSave} aria-label={saved ? `Remove ${deal.title} from saved deals` : `Save ${deal.title}`} className={`w-9 h-9 border flex items-center justify-center focus-visible:ring-2 focus-visible:ring-emerald-800 ${saved ? 'bg-emerald-950 text-white border-emerald-950' : 'border-emerald-950/15 text-slate-500 hover:text-emerald-900'}`}><Heart className={`w-4 h-4 ${saved ? 'fill-white' : ''}`} /></button></div></div>
-          <h1 className="font-heading text-3xl sm:text-4xl lg:text-[44px] font-black leading-[0.98] text-emerald-950 mt-4">{deal.title}</h1>
-          <div className="mt-6 border-y-[3px] border-emerald-950/20 py-5"><div className="flex items-baseline gap-3 flex-wrap"><span className={`text-4xl sm:text-5xl font-black tracking-tight ${deal.isExpired ? 'text-slate-500 line-through' : 'text-emerald-950'}`}>{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-sm text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>{!deal.isExpired && savings > 0 && <div className="mt-3 flex items-center justify-between gap-3"><span className="text-sm font-bold text-emerald-800">You save {formatPrice(savings)}</span>{deal.discountPercent > 0 && <span className="text-xs font-black bg-[#dcebdc] text-emerald-950 px-2 py-1">{deal.discountPercent}% OFF</span>}</div>}</div>
+          <h1 className="text-xl sm:text-2xl font-bold leading-snug text-slate-900 mt-4">{productTitle.name}</h1>
+          {productTitle.details && <p className="text-sm sm:text-base font-normal leading-relaxed text-slate-600 mt-3">{productTitle.details}</p>}
+          <div className="mt-5 border-y border-slate-200 py-4"><div className="flex items-baseline gap-3 flex-wrap"><span className={`text-3xl font-bold tracking-tight ${deal.isExpired ? 'text-slate-500 line-through' : 'text-emerald-950'}`}>{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-sm text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>{!deal.isExpired && savings > 0 && <div className="mt-3 flex items-center justify-between gap-3"><span className="text-sm font-bold text-emerald-800">You save {formatPrice(savings)}</span>{deal.discountPercent > 0 && <span className="text-xs font-black bg-[#dcebdc] text-emerald-950 px-2 py-1">{deal.discountPercent}% OFF</span>}</div>}</div>
           {deal.sourceVerified && <div className={`mt-4 flex items-center gap-2 text-xs font-semibold ${freshness.stale ? 'text-amber-800' : 'text-slate-600'}`}><ShieldCheck className={`w-4 h-4 ${freshness.stale ? 'text-amber-600' : 'text-emerald-700'}`} /><span>{freshness.stale ? 'Price check is older than usual' : freshness.label}</span></div>}
           {freshness.stale && !deal.isExpired && <p className="text-xs text-amber-800 mt-2">Confirm the current offer on Amazon before buying.</p>}
           <button onClick={handleBuy} disabled={redirecting} className={`mt-7 inline-flex items-center justify-between gap-3 w-full px-5 py-4 font-bold text-sm transition disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-emerald-950 hover:bg-emerald-900 text-white'}`}><span className="inline-flex items-center gap-2">{redirecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}{redirecting ? 'Opening Amazon…' : deal.isExpired ? 'Check current price' : 'View deal on Amazon'}</span><ExternalLink className="w-4 h-4 opacity-70" /></button>

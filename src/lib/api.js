@@ -42,6 +42,7 @@ export const auth = { ...client.auth, logout: () => setToken(null) };
 export const deals = client.deals;
 export const editorial = client.editorial;
 export const categories = client.categories;
+export const bounties = client.bounties;
 export const ai = client.ai;
 export const bookmarks = client.bookmarks;
 export const functions = client.functions;
