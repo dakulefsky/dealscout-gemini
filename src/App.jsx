@@ -11,6 +11,7 @@ import Home from '@/pages/Home';
 import DealDetail from '@/pages/DealDetail';
 
 const CategoryPage = lazy(() => import('@/pages/CategoryPage'));
+const Memberships = lazy(() => import('@/pages/Memberships'));
 const SavedDeals = lazy(() => import('@/pages/SavedDeals'));
 const Disclosure = lazy(() => import('@/pages/Disclosure'));
 const Privacy = lazy(() => import('@/pages/Privacy'));
@@ -75,6 +76,7 @@ export default function App() {
                   <Route path="/category/:slug" element={<CategoryPage />} />
                   <Route path="/deal/:id" element={<ProductRoute />} />
                   <Route path="/saved" element={<SavedDeals />} />
+                  <Route path="/memberships" element={<Memberships />} />
                   <Route path="/disclosure" element={<Disclosure />} />
                   <Route path="/privacy" element={<Privacy />} />
                   <Route path="/support" element={<Support />} />
