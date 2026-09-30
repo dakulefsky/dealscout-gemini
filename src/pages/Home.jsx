@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { TrendingDown, Search, LayoutGrid, List, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowRight, TrendingDown, Search, LayoutGrid, List, RotateCcw, SlidersHorizontal, ShoppingBag, Laptop, House, Shirt, HeartPulse, PawPrint, Blocks } from 'lucide-react';
 import DealCard from '@/components/DealCard';
 import { deals as dealsApi } from '@/lib/api';
 import { useActiveCategories } from '@/lib/useActiveCategories';
@@ -23,6 +23,16 @@ const SORTS = [
 const DISCOUNT_TIERS = [{ value: 0, label: '15%+ (all deals)' }, { value: 25, label: '25%+ off' }, { value: 30, label: '30%+ off' }, { value: 50, label: '50%+ off' }];
 const PRICE_TIERS = [{ value: 'all', label: 'Any price' }, { value: 'under-50', label: 'Under $50', max: 50 }, { value: '50-150', label: '$50–$150', min: 50, max: 150 }, { value: '150-300', label: '$150–$300', min: 150, max: 300 }, { value: 'over-300', label: '$300+', min: 300 }];
 const REMOTE_PAGE_SIZE = 24;
+
+function departmentStyle(name) {
+  if (/electronic|computer/i.test(name)) return { Icon: Laptop, color: 'bg-blue-100 text-blue-900' };
+  if (/home|kitchen|garden/i.test(name)) return { Icon: House, color: 'bg-emerald-100 text-emerald-900' };
+  if (/cloth|fashion|shoe/i.test(name)) return { Icon: Shirt, color: 'bg-rose-100 text-rose-900' };
+  if (/health|beauty/i.test(name)) return { Icon: HeartPulse, color: 'bg-violet-100 text-violet-900' };
+  if (/pet/i.test(name)) return { Icon: PawPrint, color: 'bg-amber-100 text-amber-900' };
+  if (/toy|game/i.test(name)) return { Icon: Blocks, color: 'bg-orange-100 text-orange-900' };
+  return { Icon: ShoppingBag, color: 'bg-slate-100 text-slate-800' };
+}
 
 function dealIdentity(deal) { return String(deal?.id || deal?.asin || '').trim(); }
 function balancedFeatured(items, maxItems = 8) {
@@ -123,14 +133,27 @@ export default function Home() {
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
 
-  const feedGrid = (items, prioritizeImages = false) => viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr items-stretch">{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" imagePriority={prioritizeImages && index < 2} />)}</div> : <div>{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" imagePriority={prioritizeImages && index < 2} />)}</div>;
+  const feedGrid = (items, prioritizeImages = false) => viewMode === 'grid' ? <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 ${prioritizeImages ? '' : 'xl:grid-cols-5'} gap-3 sm:gap-4 auto-rows-fr items-stretch`}>{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" imagePriority={prioritizeImages && index < 2} />)}</div> : <div>{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" imagePriority={prioritizeImages && index < 2} />)}</div>;
 
   return <div className="bg-white">
     <div className="ds-shell py-6 sm:py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">{flatAllMode ? 'All deals' : hasActiveFilters ? 'Find a deal' : 'Today’s deals'}</h1>
-        <p className="mt-2 text-sm text-slate-500">Amazon price drops, with the price and savings up front.</p>
+      <header className={`mb-4 ${showCuratedHome ? 'bg-emerald-950 text-white rounded-md px-5 py-5 sm:px-6' : ''}`}>
+        <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight ${showCuratedHome ? 'text-white' : 'text-slate-900'}`}>{flatAllMode ? 'All deals' : hasActiveFilters ? 'Find a deal' : 'Shop by department'}</h1>
+        <p className={`mt-2 text-sm ${showCuratedHome ? 'text-emerald-100' : 'text-slate-500'}`}>{showCuratedHome ? 'Choose a department to find the deals you need.' : 'Browse current Amazon deals.'}</p>
       </header>
+
+      {showCuratedHome && <nav aria-label="Shop by department" className="mb-8">
+        {categories.length > 0 ? <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+          {categories.map((category) => {
+            const { Icon, color } = departmentStyle(category.name);
+            return <Link key={category.id || category.slug || category.name} to={`/?category=${encodeURIComponent(category.name)}`} className="group flex items-center gap-3 min-h-20 px-3 sm:px-4 py-3 border border-slate-200 rounded-md text-sm font-semibold text-slate-800 hover:border-emerald-800 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">
+              <span className={`flex items-center justify-center w-10 h-10 shrink-0 rounded-md ${color}`}><Icon aria-hidden="true" className="w-5 h-5" /></span>
+              <span className="flex-1">{category.name}</span><ArrowRight aria-hidden="true" className="hidden sm:block w-4 h-4 shrink-0 text-slate-400 group-hover:text-emerald-800" />
+            </Link>;
+          })}
+          <Link to="/?category=all" className="flex items-center justify-between gap-3 min-h-20 px-4 py-3 border border-emerald-900 bg-emerald-900 rounded-md text-sm font-semibold text-white hover:bg-emerald-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">All deals<ArrowRight aria-hidden="true" className="w-4 h-4 shrink-0" /></Link>
+        </div> : <Link to="/?category=all" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900 underline underline-offset-4">Browse all deals<ArrowRight aria-hidden="true" className="w-4 h-4" /></Link>}
+      </nav>}
 
       {showCuratedHome && !loading && spotlightDeals.length > 0 && <section aria-labelledby="best-deals-heading" className="mb-9">
         <div className="flex items-baseline justify-between gap-3 mb-4">
