@@ -145,7 +145,7 @@ export default function Layout({ children }) {
     </div>
   );
 
-  const topCategories = categoriesList.slice(0, NAV_LIMIT);
+  const topCategories = categoriesList.filter((category) => category.name !== 'Other').slice(0, NAV_LIMIT);
 
   return (
     <div className="min-h-screen bg-[#fbfaf7] flex flex-col font-sans text-slate-950">

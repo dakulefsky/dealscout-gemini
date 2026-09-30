@@ -25,12 +25,12 @@ const PRICE_TIERS = [{ value: 'all', label: 'Any price' }, { value: 'under-50', 
 const REMOTE_PAGE_SIZE = 24;
 
 function departmentStyle(name) {
-  if (/electronic|computer/i.test(name)) return { Icon: Laptop, color: 'bg-blue-100 text-blue-900' };
-  if (/home|kitchen|garden/i.test(name)) return { Icon: House, color: 'bg-emerald-100 text-emerald-900' };
-  if (/cloth|fashion|shoe/i.test(name)) return { Icon: Shirt, color: 'bg-rose-100 text-rose-900' };
-  if (/health|beauty/i.test(name)) return { Icon: HeartPulse, color: 'bg-violet-100 text-violet-900' };
-  if (/pet/i.test(name)) return { Icon: PawPrint, color: 'bg-amber-100 text-amber-900' };
-  if (/toy|game/i.test(name)) return { Icon: Blocks, color: 'bg-orange-100 text-orange-900' };
+  if (/electronic|computer/i.test(name)) return { Icon: Laptop };
+  if (/home|kitchen|garden/i.test(name)) return { Icon: House };
+  if (/cloth|fashion|shoe/i.test(name)) return { Icon: Shirt };
+  if (/health|beauty/i.test(name)) return { Icon: HeartPulse };
+  if (/pet/i.test(name)) return { Icon: PawPrint };
+  if (/toy|game/i.test(name)) return { Icon: Blocks };
   return { Icon: ShoppingBag, color: 'bg-slate-100 text-slate-800' };
 }
 
@@ -133,38 +133,38 @@ export default function Home() {
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
 
-  const feedGrid = (items, prioritizeImages = false) => viewMode === 'grid' ? <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 ${prioritizeImages ? '' : 'xl:grid-cols-5'} gap-3 sm:gap-4 auto-rows-fr items-stretch`}>{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" imagePriority={prioritizeImages && index < 2} />)}</div> : <div>{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" imagePriority={prioritizeImages && index < 2} />)}</div>;
+  const feedGrid = (items, prioritizeImages = false) => viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 auto-rows-fr items-stretch">{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" imagePriority={prioritizeImages && index < 2} />)}</div> : <div>{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" imagePriority={prioritizeImages && index < 2} />)}</div>;
 
   return <div className="bg-white">
     <div className="ds-shell py-6 sm:py-8">
-      <header className={`mb-4 ${showCuratedHome ? 'bg-emerald-950 text-white rounded-md px-5 py-5 sm:px-6' : ''}`}>
-        <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight ${showCuratedHome ? 'text-white' : 'text-slate-900'}`}>{flatAllMode ? 'All deals' : hasActiveFilters ? 'Find a deal' : 'Shop by department'}</h1>
-        <p className={`mt-2 text-sm ${showCuratedHome ? 'text-emerald-100' : 'text-slate-500'}`}>{showCuratedHome ? 'Choose a department to find the deals you need.' : 'Browse current Amazon deals.'}</p>
+      <header className="mb-5">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">{flatAllMode ? 'All deals' : hasActiveFilters ? 'Find a deal' : 'Shop by department'}</h1>
+        {!showCuratedHome && <p className="mt-2 text-sm text-slate-500">Browse current Amazon deals.</p>}
       </header>
 
       {showCuratedHome && <nav aria-label="Shop by department" className="mb-8">
         {categories.length > 0 ? <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-          {categories.map((category) => {
-            const { Icon, color } = departmentStyle(category.name);
+          {categories.filter((category) => category.name !== 'Other').map((category) => {
+            const { Icon } = departmentStyle(category.name);
             return <Link key={category.id || category.slug || category.name} to={`/?category=${encodeURIComponent(category.name)}`} className="group flex items-center gap-3 min-h-20 px-3 sm:px-4 py-3 border border-slate-200 rounded-md text-sm font-semibold text-slate-800 hover:border-emerald-800 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">
-              <span className={`flex items-center justify-center w-10 h-10 shrink-0 rounded-md ${color}`}><Icon aria-hidden="true" className="w-5 h-5" /></span>
+              <span className="flex items-center justify-center w-10 h-10 shrink-0 text-slate-600"><Icon aria-hidden="true" className="w-5 h-5" /></span>
               <span className="flex-1">{category.name}</span><ArrowRight aria-hidden="true" className="hidden sm:block w-4 h-4 shrink-0 text-slate-400 group-hover:text-emerald-800" />
             </Link>;
           })}
-          <Link to="/?category=all" className="flex items-center justify-between gap-3 min-h-20 px-4 py-3 border border-emerald-900 bg-emerald-900 rounded-md text-sm font-semibold text-white hover:bg-emerald-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">All deals<ArrowRight aria-hidden="true" className="w-4 h-4 shrink-0" /></Link>
+          <Link to="/?category=all" className="flex items-center justify-between gap-3 min-h-20 px-4 py-3 border border-slate-300 bg-slate-100 rounded-md text-sm font-semibold text-slate-900 hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">All deals<ArrowRight aria-hidden="true" className="w-4 h-4 shrink-0" /></Link>
         </div> : <Link to="/?category=all" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900 underline underline-offset-4">Browse all deals<ArrowRight aria-hidden="true" className="w-4 h-4" /></Link>}
       </nav>}
 
       {showCuratedHome && !loading && spotlightDeals.length > 0 && <section aria-labelledby="best-deals-heading" className="mb-9">
         <div className="flex items-baseline justify-between gap-3 mb-4">
-          <h2 id="best-deals-heading" className="text-xl font-semibold text-slate-900">Best deals</h2>
+          <h2 id="best-deals-heading" className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Best deals</h2>
           <span className="text-xs text-slate-500">Recently checked</span>
         </div>
         {feedGrid(spotlightDeals, true)}
       </section>}
 
-      <section aria-labelledby="browse-deals-heading">
-        <h2 id="browse-deals-heading" className="text-xl font-semibold text-slate-900 mb-4">{flatAllMode ? 'All verified deals' : hasActiveFilters ? 'Matching deals' : 'More deals'}</h2>
+      <section aria-labelledby="browse-deals-heading" className="border-t border-slate-200 bg-slate-50 -mx-3 sm:-mx-5 px-3 sm:px-5 py-7 mt-10">
+        <h2 id="browse-deals-heading" className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 mb-5">{flatAllMode ? 'All verified deals' : hasActiveFilters ? 'Matching deals' : 'More deals'}</h2>
         <div className="bg-slate-50 border border-slate-200 rounded-md p-3 sm:p-4 mb-5">
           <div className="flex items-center gap-2">
             <div className="relative flex-1 min-w-0"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input type="search" aria-label="Search deals" placeholder="Search products" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 h-10 text-sm bg-white border-slate-200 rounded-md" /></div>
