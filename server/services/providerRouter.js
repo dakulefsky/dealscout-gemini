@@ -5,6 +5,7 @@ const { fetchStrictRainforestDeals } = require('./rainforestStrictDiscovery');
 const { runProviderCall, getProviderThrottleStatus } = require('./providerThrottle');
 const { usageStatus } = require('./providerBudgetService');
 const { PUBLIC_MIN_DISCOUNT_PERCENT } = require('./publicDealPolicy');
+const { classifyCategory } = require('./categoryClassifier');
 
 const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
 const PROVIDER_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
@@ -70,6 +71,7 @@ function normalizeVerifiedProduct(product, provider) {
   return {
     ...product,
     asin: String(product.asin).trim().toUpperCase(),
+    category: classifyCategory({ rawCategory: product.category, title: product.title }),
     originalPrice,
     salePrice,
     discountPercent,

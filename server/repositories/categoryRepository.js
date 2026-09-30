@@ -1,5 +1,6 @@
 const db = require('../db');
 const postgres = require('../storage/postgres');
+const { classifyCategory } = require('../services/categoryClassifier');
 const { isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
 
 let schemaReady = false;
@@ -124,6 +125,32 @@ async function getById(id) {
   return result.rows[0] || null;
 }
 
+// Repair earlier imports that saved a marketplace department instead of one
+// of our categories. Preserve categories explicitly created by the admin.
+async function repairImportedCategories() {
+  const known = new Set((await list()).map((category) => category.name.toLowerCase()));
+  const candidates = postgres.isConfigured()
+    ? (await postgres.query(`SELECT d.id, d.category, d.title FROM deals d
+        WHERE d.category IS NULL OR LOWER(d.category) = 'other'
+           OR NOT EXISTS (SELECT 1 FROM categories c WHERE LOWER(c.name) = LOWER(d.category))`)).rows
+    : db.tables.deals || [];
+  let repaired = 0;
+  for (const deal of candidates) {
+    const old = String(deal.category || '').toLowerCase();
+    if (known.has(old) && old !== 'other') continue;
+    const category = classifyCategory({ rawCategory: deal.category, title: deal.title });
+    if (category === 'Other' || category === deal.category) continue;
+    if (postgres.isConfigured()) {
+      await postgres.query('UPDATE deals SET category = $1 WHERE id = $2 AND category IS NOT DISTINCT FROM $3', [category, deal.id, deal.category]);
+    } else {
+      deal.category = category;
+    }
+    repaired += 1;
+  }
+  if (repaired && !postgres.isConfigured()) db.saveDb();
+  return repaired;
+}
+
 async function create({ id, name, slug, description }) {
   if (!postgres.isConfigured()) {
     const category = { id, name, slug, description: description || null, created_at: Math.floor(Date.now() / 1000) };
@@ -180,4 +207,4 @@ async function remove(id) {
   return result.rowCount > 0;
 }
 
-module.exports = { list, getById, create, update, remove, ensureSchema, CANONICAL_CATEGORIES };
+module.exports = { list, getById, create, update, remove, ensureSchema, repairImportedCategories, CANONICAL_CATEGORIES };

@@ -59,7 +59,7 @@ const CATEGORY_RULES = [
   },
   {
     category: 'Clothing & Accessories',
-    strong: [/\b(?:t-shirt|shirt|hoodie|sweater|jacket|coat|jeans|pants|dress|skirt|shorts|sneakers?|boots?|sandals?|slippers?|handbag|wallet|backpack purse|sunglasses|jewelry|necklace|bracelet|earrings?|analog watch|quartz watch)\b/i],
+    strong: [/\b(?:t-shirts?|shirts?|blouses?|tops|tank top|tunics?|cardigans?|hoodies?|sweaters?|jackets?|coats?|jeans|pants|trousers|leggings|dresses?|skirts?|shorts|sneakers?|boots?|sandals?|slippers?|handbags?|wallets?|backpack purse|sunglasses|jewelry|necklaces?|bracelets?|earrings?|analog watch|quartz watch)\b/i],
     broad: [/\b(?:clothing|fashion|apparel|shoes?|jewelry|watches?|accessories)\b/i],
   },
   {
