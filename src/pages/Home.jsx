@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { TrendingDown, Search, LayoutGrid, List, RotateCcw, SlidersHorizontal } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowRight, TrendingDown, Search, LayoutGrid, List, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import DealCard from '@/components/DealCard';
 import { deals as dealsApi } from '@/lib/api';
 import { useActiveCategories } from '@/lib/useActiveCategories';
@@ -128,9 +128,18 @@ export default function Home() {
   return <div className="bg-white">
     <div className="ds-shell py-6 sm:py-8">
       <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">{flatAllMode ? 'All deals' : hasActiveFilters ? 'Find a deal' : 'Today’s deals'}</h1>
-        <p className="mt-2 text-sm text-slate-500">Amazon price drops, with the price and savings up front.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">{flatAllMode ? 'All deals' : hasActiveFilters ? 'Find a deal' : 'Shop by department'}</h1>
+        <p className="mt-2 text-sm text-slate-500">{showCuratedHome ? 'Choose a department to find the deals you need.' : 'Browse current Amazon deals.'}</p>
       </header>
+
+      {showCuratedHome && <nav aria-label="Shop by department" className="mb-8">
+        {categories.length > 0 ? <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+          {categories.map((category) => <Link key={category.id || category.slug || category.name} to={`/?category=${encodeURIComponent(category.name)}`} className="group flex items-center justify-between gap-3 min-h-16 px-4 py-3 border border-slate-200 rounded-md text-sm font-semibold text-slate-800 hover:border-emerald-800 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">
+            <span>{category.name}</span><ArrowRight aria-hidden="true" className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-emerald-800" />
+          </Link>)}
+          <Link to="/?category=all" className="flex items-center justify-between gap-3 min-h-16 px-4 py-3 border border-slate-200 rounded-md text-sm font-semibold text-emerald-900 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">All deals<ArrowRight aria-hidden="true" className="w-4 h-4 shrink-0" /></Link>
+        </div> : <Link to="/?category=all" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900 underline underline-offset-4">Browse all deals<ArrowRight aria-hidden="true" className="w-4 h-4" /></Link>}
+      </nav>}
 
       {showCuratedHome && !loading && spotlightDeals.length > 0 && <section aria-labelledby="best-deals-heading" className="mb-9">
         <div className="flex items-baseline justify-between gap-3 mb-4">
