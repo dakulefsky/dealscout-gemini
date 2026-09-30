@@ -18,6 +18,7 @@ export default function DealCard({ deal, viewMode = 'grid', imagePriority = fals
   const { isSaved, toggleBookmark } = useBookmarks();
   const { toast } = useToast();
   const dealId = deal.id || deal.asin;
+  const cardTitle = String(deal.title || '').split(/\s+\|\s+/)[0];
   const saved = isSaved(dealId);
   const [dismissed, setDismissed] = useState(() => isDealDismissed(dealId));
   const isExpired = Boolean(deal.isExpired || deal.status === 'EXPIRED');
@@ -122,7 +123,7 @@ export default function DealCard({ deal, viewMode = 'grid', imagePriority = fals
         </div>
         <div className="p-3 sm:p-3.5 flex flex-col flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1.5 min-h-[15px] flex-wrap"><span className="text-[9px] uppercase tracking-[0.12em] font-bold text-slate-500 break-words min-w-0">{deal.category || 'Deal'}</span>{sourceBadge}</div>
-          <h3 className={`text-[13px] sm:text-[14px] font-semibold leading-snug break-words min-h-[2.4rem] ${isExpired ? 'line-through text-slate-500' : 'text-slate-950 group-hover:text-emerald-900'}`}>{deal.title}</h3>
+          <h3 title={deal.title} className={`text-[13px] sm:text-[15px] font-semibold leading-snug break-words line-clamp-3 min-h-[3.6rem] ${isExpired ? 'line-through text-slate-500' : 'text-slate-950 group-hover:text-emerald-900'}`}>{cardTitle}</h3>
           <div className="mt-auto pt-3">
             <div className="flex items-baseline gap-1.5 flex-wrap"><span className="ds-price text-xl sm:text-[22px]">{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-[10px] sm:text-xs text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>
             {discountPercent > 0 && <div className="mt-1.5 inline-flex bg-emerald-900 px-2 py-1 rounded-sm text-xs font-bold text-white">{discountPercent}% off</div>}
