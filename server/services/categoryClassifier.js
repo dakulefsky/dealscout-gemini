@@ -2,14 +2,14 @@ const CATEGORY_RULES = [
   {
     category: 'Electronics',
     strong: [
-      /\b(?:iphone|ipad|macbook|chromebook|laptop|notebook computer|desktop computer|monitor|smartphone|cell phone|android phone|tablet|kindle|echo|alexa|fire tv|fire tablet|ring doorbell|blink camera|router|modem|wifi|wi-fi|bluetooth|ethernet|cat[5-8](?:e)?|earbuds?|headphones?|headset|speaker|soundbar|television|tv|projector|camera|webcam|microphone|keyboard|mouse|ssd|hard drive|flash drive|usb(?:-c)?|power bank|charger|charging cable|smartwatch|fitness tracker|gaming console|playstation|xbox|nintendo switch|video game)\b/i,
+      /\b(?:iphone|ipad|macbook|chromebook|laptop|notebook computer|desktop computer|monitor|smartphone|cell phone|android phone|tablet|kindle|echo|alexa|fire tv|fire tablet|ring (?:battery |wired |video )?doorbell|doorbell camera|ring (?:floodlight |outdoor )?cam|security cam|blink camera|router|modem|wifi|wi-fi|bluetooth|ethernet|cat[5-8](?:e)?|earbuds?|headphones?|headset|speaker|soundbar|television|tv|projector|camera|webcam|microphone|keyboard|mouse|ssd|hard drive|flash drive|usb(?:-c)?|power bank|charger|charging cable|smartwatch|fitness tracker|gaming console|playstation|xbox|nintendo switch|video game)\b/i,
     ],
     broad: [/\b(?:amazon devices?|electronics?|computers?|audio|home theater|cell phones?|camera & photo|video games?|gaming)\b/i],
   },
   {
     category: 'Home & Kitchen',
     strong: [
-      /\b(?:air fryer|coffee maker|espresso machine|blender|mixer|toaster|microwave|cookware|frying pan|skillet|knife set|vacuum|robot vacuum|mop|bedding|mattress|pillow|sheet set|towel|furniture|sofa|desk chair|storage bin|humidifier|air purifier|fan|space heater|lamp|lighting|curtain|rug|patio furniture)\b/i,
+      /\b(?:air fryer|coffee maker|espresso machine|espresso|ninja luxe caf[eé]|built-in grinder|blender|mixer|toaster|microwave|cookware|frying pan|skillet|knife set|vacuum|robot vacuum|carpet cleaner|upholstery cleaner|toilet paper|paper towels?|mop|bedding|mattress|pillow|sheet set|towel|furniture|sofa|desk chair|storage bin|humidifier|air purifier|fan|space heater|lamp|lighting|curtain|rug|patio furniture)\b/i,
     ],
     broad: [/\b(?:home & kitchen|home and kitchen|kitchen|furniture|bedding|bath|garden|patio|home décor|home decor|appliances?)\b/i],
   },
@@ -59,7 +59,7 @@ const CATEGORY_RULES = [
   },
   {
     category: 'Clothing & Accessories',
-    strong: [/\b(?:t-shirts?|shirts?|blouses?|tops|tank top|tunics?|cardigans?|hoodies?|sweaters?|jackets?|coats?|jeans|pants|trousers|leggings|dresses?|skirts?|shorts|sneakers?|boots?|sandals?|slippers?|handbags?|wallets?|backpack purse|sunglasses|jewelry|necklaces?|bracelets?|earrings?|analog watch|quartz watch)\b/i],
+    strong: [/\b(?:t-shirts?|shirts?|blouses?|tops|tank top|tunics?|cardigans?|hoodies?|sweatshirts?|pajamas?|pyjamas?|sleepwear|loungewear|jumpsuits?|rompers?|underwear|bras?|socks|sweaters?|jackets?|coats?|jeans|pants|trousers|leggings|dresses?|skirts?|shorts|sneakers?|boots?|sandals?|slippers?|handbags?|wallets?|backpack purse|sunglasses|jewelry|necklaces?|bracelets?|earrings?|analog watch|quartz watch)\b/i],
     broad: [/\b(?:clothing|fashion|apparel|shoes?|jewelry|watches?|accessories)\b/i],
   },
   {
@@ -69,7 +69,18 @@ const CATEGORY_RULES = [
   },
 ];
 
-const GENERIC_CATEGORY_TEXT = /^(?:all|deals?|featured|today'?s deals?|amazon deals?|other|unknown)$/i;
+const GENERIC_CATEGORY_TEXT = /^(?:all|aps|amazon|amazon\.com|deals?|featured|today'?s deals?|amazon deals?|other|unknown|products?|items?|general|miscellaneous|women|men|girls|boys|unisex)$/i;
+
+function departmentName(value) {
+  const name = clean(value);
+  // Only use human-readable provider taxonomy, never search IDs, links,
+  // marketplace catch-alls, or long/product-specific labels.
+  if (!name || name.length > 64 || name.split(/\s+/).length > 6
+      || GENERIC_CATEGORY_TEXT.test(name) || !/[a-z]/i.test(name)
+      || !/^[a-z][a-z &,'’().-]*$/i.test(name)) return null;
+  return name.replace(/[a-z]+/gi, (word) => word.length <= 4 && word === word.toUpperCase()
+    ? word : word[0].toUpperCase() + word.slice(1).toLowerCase());
+}
 
 function clean(value) {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
@@ -113,11 +124,11 @@ function classifyCategory({ rawCategory = '', title = '', searchAlias = '' } = {
 
   scores.sort((a, b) => b.score - a.score || a.index - b.index);
   const winner = scores[0];
-  return winner && winner.score > 0 ? winner.category : 'Other';
+  return winner && winner.score > 0 ? winner.category : departmentName(categoryText) || 'Other';
 }
 
 function normalizeCategory(value = '') {
   return classifyCategory({ rawCategory: value });
 }
 
-module.exports = { CATEGORY_RULES, classifyCategory, normalizeCategory };
+module.exports = { CATEGORY_RULES, classifyCategory, normalizeCategory, departmentName };

@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { dealSavings } from '../../../../src/lib/dealSavings';
 
 function money(value) {
   const amount = Number(value);
@@ -25,7 +26,7 @@ export default function DealCard({ deal, onSave, onOpen, onDismiss, saved = fals
   const id = deal?.id || deal?.asin;
   const salePrice = field(deal, 'salePrice', 'sale_price');
   const originalPrice = field(deal, 'originalPrice', 'original_price');
-  const discount = Number(field(deal, 'discountPercent', 'discount_percent') || 0);
+  const { percent: discount } = dealSavings(deal);
   const imageUrl = field(deal, 'imageUrl', 'image_url');
   const checked = checkedLabel(field(deal, 'priceCheckAt', 'price_check_at'));
 
@@ -73,7 +74,7 @@ export default function DealCard({ deal, onSave, onOpen, onDismiss, saved = fals
 
 const styles = StyleSheet.create({
   card: { flex: 1, minWidth: 0, borderTopWidth: 2, borderLeftWidth: 1, borderRightWidth: 1, borderBottomWidth: 1, borderColor: '#c9d0cb', backgroundColor: '#fff' },
-  image: { width: '100%', aspectRatio: 1.25, backgroundColor: '#f7f5ef' },
+  image: { width: '100%', aspectRatio: 1.25, backgroundColor: '#fff' },
   body: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8 },
   discount: { alignSelf: 'flex-start', fontSize: 9, fontWeight: '900', letterSpacing: 0.7, color: '#064e3b', backgroundColor: '#dcebdc', paddingHorizontal: 6, paddingVertical: 3, marginBottom: 7 },
   title: { color: '#0f172a', fontSize: 14, lineHeight: 19, fontWeight: '700' },

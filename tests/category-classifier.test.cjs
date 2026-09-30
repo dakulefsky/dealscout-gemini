@@ -36,3 +36,15 @@ test('avoids substring mistakes from vague words', () => {
 test('keeps genuinely unclassified inventory in Other instead of guessing', () => {
   assert.equal(classifyCategory({ rawCategory: 'Deals', title: 'Special Limited Edition Item' }), 'Other');
 });
+
+test('recognizes live apparel, security, and household imports that previously fell into Other', () => {
+  for (const title of ['Trendy Queen Women Pajamas Set Sleepwear Fall 2 Piece Soft Lounge Pjs', 'Trendy Queen Womens Hoodies Oversized Sweatshirt']) {
+    assert.equal(classifyCategory({ rawCategory: 'Other', title }), 'Clothing & Accessories');
+  }
+  for (const title of ['Ring Battery Doorbell 2K', 'Ring Floodlight Cam Wired Plus', 'Ring Outdoor Cam 2K', 'Ring Wired Doorbell 4K Pro']) {
+    assert.equal(classifyCategory({ rawCategory: 'Other', title }), 'Electronics');
+  }
+  for (const title of ['Ninja Luxe Café Pro Espresso Machine', 'BISSELL Little Green Mini Portable Carpet Cleaner', 'Amazon Basics 2-Ply Soft Toilet Paper']) {
+    assert.equal(classifyCategory({ rawCategory: 'Other', title }), 'Home & Kitchen');
+  }
+});

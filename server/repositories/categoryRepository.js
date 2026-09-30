@@ -52,7 +52,36 @@ async function ensureSchema() {
 
 function localCategories() {
   const createdAt = Math.floor(Date.now() / 1000);
-  return CANONICAL_CATEGORIES.map((category) => ({ ...category, created_at: createdAt }));
+  const canonical = CANONICAL_CATEGORIES.map((category) => ({ ...category, created_at: createdAt }));
+  const slugs = new Set(canonical.map((category) => category.slug));
+  return [...canonical, ...(db.tables.categories || []).filter((category) =>
+    category.slug !== 'amazon-devices' && !slugs.has(category.slug))];
+}
+
+function categorySlug(name) {
+  return String(name || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/&/g, ' and ').replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+}
+
+async function ensureForDeal(name) {
+  const cleaned = String(name || '').trim();
+  const slug = categorySlug(cleaned);
+  if (!cleaned || !slug || cleaned.length > 80) return 'Other';
+  if (!postgres.isConfigured()) {
+    const existing = localCategories().find((category) => category.slug === slug || category.name.toLowerCase() === cleaned.toLowerCase());
+    if (existing) return existing.name;
+    db.tables.categories.push({ id: `cat-auto-${slug}`, name: cleaned, slug, description: null, created_at: Math.floor(Date.now() / 1000) });
+    db.saveDb();
+    return cleaned;
+  }
+  await ensureSchema();
+  const existing = await postgres.query('SELECT name FROM categories WHERE LOWER(name) = LOWER($1) OR slug = $2 ORDER BY created_at LIMIT 1', [cleaned, slug]);
+  if (existing.rows[0]) return existing.rows[0].name;
+  const result = await postgres.query(`INSERT INTO categories (id, name, slug, description, created_at)
+    VALUES ($1, $2, $3, NULL, $4) ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug RETURNING name`,
+  [`cat-auto-${slug}`, cleaned, slug, Math.floor(Date.now() / 1000)]);
+  return result.rows[0].name;
 }
 
 function sortWithInventory(rows, activeOnly) {
@@ -139,11 +168,13 @@ async function repairImportedCategories() {
     const old = String(deal.category || '').toLowerCase();
     if (known.has(old) && old !== 'other') continue;
     const category = classifyCategory({ rawCategory: deal.category, title: deal.title });
-    if (category === 'Other' || category === deal.category) continue;
+    if (category === 'Other') continue;
+    const registeredName = await ensureForDeal(category);
+    if (registeredName === deal.category) continue;
     if (postgres.isConfigured()) {
-      await postgres.query('UPDATE deals SET category = $1 WHERE id = $2 AND category IS NOT DISTINCT FROM $3', [category, deal.id, deal.category]);
+      await postgres.query('UPDATE deals SET category = $1 WHERE id = $2 AND category IS NOT DISTINCT FROM $3', [registeredName, deal.id, deal.category]);
     } else {
-      deal.category = category;
+      deal.category = registeredName;
     }
     repaired += 1;
   }
@@ -207,4 +238,4 @@ async function remove(id) {
   return result.rowCount > 0;
 }
 
-module.exports = { list, getById, create, update, remove, ensureSchema, repairImportedCategories, CANONICAL_CATEGORIES };
+module.exports = { list, getById, create, update, remove, ensureSchema, ensureForDeal, repairImportedCategories, CANONICAL_CATEGORIES };

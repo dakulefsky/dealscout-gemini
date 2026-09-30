@@ -30,7 +30,7 @@ test('consumer shell has brand masthead, retail search, and category navigation'
 });
 
 test('deal cards are retail first and avoid universal rounded-card treatment', () => {
-  assert.match(card, /bg-\[#f7f5f0\]/);
+  assert.match(card, /bg-white border-b/);
   assert.match(card, /ds-price/);
   assert.match(card, /border-t-\[3px\]/);
   assert.doesNotMatch(card, /hover:shadow|hover:-translate-y/);
