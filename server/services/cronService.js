@@ -14,13 +14,25 @@ const { canAttemptRefresh } = require('./refreshRetryPolicy');
 const { PUBLIC_MIN_DISCOUNT_PERCENT } = require('./publicDealPolicy');
 
 const TWELVE_HOURS_SECONDS = 12 * 60 * 60;
+const ONE_DAY_SECONDS = 24 * 60 * 60;
 const THIRTY_MINUTES_SECONDS = 30 * 60;
 const SCHEDULER_POLL_MS = 15 * 60 * 1000;
 const PROVIDER_RETRY_SAFETY_SECONDS = 60;
 const JOB_ERROR_RETRY_SECONDS = 30 * 60;
 const JOB_LOCKS = Object.freeze({ purgeExpired: 44001, verifyPrices: 44002, discoverDeals: 44003 });
-const JOB_INTERVALS = Object.freeze({ purgeExpired: THIRTY_MINUTES_SECONDS, verifyPrices: TWELVE_HOURS_SECONDS, discoverDeals: TWELVE_HOURS_SECONDS });
+// Rainforest allows 16 requests/day by default. Leave room for deal discovery
+// and a manual action while using one larger, price-only batch each day.
+const DAILY_PRICE_VERIFY_MAX_BATCH = 12;
+const JOB_INTERVALS = Object.freeze({ purgeExpired: THIRTY_MINUTES_SECONDS, verifyPrices: ONE_DAY_SECONDS, discoverDeals: TWELVE_HOURS_SECONDS });
 const PROVIDER_BATCH_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
+
+function dailyPriceVerificationBatchSize(activeCount) {
+  return verificationBatchSize(activeCount, {
+    intervalHours: 24,
+    targetHours: 24,
+    maxBatch: DAILY_PRICE_VERIFY_MAX_BATCH,
+  });
+}
 
 async function safeRecordObservation(observation) {
   try { await recordObservation(observation); }
@@ -191,14 +203,20 @@ class DealCronService {
 
   async checkDealPricesAndAvailability({ scheduled = false, maxChecks = null } = {}) {
     return this.runDistributed(JOB_LOCKS.verifyPrices, 'verify-prices', async () => {
-      const claim = await this.claimCadence('verify-prices', JOB_INTERVALS.verifyPrices, scheduled);
-      if (!claim.acquired) return cadenceSkip('verify-prices', claim);
+      // Manual checks must not push the next scheduled daily verification out.
+      // The advisory lock still prevents overlapping work.
+      if (scheduled) {
+        const claim = await this.claimCadence('verify-prices', JOB_INTERVALS.verifyPrices, true);
+        if (!claim.acquired) return cadenceSkip('verify-prices', claim);
+      }
       this.lastPriceCheck = new Date();
       const all = await deals.listAll();
       const activeDeals = all.filter((deal) => !deal.is_expired && deal.status === 'APPROVED' && deal.source_verified === 1);
-      const batchSize = maxChecks == null ? verificationBatchSize(activeDeals.length) : Math.min(verificationBatchSize(activeDeals.length), Math.max(1, Math.floor(Number(maxChecks) || 1)));
-      const candidateLimit = Math.min(100, Math.max(batchSize, batchSize * 3));
-      const verificationCandidates = oldestCheckedFirst(activeDeals, candidateLimit || 1);
+      const dailyBatchSize = dailyPriceVerificationBatchSize(activeDeals.length);
+      const batchSize = maxChecks == null ? dailyBatchSize : Math.min(dailyBatchSize, Math.max(1, Math.floor(Number(maxChecks) || 1)));
+      // Scan the full oldest-first queue so retry backoff on a few failures
+      // cannot make every manual batch appear to do nothing.
+      const verificationCandidates = oldestCheckedFirst(activeDeals, Math.max(1, activeDeals.length));
       let expiredCount = 0;
       let checkedCount = 0;
       let deferredCount = 0;
@@ -403,3 +421,5 @@ module.exports = new DealCronService();
 module.exports.shouldStopProviderBatch = shouldStopProviderBatch;
 module.exports.providerRetryAt = providerRetryAt;
 module.exports.cadenceSkip = cadenceSkip;
+module.exports.JOB_INTERVALS = JOB_INTERVALS;
+module.exports.dailyPriceVerificationBatchSize = dailyPriceVerificationBatchSize;
