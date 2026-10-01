@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { deals as dealsApi, functions } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 import { describePriceCheck } from '@/lib/priceCheckFeedback';
+import AmazonSeasonalPromotionSettings from '@/components/admin/AmazonSeasonalPromotionSettings';
 
 function Stat({ label, value, hint }) {
   return <div className="bg-white border border-slate-200 rounded-2xl p-4"><div className="text-xs font-semibold text-slate-500">{label}</div><div className="text-2xl font-black text-slate-900 mt-1">{value ?? '—'}</div>{hint && <div className="text-[11px] text-slate-400 mt-1">{hint}</div>}</div>;
@@ -127,7 +128,8 @@ export default function AdminHome() {
   const actionInFlight = Boolean(busy);
   const cron = provider.cron || {};
   const nextPull = countdownLabel(cron.nextRunEstimate, now);
-  const lastPull = cron.lastRun ? new Date(cron.lastRun).toLocaleString() : 'Not yet this process';
+  const lastPull = cron.lastRun ? new Date(cron.lastRun).toLocaleString() : 'No successful pull recorded yet';
+  const lastPullAttempt = cron.lastAttempt ? new Date(cron.lastAttempt).toLocaleString() : null;
   const rainforestBudget = provider.rainforest?.budget || {};
   const budgetUnavailable = Boolean(rainforestBudget.error) || loadFailures.includes('provider status');
   const whatsappSettingsUnavailable = loadFailures.includes('channel settings');
@@ -155,7 +157,8 @@ export default function AdminHome() {
             <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider"><Clock3 className="w-4 h-4" /> Shared deal pull</div>
             <div className="text-3xl font-black mt-2">Next pull in {nextPull}</div>
             <div className="text-sm text-slate-300 mt-2">Automatic discovery runs on the shared catalog. A manual pull can pass our daily Rainforest limit while respecting the monthly limit and your provider plan.</div>
-            <div className="text-xs text-slate-400 mt-2">Last pull: {lastPull}</div>
+            <div className="text-xs text-slate-400 mt-2">Last successful pull: {lastPull}</div>
+            {lastPullAttempt && <div className="text-xs text-slate-400 mt-1">Last attempt: {lastPullAttempt}</div>}
           </div>
           <Button disabled={actionInFlight} onClick={() => run('sync', () => functions.fetchDeals(15, true), 'Shared deal pull complete', (result) => `${result?.created || 0} new, ${result?.updated || 0} refreshed. Web, app, and WhatsApp Status now share the same catalog.`)} className="rounded-xl gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shrink-0">
             {busy === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Pull deals now
@@ -257,6 +260,8 @@ export default function AdminHome() {
           {cleanupCandidates > 0 && <Button disabled={actionInFlight} onClick={() => run('cleanup', () => functions.cleanupLegacyEnrichment(), 'Legacy copy cleaned', (result) => `${result?.cleaned || 0} rows cleaned.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-2 border-amber-200 text-amber-800 hover:bg-amber-50">{busy === 'cleanup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />} Clean {cleanupCandidates} known legacy {cleanupCandidates === 1 ? 'row' : 'rows'}</Button>}
         </div>
       </section>
+
+      <AmazonSeasonalPromotionSettings />
 
       <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6">
         <div className="flex items-center gap-2 mb-4"><History className="w-5 h-5 text-slate-600" /><h2 className="font-black text-slate-900">Recent activity</h2></div>

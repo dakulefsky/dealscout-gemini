@@ -17,6 +17,7 @@ const TWELVE_HOURS_SECONDS = 12 * 60 * 60;
 const THIRTY_MINUTES_SECONDS = 30 * 60;
 const SCHEDULER_POLL_MS = 15 * 60 * 1000;
 const PROVIDER_RETRY_SAFETY_SECONDS = 60;
+const JOB_ERROR_RETRY_SECONDS = 30 * 60;
 const JOB_LOCKS = Object.freeze({ purgeExpired: 44001, verifyPrices: 44002, discoverDeals: 44003 });
 const JOB_INTERVALS = Object.freeze({ purgeExpired: THIRTY_MINUTES_SECONDS, verifyPrices: TWELVE_HOURS_SECONDS, discoverDeals: TWELVE_HOURS_SECONDS });
 const PROVIDER_BATCH_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
@@ -62,6 +63,11 @@ async function rescheduleProviderJob(jobKey, error) {
     console.warn(`[DealCronService] Could not reschedule ${jobKey} after ${error?.code || 'provider deferral'}:`, rescheduleError.message);
     return null;
   }
+}
+
+async function recordJobSuccess(jobKey) {
+  try { await maintenanceCadence.markSucceeded(jobKey); }
+  catch (error) { console.warn(`[DealCronService] Could not persist successful ${jobKey} run:`, error.message); }
 }
 
 function boundedNumber(value, fallback, min, max) {
@@ -131,13 +137,44 @@ class DealCronService {
   }
 
   async runFullCycle({ scheduled = false } = {}) {
-    const purge = await this.purgeOldExpiredDeals({ scheduled });
+    // Keep each maintenance lane independent. A transient cleanup/database error
+    // must not suppress deal discovery or price verification for the whole cycle.
+    const runJob = async (jobKey, name, task) => {
+      try {
+        const result = await task();
+        if (result?.status === 'NOTICE' && result.error) {
+          await this.rescheduleAfterJobError(jobKey, result.error);
+        }
+        return result;
+      } catch (error) {
+        this.stats.lastError = error?.message || String(error);
+        console.warn(`[DealCronService] ${name} failed; scheduling a retry:`, this.stats.lastError);
+        await this.rescheduleAfterJobError(jobKey, error);
+        return { status: 'NOTICE', job: name, error: this.stats.lastError, retryAfterSeconds: JOB_ERROR_RETRY_SECONDS };
+      }
+    };
+
+    const purge = await runJob('purge-expired', 'purge-expired', () => this.purgeOldExpiredDeals({ scheduled }));
     // One discovery request can refresh many existing ASINs and add new inventory,
     // so give that bulk request priority before spending the remaining provider
     // allowance on single-ASIN verification calls.
-    const discovery = await this.syncDailyDeals({ scheduled });
-    const verification = await this.checkDealPricesAndAvailability({ scheduled });
+    const discovery = await runJob('discover-deals', 'discover-deals', () => this.syncDailyDeals({ scheduled }));
+    const verification = await runJob('verify-prices', 'verify-prices', () => this.checkDealPricesAndAvailability({ scheduled }));
     return { purge, verification, discovery };
+  }
+
+  async rescheduleAfterJobError(jobKey, error) {
+    // Budget and cooldown errors have their own precise retry windows. Other
+    // failures get a bounded half-hour retry instead of waiting a full cadence.
+    if (shouldStopProviderBatch(error)) return rescheduleProviderJob(jobKey, error);
+    try {
+      const retryAt = Math.floor(Date.now() / 1000) + JOB_ERROR_RETRY_SECONDS;
+      await maintenanceCadence.reschedule(jobKey, retryAt);
+      return retryAt;
+    } catch (rescheduleError) {
+      console.warn(`[DealCronService] Could not reschedule ${jobKey} after an error:`, rescheduleError.message);
+      return null;
+    }
   }
 
   async purgeOldExpiredDeals({ scheduled = false } = {}) {
@@ -147,6 +184,7 @@ class DealCronService {
       this.lastPurgeRun = new Date();
       const result = await deals.purgeExpired(86400);
       this.stats.dealsPurged += result.purgedCount || 0;
+      await recordJobSuccess('purge-expired');
       return result;
     });
   }
@@ -234,6 +272,7 @@ class DealCronService {
       }
 
       this.stats.dealsExpired += expiredCount;
+      await recordJobSuccess('verify-prices');
       return {
         checkedCount, expiredCount, deferredCount, itemFailureCount, eligibleCount: activeDeals.length, batchSize,
         providerDeferred, providerDeferredReason, providerRetryAt: providerRetryAtUnix,
@@ -318,6 +357,7 @@ class DealCronService {
         this.stats.dealsEditorialHoldback += holdbackCount;
         this.stats.dealsRejected += rejectedCount;
         this.lastRun = new Date();
+        await recordJobSuccess('discover-deals');
 
         return {
           created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount,
@@ -341,9 +381,12 @@ class DealCronService {
     const durableDiscovery = await maintenanceCadence.get('discover-deals').catch(() => null);
     const durableNextDue = Number(durableDiscovery?.next_due_at || 0);
     const nextRunEstimate = durableNextDue > 0 ? new Date(durableNextDue * 1000).toISOString() : null;
+    const durableLastSuccess = Number(durableDiscovery?.last_succeeded_at || 0);
+    const durableLastAttempt = Number(durableDiscovery?.last_claimed_at || 0);
     return {
       running: Boolean(this.intervalId),
-      lastRun: this.lastRun ? this.lastRun.toISOString() : null,
+      lastRun: durableLastSuccess > 0 ? new Date(durableLastSuccess * 1000).toISOString() : (this.lastRun ? this.lastRun.toISOString() : null),
+      lastAttempt: durableLastAttempt > 0 ? new Date(durableLastAttempt * 1000).toISOString() : null,
       lastPriceCheck: this.lastPriceCheck ? this.lastPriceCheck.toISOString() : null,
       lastPurgeRun: this.lastPurgeRun ? this.lastPurgeRun.toISOString() : null,
       nextRunEstimate,

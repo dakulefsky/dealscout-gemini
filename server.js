@@ -192,6 +192,7 @@ async function startServer() {
   app.use('/api/functions', require('./server/middleware/publicationHealthEndpoint.js').publicationHealthEndpoint);
   app.use('/api/functions', require('./server/middleware/channelSettingsEndpoint.js').channelSettingsEndpoint);
   app.use('/api/functions', require('./server/middleware/jewishCalendarEndpoint.js').jewishCalendarEndpoint);
+  app.use('/api/functions', require('./server/middleware/amazonSeasonalPromotionEndpoint.js').amazonSeasonalPromotionEndpoint);
   app.use('/api/functions', require('./server/routes/functions.js'));
   app.use('/api/ai', require('./server/routes/ai.js'));
 

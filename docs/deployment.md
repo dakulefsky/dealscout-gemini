@@ -95,7 +95,11 @@ SMTP credentials, provider credentials, admin bootstrap password, publication tr
 
 The HTTP service is safe to run with multiple replicas because scheduled provider work uses PostgreSQL advisory locks. Publication jobs are claimed with database leases and queue insertion is idempotent. WhatsApp Status cycles additionally use a PostgreSQL advisory lock plus durable publication-history spacing so horizontally scaled Status workers cannot intentionally publish in parallel.
 
+Deal discovery and price checks currently poll from the web process every 15 minutes; PostgreSQL preserves their cadence and results across restarts, but it cannot wake a scaled-to-zero Cloud Run process. For guaranteed unattended runs, configure an authenticated external scheduler/Cloud Run Job, or deliberately keep a minimum instance with the required CPU billing mode. Check the resulting cost before enabling always-on capacity.
+
 Do not deploy product surfaces against separate databases: website, app, and publishing must share one source of truth.
+
+The shopper homepage can show a restrained seasonal event banner when fresh deals exist. Black Friday through Cyber Monday is calculated from the US calendar each year. Prime Day dates are managed from the private Admin dashboard after Amazon confirms them; the date range is saved in PostgreSQL and takes effect without a redeploy. The banner never invents a deal, discount, or Prime-exclusive claim.
 
 The default PostgreSQL pool is intentionally small (`PG_POOL_MAX=5`). Size total web + worker replica counts and database connection limits together before increasing either value.
 

@@ -20,10 +20,12 @@ async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS maintenance_job_state (
       job_key TEXT PRIMARY KEY,
       last_claimed_at BIGINT,
+      last_succeeded_at BIGINT,
       next_due_at BIGINT NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  await postgres.query('ALTER TABLE maintenance_job_state ADD COLUMN IF NOT EXISTS last_succeeded_at BIGINT');
   await postgres.query('CREATE INDEX IF NOT EXISTS idx_maintenance_job_state_due ON maintenance_job_state(next_due_at)');
   schemaReady = true;
 }
@@ -37,7 +39,7 @@ async function claim(jobKeyValue, intervalSecondsValue, { force = false, nowUnix
   if (!postgres.isConfigured()) {
     const current = fallback.get(jobKey);
     if (!force && current && Number(current.next_due_at || 0) > now) return { acquired: false, state: { ...current } };
-    const state = { job_key: jobKey, last_claimed_at: now, next_due_at: nextDueAt };
+    const state = { ...(current || {}), job_key: jobKey, last_claimed_at: now, next_due_at: nextDueAt };
     fallback.set(jobKey, state);
     return { acquired: true, state: { ...state } };
   }
@@ -92,6 +94,30 @@ async function get(jobKeyValue) {
   return result.rows[0] || null;
 }
 
+async function markSucceeded(jobKeyValue, nowUnix = Math.floor(Date.now() / 1000)) {
+  const jobKey = cleanKey(jobKeyValue);
+  const now = Math.floor(Number(nowUnix));
+  if (!Number.isFinite(now) || now <= 0) throw new Error('Invalid successful maintenance timestamp');
+
+  if (!postgres.isConfigured()) {
+    const current = fallback.get(jobKey) || { job_key: jobKey, last_claimed_at: now, next_due_at: now };
+    const state = { ...current, last_succeeded_at: now };
+    fallback.set(jobKey, state);
+    return { ...state };
+  }
+
+  await ensureSchema();
+  const result = await postgres.query(`
+    INSERT INTO maintenance_job_state(job_key, last_claimed_at, last_succeeded_at, next_due_at, updated_at)
+    VALUES ($1, $2, $2, $2, NOW())
+    ON CONFLICT (job_key) DO UPDATE SET
+      last_succeeded_at = EXCLUDED.last_succeeded_at,
+      updated_at = NOW()
+    RETURNING *
+  `, [jobKey, now]);
+  return result.rows[0] || null;
+}
+
 function resetFallback() { fallback.clear(); }
 
-module.exports = { ensureSchema, claim, reschedule, get, cleanKey, resetFallback };
+module.exports = { ensureSchema, claim, reschedule, get, markSucceeded, cleanKey, resetFallback };

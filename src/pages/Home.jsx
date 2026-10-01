@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, TrendingDown, Search, LayoutGrid, List, RotateCcw, SlidersHorizontal, ShoppingBag, Laptop, House, Shirt, HeartPulse, PawPrint, Blocks } from 'lucide-react';
 import DealCard from '@/components/DealCard';
 import MembershipOffers from '@/components/MembershipOffers';
+import SeasonalPromotionBanner from '@/components/SeasonalPromotionBanner';
 import { deals as dealsApi } from '@/lib/api';
 import { useActiveCategories } from '@/lib/useActiveCategories';
 import { rankDeals } from '@/lib/dealRanking';
@@ -154,6 +155,8 @@ export default function Home() {
           <Link to="/?category=all" className="flex items-center justify-between gap-3 min-h-20 px-4 py-3 border border-slate-300 bg-slate-100 rounded-md text-sm font-semibold text-slate-900 hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">All deals<ArrowRight aria-hidden="true" className="w-4 h-4 shrink-0" /></Link>
         </div> : <Link to="/?category=all" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900 underline underline-offset-4">Browse all deals<ArrowRight aria-hidden="true" className="w-4 h-4" /></Link>}
       </nav>}
+
+      {showCuratedHome && !loading && <SeasonalPromotionBanner hasLiveDeals={deals.length > 0} />}
 
       {showCuratedHome && !loading && <section aria-labelledby="best-deals-heading" className="mb-8 border border-slate-300 border-t-4 border-t-slate-800 bg-[#f7f5ef] px-3 sm:px-5 py-5">
         <div className="flex items-baseline justify-between gap-3 mb-4">
