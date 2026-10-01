@@ -59,7 +59,7 @@ const CATEGORY_RULES = [
   },
   {
     category: 'Clothing & Accessories',
-    strong: [/\b(?:t-shirts?|shirts?|blouses?|tops|tank top|tunics?|cardigans?|hoodies?|sweatshirts?|pajamas?|pyjamas?|sleepwear|loungewear|jumpsuits?|rompers?|underwear|bras?|socks|sweaters?|jackets?|coats?|jeans|pants|trousers|leggings|dresses?|skirts?|shorts|sneakers?|boots?|sandals?|slippers?|handbags?|wallets?|backpack purse|sunglasses|jewelry|necklaces?|bracelets?|earrings?|analog watch|quartz watch)\b/i],
+    strong: [/\b(?:t-shirts?|shirts?|blouses?|tops|tank top|tunics?|cardigans?|hoodies?|sweatshirts?|pajamas?|pyjamas?|sleepwear|loungewear|jumpsuits?|rompers?|underwear|bras?|socks|sweaters?|jackets?|coats?|jeans|pants|trousers|leggings|dresses?|skirts?|shorts|sneakers?|boots?|slingback clogs?|clogs? for (?:women|men|girls|boys)|crocs?|sandals?|slippers?|handbags?|wallets?|backpack purse|sunglasses|jewelry|necklaces?|bracelets?|earrings?|analog watch|quartz watch)\b/i],
     broad: [/\b(?:clothing|fashion|apparel|shoes?|jewelry|watches?|accessories)\b/i],
   },
   {
@@ -90,6 +90,12 @@ function matchesAny(text, patterns) {
   return Boolean(text) && patterns.some((pattern) => pattern.test(text));
 }
 
+function strongTitleCategory(title) {
+  const text = clean(title);
+  const matches = CATEGORY_RULES.filter((rule) => matchesAny(text, rule.strong));
+  return matches.length === 1 ? matches[0].category : null;
+}
+
 function scoreText(text, rule, weight) {
   if (!text) return 0;
   let score = 0;
@@ -105,13 +111,11 @@ function classifyCategory({ rawCategory = '', title = '', searchAlias = '' } = {
   const usableCategory = GENERIC_CATEGORY_TEXT.test(categoryText) ? '' : categoryText;
   const usableAlias = GENERIC_CATEGORY_TEXT.test(aliasText) ? '' : aliasText;
 
-  const strongTitleMatches = CATEGORY_RULES
-    .map((rule, index) => ({ category: rule.category, index, matched: matchesAny(titleText, rule.strong) }))
-    .filter((entry) => entry.matched);
-  const strongProviderMatches = CATEGORY_RULES
-    .map((rule, index) => ({ category: rule.category, index, matched: matchesAny(`${usableCategory} ${usableAlias}`.trim(), rule.strong) }))
-    .filter((entry) => entry.matched);
-  if (strongTitleMatches.length === 1 && strongProviderMatches.length === 0) return strongTitleMatches[0].category;
+  const titleCategory = strongTitleCategory(titleText);
+  const categoryIsBroadDepartment = CATEGORY_RULES.some((rule) => rule.category.toLowerCase() === usableCategory.toLowerCase());
+  const providerEvidence = `${categoryIsBroadDepartment ? '' : usableCategory} ${usableAlias}`.trim();
+  const strongProviderMatches = CATEGORY_RULES.filter((rule) => matchesAny(providerEvidence, rule.strong));
+  if (titleCategory && strongProviderMatches.length === 0) return titleCategory;
 
   const scores = CATEGORY_RULES.map((rule, index) => ({
     category: rule.category,
@@ -131,4 +135,4 @@ function normalizeCategory(value = '') {
   return classifyCategory({ rawCategory: value });
 }
 
-module.exports = { CATEGORY_RULES, classifyCategory, normalizeCategory, departmentName };
+module.exports = { CATEGORY_RULES, classifyCategory, normalizeCategory, departmentName, strongTitleCategory };

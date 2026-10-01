@@ -46,3 +46,22 @@ test('recovery registers existing meaningful departments instead of leaving them
     assert.equal(db.tables.categories.filter((c) => c.slug === 'books').length, 1);
   } finally { db.tables.deals = previousDeals; db.tables.categories = previousCategories; db.saveDb = save; }
 });
+
+test('recovery corrects a canonical department when the title clearly identifies another one', async () => {
+  const previousDeals = db.tables.deals; const previousCategories = db.tables.categories; const save = db.saveDb;
+  db.saveDb = () => {};
+  db.tables.categories = [];
+  db.tables.deals = [{
+    id: 'B000000002', asin: 'B000000002',
+    title: 'CUSHIONAIRE Brooklyn Genuine Suede Slingback Clogs for Women with Buckle',
+    category: 'Grocery', original_price: 69.99, sale_price: 49.99,
+    source_verified: 1, status: 'APPROVED', price_check_at: Math.floor(Date.now() / 1000), is_expired: 0,
+  }];
+  try {
+    assert.equal(await categories.repairImportedCategories(), 1);
+    assert.equal(db.tables.deals[0].category, 'Clothing & Accessories');
+    assert.equal(db.tables.deals[0].status, 'APPROVED');
+    assert.equal(db.tables.deals[0].sale_price, 49.99);
+    assert.equal(await categories.repairImportedCategories(), 0);
+  } finally { db.tables.deals = previousDeals; db.tables.categories = previousCategories; db.saveDb = save; }
+});
