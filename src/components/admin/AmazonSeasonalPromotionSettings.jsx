@@ -42,7 +42,7 @@ export default function AmazonSeasonalPromotionSettings() {
 
   return <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6">
     <div className="flex items-center gap-2"><CalendarDays className="w-5 h-5 text-emerald-700" /><h2 className="font-black text-slate-900">Seasonal promotion banner</h2></div>
-    <p className="mt-2 text-sm text-slate-600">Black Friday through Cyber Monday turns on automatically each year. Add confirmed Prime Day dates from Associates Central when Amazon announces them.</p>
+    <p className="mt-2 text-sm text-slate-600">Halloween Day, Thanksgiving Day, Black Friday, Cyber Monday, and Christmas Day sale banners turn on automatically each year. Add confirmed Prime Day dates from Associates Central when Amazon announces them. Each banner promotes the current selection without claiming every item is discounted.</p>
     <form onSubmit={save} className="mt-4">
       <div className="grid sm:grid-cols-2 gap-3 max-w-2xl">
         <label className="text-xs font-semibold text-slate-700">Prime Day starts
