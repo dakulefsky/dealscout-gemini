@@ -25,10 +25,11 @@ test('product recommendations dedupe fallback inventory and stay balanced', () =
   assert.match(source, /return evenLength >= 2 \? ranked\.slice\(0, evenLength\) : \[\]/);
 });
 
-test('product detail makes verified savings and price status first class', () => {
+test('product detail makes savings prominent and gives stale prices one clear prompt', () => {
   assert.match(source, /aria-label="Deal facts"/);
   assert.match(source, /label: 'Save'/);
-  assert.match(source, /Price status/);
+  assert.match(source, /freshness\.stale \? 'Confirm current price on Amazon' : freshness\.label/);
+  assert.doesNotMatch(source, /Price status|Confirm the current offer on Amazon before buying|Price check is older than usual/);
   assert.match(source, /View deal on Amazon/);
 });
 

@@ -200,7 +200,6 @@ export default function DealDetail() {
   const dealFacts = [
     deal.discountPercent > 0 ? { label: 'Discount', value: `${deal.discountPercent}% off`, icon: BadgePercent } : null,
     savings > 0 ? { label: 'Save', value: formatPrice(savings), icon: CheckCircle2 } : null,
-    deal.sourceVerified ? { label: 'Price status', value: freshness.stale ? 'Check on Amazon' : freshness.label, icon: ShieldCheck } : null,
   ].filter(Boolean);
 
   return (
@@ -227,8 +226,7 @@ export default function DealDetail() {
           <h1 className="text-xl sm:text-2xl font-bold leading-snug text-slate-900 mt-4">{productTitle.name}</h1>
           {productTitle.details && <p className="text-sm sm:text-base font-normal leading-relaxed text-slate-600 mt-3">{productTitle.details}</p>}
           <div className="mt-5 border-y border-slate-200 py-4"><div className="flex items-baseline gap-3 flex-wrap"><span className={`text-3xl font-bold tracking-tight ${deal.isExpired ? 'text-slate-500 line-through' : 'text-emerald-950'}`}>{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-sm text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>{!deal.isExpired && savings > 0 && <div className="mt-3 flex items-center justify-between gap-3"><span className="text-sm font-bold text-emerald-800">You save {formatPrice(savings)}</span>{deal.discountPercent > 0 && <span className="text-xs font-black bg-[#dcebdc] text-emerald-950 px-2 py-1">{deal.discountPercent}% OFF</span>}</div>}</div>
-          {deal.sourceVerified && <div className={`mt-4 flex items-center gap-2 text-xs font-semibold ${freshness.stale ? 'text-amber-800' : 'text-slate-600'}`}><ShieldCheck className={`w-4 h-4 ${freshness.stale ? 'text-amber-600' : 'text-emerald-700'}`} /><span>{freshness.stale ? 'Price check is older than usual' : freshness.label}</span></div>}
-          {freshness.stale && !deal.isExpired && <p className="text-xs text-amber-800 mt-2">Confirm the current offer on Amazon before buying.</p>}
+          {deal.sourceVerified && !deal.isExpired && <div className={`mt-4 flex items-center gap-2 text-xs font-semibold ${freshness.stale ? 'text-amber-800' : 'text-slate-600'}`}><ShieldCheck className={`w-4 h-4 ${freshness.stale ? 'text-amber-600' : 'text-emerald-700'}`} /><span>{freshness.stale ? 'Confirm current price on Amazon' : freshness.label}</span></div>}
           <button onClick={handleBuy} disabled={redirecting} className={`mt-7 inline-flex items-center justify-between gap-3 w-full px-5 py-4 font-bold text-sm transition disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-emerald-950 hover:bg-emerald-900 text-white'}`}><span className="inline-flex items-center gap-2">{redirecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}{redirecting ? 'Opening Amazon…' : deal.isExpired ? 'Check current price' : 'View deal on Amazon'}</span><ExternalLink className="w-4 h-4 opacity-70" /></button>
           <p className="text-[10px] leading-relaxed text-slate-400 mt-2">As an Amazon Associate I earn from qualifying purchases. Final price and availability are determined on Amazon.</p>
           <Link to={categoryPath} className="mt-7 border-t border-emerald-950/10 pt-4 flex items-center justify-between text-sm font-bold text-emerald-950 hover:text-emerald-700"><span>More {String(deal.category || 'deal').toLowerCase()} deals</span><ArrowRight className="w-4 h-4" /></Link>

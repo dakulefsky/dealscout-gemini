@@ -192,15 +192,15 @@ export default function Home() {
       </header>
 
       {showCuratedHome && <nav aria-label="Shop by department" className="mb-8">
-        {categories.length > 0 ? <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+        {categories.length > 0 ? <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2">
           {categories.filter((category) => category.name !== 'Other').map((category) => {
             const { Icon } = departmentStyle(category.name);
-            return <Link key={category.id || category.slug || category.name} to={`/?category=${encodeURIComponent(category.name)}`} className="group flex items-center gap-3 min-h-20 px-3 sm:px-4 py-3 border border-slate-200 rounded-md text-sm font-semibold text-slate-800 hover:border-emerald-800 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">
-              <span className="flex items-center justify-center w-10 h-10 shrink-0 text-slate-600"><Icon aria-hidden="true" className="w-5 h-5" /></span>
-              <span className="flex-1">{category.name}</span><ArrowRight aria-hidden="true" className="hidden sm:block w-4 h-4 shrink-0 text-slate-400 group-hover:text-emerald-800" />
+            return <Link key={category.id || category.slug || category.name} to={`/?category=${encodeURIComponent(category.name)}`} className="group flex items-center gap-2 min-h-16 px-2 sm:px-3 py-2 border border-slate-200 rounded-md text-xs sm:text-sm font-semibold leading-tight text-slate-800 hover:border-emerald-800 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">
+              <span className="flex items-center justify-center w-8 h-8 shrink-0 text-slate-600"><Icon aria-hidden="true" className="w-[18px] h-[18px]" /></span>
+              <span className="flex-1 min-w-0">{category.name}</span><ArrowRight aria-hidden="true" className="hidden sm:block w-3.5 h-3.5 shrink-0 text-slate-400 group-hover:text-emerald-800" />
             </Link>;
           })}
-          <Link to="/?category=all" className="flex items-center justify-between gap-3 min-h-20 px-4 py-3 border border-slate-300 bg-slate-100 rounded-md text-sm font-semibold text-slate-900 hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">All deals<ArrowRight aria-hidden="true" className="w-4 h-4 shrink-0" /></Link>
+          <Link to="/?category=all" className="flex items-center justify-between gap-2 min-h-16 px-2 sm:px-3 py-2 border border-slate-300 bg-slate-100 rounded-md text-xs sm:text-sm font-semibold text-slate-900 hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">All deals<ArrowRight aria-hidden="true" className="w-3.5 h-3.5 shrink-0" /></Link>
         </div> : <Link to="/?category=all" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900 underline underline-offset-4">Browse all deals<ArrowRight aria-hidden="true" className="w-4 h-4" /></Link>}
       </nav>}
 
