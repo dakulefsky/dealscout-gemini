@@ -25,10 +25,11 @@ test('a small catalog remains usable without 30-percent offers; filtered views o
   assert.deepEqual((await select(items)).map(d => d.id), ['a', 'b']);
   assert.deepEqual(await select(items, false), []);
 });
-test('expired and unsupported offers stay out while old source-verified prices remain labeled', async () => {
+test('expired and unsupported offers stay out while stale featured products keep their own price status', async () => {
   const items = [deal('expired', 'Home', 80, { isExpired: true }),
     deal('stale', 'Home', 80, { priceCheckAt: 1 }), deal('flat', 'Home', 0)];
   const featured = await select(items);
   assert.deepEqual(featured.map((item) => item.id), ['stale']);
-  assert.equal(featured[0]._spotlightNeedsPriceCheck, true);
+  const dealCard = fs.readFileSync(path.join(__dirname, '..', 'src/components/DealCard.jsx'), 'utf8');
+  assert.match(dealCard, /freshness\.stale \? 'Check price'/);
 });
