@@ -5,8 +5,9 @@ const { isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT } = requi
 const { uniqueQuantityFamilies, QUANTITY_FAMILY_SQL } = require('../services/dealVariantPolicy');
 
 const DISCOUNT_SQL = '(100.0 * (original_price - sale_price) / original_price)';
+const SAFE_QUALITY_SQL = "(CASE WHEN quality_score::text = 'NaN' THEN 0 ELSE COALESCE(quality_score, 0) END)";
 const BEST_SQL = `(
-  COALESCE(quality_score, 0) * 0.35
+  ${SAFE_QUALITY_SQL} * 0.35
   + ${DISCOUNT_SQL} * 0.9
   + LEAST(18, LN(GREATEST((original_price - sale_price) + 1, 1)) / LN(10) * 9)
 )`;
@@ -47,24 +48,33 @@ function normalizeFilters(options = {}) {
 }
 
 function bestScore(row) {
-  const quality = Number(row?.quality_score ?? row?.qualityScore ?? 0);
+  const qualityValue = Number(row?.quality_score ?? row?.qualityScore ?? 0);
+  const quality = Number.isFinite(qualityValue) ? qualityValue : 0;
   const discount = derivedDiscount(row);
   const original = Number(row?.original_price ?? row?.originalPrice ?? 0);
   const sale = Number(row?.sale_price ?? row?.salePrice ?? 0);
-  const savings = Math.max(0, original - sale);
+  const savings = Number.isFinite(original) && Number.isFinite(sale) ? Math.max(0, original - sale) : 0;
   const meaningfulSavings = Math.min(18, Math.log10(savings + 1) * 9);
   return quality * 0.35 + discount * 0.9 + meaningfulSavings;
 }
 
 function cursorFromRow(row, sort) {
-  const primary = sort === 'best'
+  const candidate = sort === 'best'
     ? (row.sort_score ?? bestScore(row))
     : sort === 'discount_desc'
       ? (row.sort_score ?? derivedDiscount(row))
       : sort === 'price_asc' || sort === 'price_desc'
         ? Number(row.sale_price)
         : Number(row.created_at);
-  return encodeCursor({ sort, primary, createdAt: row.created_at, id: row.id });
+  const numericCandidate = Number(candidate);
+  const createdAt = Number(row.created_at);
+  const primary = Number.isFinite(numericCandidate) ? numericCandidate : 0;
+  return encodeCursor({
+    sort,
+    primary,
+    createdAt: Number.isFinite(createdAt) ? createdAt : 0,
+    id: row.id || row.asin,
+  });
 }
 
 function orderBy(sort) {
@@ -212,4 +222,4 @@ async function page(options = {}) {
   };
 }
 
-module.exports = { page, normalizeSort, normalizeLimit, normalizeFilters, orderBy, derivedDiscount, bestScore, DISCOUNT_SQL, BEST_SQL };
+module.exports = { page, normalizeSort, normalizeLimit, normalizeFilters, orderBy, derivedDiscount, bestScore, cursorFromRow, DISCOUNT_SQL, BEST_SQL };
