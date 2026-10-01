@@ -1,6 +1,6 @@
 const db = require('../db');
 const postgres = require('../storage/postgres');
-const { classifyCategory } = require('../services/categoryClassifier');
+const { classifyCategory, strongTitleCategory } = require('../services/categoryClassifier');
 const { isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
 
 let schemaReady = false;
@@ -158,15 +158,19 @@ async function getById(id) {
 // of our categories. Preserve categories explicitly created by the admin.
 async function repairImportedCategories() {
   const known = new Set((await list()).map((category) => category.name.toLowerCase()));
+  const canonicalNames = new Set(CANONICAL_CATEGORIES.map((category) => category.name.toLowerCase()));
   const candidates = postgres.isConfigured()
     ? (await postgres.query(`SELECT d.id, d.category, d.title FROM deals d
         WHERE d.category IS NULL OR LOWER(d.category) = 'other'
-           OR NOT EXISTS (SELECT 1 FROM categories c WHERE LOWER(c.name) = LOWER(d.category))`)).rows
+           OR NOT EXISTS (SELECT 1 FROM categories c WHERE LOWER(c.name) = LOWER(d.category))
+           OR LOWER(COALESCE(d.category, '')) = ANY($1::text[])`, [[...canonicalNames]])).rows
     : db.tables.deals || [];
   let repaired = 0;
   for (const deal of candidates) {
     const old = String(deal.category || '').toLowerCase();
-    if (known.has(old) && old !== 'other') continue;
+    const titleCategory = strongTitleCategory(deal.title);
+    const strongMismatch = canonicalNames.has(old) && titleCategory && titleCategory.toLowerCase() !== old;
+    if (known.has(old) && old !== 'other' && !strongMismatch) continue;
     const category = classifyCategory({ rawCategory: deal.category, title: deal.title });
     if (category === 'Other') continue;
     const registeredName = await ensureForDeal(category);

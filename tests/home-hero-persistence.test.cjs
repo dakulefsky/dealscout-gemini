@@ -18,7 +18,7 @@ test('Best deals favors strong verified savings while varying departments', asyn
   const items = [deal('a', 'Electronics', 70), deal('b', 'Electronics', 60),
     deal('c', 'Home', 50), deal('d', 'Clothing', 40), deal('e', 'Beauty', 35),
     deal('f', 'Books', 95, { sourceVerified: false })];
-  assert.deepEqual((await select(items)).map(d => d.id), ['a', 'c', 'd']);
+  assert.deepEqual((await select(items)).map(d => d.id), ['a', 'c', 'd', 'e', 'b']);
 });
 test('a small catalog remains usable without 30-percent offers; filtered views omit the feature row', async () => {
   const items = [deal('a', 'Home', 20), deal('b', 'Beauty', 17)];

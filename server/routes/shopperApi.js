@@ -21,6 +21,7 @@ function buildShopperApi({ version = null } = {}) {
   router.use('/deals', require('./deals'));
   router.use('/categories', require('./categories'));
   router.use('/bounties', require('./bounties'));
+  router.use('/seasonal-promotion', require('./seasonalPromotion'));
   router.use('/bookmarks', require('./bookmarks'));
   router.use('/notifications', require('./notifications'));
 

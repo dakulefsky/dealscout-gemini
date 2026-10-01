@@ -70,6 +70,25 @@ test('apiRateLimit separates shoppers behind the same proxy by guest identity', 
   assert.ok(Number(a2.headers['Retry-After']) >= 1);
 });
 
+test('apiRateLimit enforces a shared IP ceiling when a client rotates guest ids', () => {
+  const limiter = apiRateLimit({ max: 1, ipMax: 2, windowMs: 60000 });
+  const makeRequest = (guestId) => ({
+    path: '/api/v1/deals/feed',
+    ip: 'rotating-guest-ip',
+    headers: { 'x-guest-id': guestId },
+  });
+  const rotatingIds = ['guest_rotating_aaaaaaaa', 'guest_rotating_bbbbbbbb', 'guest_rotating_cccccccc'];
+  const responses = rotatingIds.map(() => responseMock());
+
+  rotatingIds.forEach((guestId, index) => {
+    limiter(makeRequest(guestId), responses[index], () => {});
+  });
+
+  assert.equal(responses[0].statusCode, 200);
+  assert.equal(responses[1].statusCode, 200);
+  assert.equal(responses[2].statusCode, 429);
+});
+
 test('apiRateLimit ignores invalid guest ids and falls back to the network identity', () => {
   const limiter = apiRateLimit({ max: 1, windowMs: 60000 });
   const first = responseMock();

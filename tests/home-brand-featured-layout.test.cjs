@@ -14,6 +14,10 @@ test('home presents departments before products and an accessible browse toolbar
   assert.match(home, /aria-label="Department"/);
   assert.match(home, /imagePriority=\{prioritizeImages && index < 2\}/);
   assert.match(home, /featuredDealCandidates\(visibleDeals\)/);
+  assert.match(home, /Scroll best deals left/);
+  assert.match(home, /Scroll best deals right/);
+  assert.match(home, /id="best-deals-track"[^>]*overflow-x-auto/);
+  assert.match(home, /scrollBy\(\{ left: direction \* Math\.max\(240, track\.clientWidth \* 0\.82\), behavior: 'smooth' \}\)/);
   assert.match(home, /Strong recorded discounts\. Check current prices on Amazon\./);
   assert.match(home, /if \(!node \|\| !hasMore/);
   assert.doesNotMatch(home, />Load more deals<\/button>/);

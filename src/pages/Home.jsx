@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, TrendingDown, Search, LayoutGrid, List, RotateCcw, SlidersHorizontal, ShoppingBag, Laptop, House, Shirt, HeartPulse, PawPrint, Blocks } from 'lucide-react';
+import { ArrowRight, ChevronLeft, ChevronRight, TrendingDown, Search, LayoutGrid, List, RotateCcw, SlidersHorizontal, ShoppingBag, Laptop, House, Shirt, HeartPulse, PawPrint, Blocks } from 'lucide-react';
 import DealCard from '@/components/DealCard';
 import MembershipOffers from '@/components/MembershipOffers';
+import SeasonalPromotionBanner from '@/components/SeasonalPromotionBanner';
 import { deals as dealsApi } from '@/lib/api';
 import { useActiveCategories } from '@/lib/useActiveCategories';
 import { rankDeals } from '@/lib/dealRanking';
@@ -63,6 +64,7 @@ export default function Home() {
   const [dismissals, setDismissals] = useState(() => loadDismissedDeals());
   const [visibleCount, setVisibleCount] = useState(INITIAL_FEED_SIZE);
   const feedSentinel = useRef(null);
+  const spotlightTrackRef = useRef(null);
   const feedGeneration = useRef(0); const paginationRequest = useRef(null);
 
   const selectedPriceTier = useMemo(() => PRICE_TIERS.find((p) => p.value === priceTier) || PRICE_TIERS[0], [priceTier]);
@@ -99,7 +101,7 @@ export default function Home() {
     const standouts = candidates.filter((item) => item.discount >= 30);
     return balancedFeatured((standouts.length ? standouts : candidates)
       .sort((a, b) => b.discount - a.discount)
-      .map(({ deal, needsPriceCheck }) => ({ ...deal, _spotlightNeedsPriceCheck: needsPriceCheck })), 3);
+      .map(({ deal, needsPriceCheck }) => ({ ...deal, _spotlightNeedsPriceCheck: needsPriceCheck })), 8);
   }, [visibleDeals, showCuratedHome]);
   const spotlightIds = useMemo(() => new Set(spotlightDeals.map(dealIdentity)), [spotlightDeals]);
   const exploreDeals = useMemo(() => showCuratedHome ? visibleDeals.filter((deal) => !spotlightIds.has(dealIdentity(deal))) : visibleDeals, [visibleDeals, showCuratedHome, spotlightIds]);
@@ -131,6 +133,10 @@ export default function Home() {
 
   const resetAllFilters = () => { setActiveCat('all'); setSearchQuery(''); setMinDiscount(0); setPriceTier('all'); setSort('best'); setSearchParams({}); };
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
+  const scrollSpotlight = (direction) => {
+    const track = spotlightTrackRef.current;
+    if (track) track.scrollBy({ left: direction * Math.max(240, track.clientWidth * 0.82), behavior: 'smooth' });
+  };
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
 
   const feedGrid = (items, prioritizeImages = false) => viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 auto-rows-fr items-stretch">{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" imagePriority={prioritizeImages && index < 2} />)}</div> : <div>{items.map((deal, index) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" imagePriority={prioritizeImages && index < 2} />)}</div>;
@@ -155,12 +161,29 @@ export default function Home() {
         </div> : <Link to="/?category=all" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900 underline underline-offset-4">Browse all deals<ArrowRight aria-hidden="true" className="w-4 h-4" /></Link>}
       </nav>}
 
-      {showCuratedHome && !loading && <section aria-labelledby="best-deals-heading" className="mb-8 border border-slate-300 border-t-4 border-t-slate-800 bg-[#f7f5ef] px-3 sm:px-5 py-5">
-        <div className="flex items-baseline justify-between gap-3 mb-4">
+      {showCuratedHome && !loading && <SeasonalPromotionBanner hasLiveDeals={deals.length > 0} />}
+
+      {showCuratedHome && !loading && <section aria-labelledby="best-deals-heading" className="mb-8 min-w-0 border border-slate-300 border-t-4 border-t-slate-800 bg-[#f7f5ef] px-3 sm:px-5 py-5">
+        <div className="flex items-center justify-between gap-3 mb-4">
           <h2 id="best-deals-heading" className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Best deals</h2>
-          <Link to="/?category=all" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-emerald-900">See all deals <ArrowRight aria-hidden="true" className="w-3.5 h-3.5" /></Link>
+          <div className="flex items-center gap-3">
+            {spotlightDeals.length > 1 && <div className="flex items-center gap-1" aria-label="Best deals scrolling controls">
+              <button type="button" aria-label="Scroll best deals left" aria-controls="best-deals-track" onClick={() => scrollSpotlight(-1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800">
+                <ChevronLeft aria-hidden="true" className="h-5 w-5" />
+              </button>
+              <button type="button" aria-label="Scroll best deals right" aria-controls="best-deals-track" onClick={() => scrollSpotlight(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800">
+                <ChevronRight aria-hidden="true" className="h-5 w-5" />
+              </button>
+            </div>}
+            <Link to="/?category=all" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-emerald-900">See all deals <ArrowRight aria-hidden="true" className="w-3.5 h-3.5" /></Link>
+          </div>
         </div>
-        {spotlightDeals.length > 0 ? <>{spotlightDeals.some((deal) => deal._spotlightNeedsPriceCheck) && <p className="text-xs text-amber-800 mb-3">Strong recorded discounts. Check current prices on Amazon.</p>}{feedGrid(spotlightDeals, true)}</> : <p className="text-sm text-slate-600">No current verified discounts to feature. Browse the full selection below.</p>}
+        {spotlightDeals.length > 0 ? <>{spotlightDeals.some((deal) => deal._spotlightNeedsPriceCheck) && <p className="text-xs text-amber-800 mb-3">Strong recorded discounts. Check current prices on Amazon.</p>}
+          <div id="best-deals-track" ref={spotlightTrackRef} role="region" aria-label="Best deals carousel" aria-roledescription="carousel" className="flex min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth pb-3 sm:gap-4">
+            {spotlightDeals.map((deal, index) => <div key={deal.id || deal.asin} role="group" aria-label={`Deal ${index + 1} of ${spotlightDeals.length}`} aria-roledescription="slide" className="w-[78%] max-w-[280px] shrink-0 snap-start sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)]">
+              <DealCard deal={deal} viewMode="grid" imagePriority={index < 2} />
+            </div>)}
+          </div></> : <p className="text-sm text-slate-600">No current verified discounts to feature. Browse the full selection below.</p>}
       </section>}
 
       <section aria-labelledby="browse-deals-heading" className="border-t border-slate-200 bg-slate-50 -mx-3 sm:-mx-5 px-3 sm:px-5 py-7 mt-10">

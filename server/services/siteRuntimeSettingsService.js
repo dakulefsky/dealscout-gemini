@@ -2,6 +2,8 @@ const postgres = require('../storage/postgres');
 
 const DEFAULTS = Object.freeze({
   closure_location: 'jerusalem',
+  amazon_prime_day_start: '',
+  amazon_prime_day_end: '',
 });
 
 const local = new Map();
@@ -16,6 +18,13 @@ function normalizeValue(key, value) {
   if (key === 'closure_location') {
     const normalized = String(value || '').trim().toLowerCase();
     if (!['jerusalem', 'new_york'].includes(normalized)) throw new Error('closure_location must be jerusalem or new_york');
+    return normalized;
+  }
+  if (key === 'amazon_prime_day_start' || key === 'amazon_prime_day_end') {
+    const normalized = String(value ?? '').trim();
+    if (normalized && !/^\d{4}-\d{2}-\d{2}$/.test(normalized)) throw new Error(`${key} must be a calendar date in YYYY-MM-DD format`);
+    const parsed = normalized ? new Date(`${normalized}T00:00:00.000Z`) : null;
+    if (normalized && (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== normalized)) throw new Error(`${key} must be a valid calendar date`);
     return normalized;
   }
   return String(value ?? '');

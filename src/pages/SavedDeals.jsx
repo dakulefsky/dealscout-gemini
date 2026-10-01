@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, ArrowRight, Bookmark } from 'lucide-react';
 import { useBookmarks } from '@/lib/BookmarksContext';

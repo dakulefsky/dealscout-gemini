@@ -18,6 +18,7 @@ test('uses product-specific title evidence when provider category is missing or 
   assert.equal(classifyCategory({ rawCategory: 'Featured', title: 'LEGO Star Wars Building Set' }), 'Toys & Games');
   assert.equal(classifyCategory({ rawCategory: '', title: 'Ninja Air Fryer Pro 5 QT' }), 'Home & Kitchen');
   assert.equal(classifyCategory({ rawCategory: 'Other', title: 'DEWALT 20V Cordless Drill Driver Kit' }), 'Tools & Home Improvement');
+  assert.equal(classifyCategory({ rawCategory: 'Grocery', title: 'CUSHIONAIRE Brooklyn Genuine Suede Slingback Clogs for Women' }), 'Clothing & Accessories');
 });
 
 test('distinguishes commonly confused product types', () => {

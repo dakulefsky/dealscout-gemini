@@ -52,26 +52,35 @@ function pruneRateBuckets(now, windowMs) {
   }
 }
 
-function apiRateLimit({ windowMs = 15 * 60 * 1000, max = 300 } = {}) {
+function apiRateLimit({ windowMs = 15 * 60 * 1000, max = 300, ipMax = 1200 } = {}) {
   return (req, res, next) => {
     if (!req.path?.startsWith('/api/')) return next();
     const now = Date.now();
     pruneRateBuckets(now, windowMs);
     const guestId = normalizeGuestId(req.headers?.['x-guest-id']);
-    const key = isValidGuestId(guestId)
-      ? `guest:${guestId}`
-      : `ip:${req.ip || req.socket?.remoteAddress || 'unknown'}`;
-    let bucket = buckets.get(key);
-    if (!bucket || now - bucket.startedAt >= windowMs) {
-      bucket = { startedAt: now, count: 0 };
-      buckets.set(key, bucket);
-    }
-    bucket.count += 1;
-    res.setHeader('RateLimit-Limit', String(max));
-    res.setHeader('RateLimit-Remaining', String(Math.max(0, max - bucket.count)));
-    res.setHeader('RateLimit-Reset', String(Math.ceil((bucket.startedAt + windowMs) / 1000)));
-    if (bucket.count > max) {
-      const retryAfterSeconds = Math.max(1, Math.ceil((bucket.startedAt + windowMs - now) / 1000));
+    const ipKey = `ip:${req.ip || req.socket?.remoteAddress || 'unknown'}`;
+    const keys = [`${isValidGuestId(guestId) ? `guest:${guestId}` : ipKey}`, ipKey];
+    const limits = [max, ipMax];
+    const uniqueKeys = [...new Set(keys)];
+    const activeBuckets = uniqueKeys.map((key) => {
+      let bucket = buckets.get(key);
+      if (!bucket || now - bucket.startedAt >= windowMs) {
+        bucket = { startedAt: now, count: 0 };
+        buckets.set(key, bucket);
+      }
+      bucket.count += 1;
+      return { key, bucket, limit: limits[key === keys[0] ? 0 : 1] };
+    });
+    const limited = activeBuckets.find(({ bucket, limit }) => bucket.count > limit);
+    const reported = activeBuckets.reduce((closest, current) =>
+      current.limit - current.bucket.count < closest.limit - closest.bucket.count ? current : closest
+    );
+    const resetAt = Math.ceil((reported.bucket.startedAt + windowMs) / 1000);
+    res.setHeader('RateLimit-Limit', String(reported.limit));
+    res.setHeader('RateLimit-Remaining', String(Math.max(0, reported.limit - reported.bucket.count)));
+    res.setHeader('RateLimit-Reset', String(resetAt));
+    if (limited) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((limited.bucket.startedAt + windowMs - now) / 1000));
       res.setHeader('Retry-After', String(retryAfterSeconds));
       return res.status(429).json({ error: 'Too many requests. Please try again later.' });
     }

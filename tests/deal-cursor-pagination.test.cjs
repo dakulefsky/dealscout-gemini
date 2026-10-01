@@ -51,6 +51,33 @@ test('best sorting pages beyond the first page without rejecting its cursor', as
   }
 });
 
+test('legacy non-numeric quality scores do not poison best-deal cursors', async () => {
+  const original = db.tables.deals;
+  const now = Math.floor(Date.now() / 1000);
+  db.tables.deals = Array.from({ length: 26 }, (_, index) => ({
+    id: `C${String(index).padStart(9, '0')}`,
+    asin: `C${String(index).padStart(9, '0')}`,
+    title: `Legacy product ${index}`,
+    original_price: 100,
+    sale_price: 70,
+    quality_score: index === 7 ? 'invalid' : index,
+    created_at: now - index,
+    price_check_at: now,
+    source_verified: 1,
+    is_expired: 0,
+    status: 'APPROVED',
+  }));
+  try {
+    const first = await feed.page({ sort: 'best', limit: 24 });
+    assert.equal(first.items.length, 24);
+    assert.ok(first.nextCursor);
+    const second = await feed.page({ sort: 'best', limit: 24, cursor: first.nextCursor });
+    assert.equal(second.items.length, 2);
+  } finally {
+    db.tables.deals = original;
+  }
+});
+
 test('database numeric sort keys retain exact decimal precision in the cursor', () => {
   const primary = '46.12345678901234567890';
   const cursor = encodeCursor({ sort: 'best', primary, createdAt: 2_000_000_000, id: 'B000000001' });
