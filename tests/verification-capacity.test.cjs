@@ -20,8 +20,8 @@ test('verification capacity stays tightly bounded for provider cost safety', () 
   assert.equal(freshnessCapacity({ maxBatch: 10 }), 20);
 });
 
-test('cron uses dynamic verification capacity instead of a fixed batch of 10', () => {
+test('cron uses the bounded daily verification capacity instead of a fixed batch', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'cronService.js'), 'utf8');
-  assert.equal(source.includes('verificationBatchSize(activeDeals.length)'), true);
+  assert.equal(source.includes('dailyPriceVerificationBatchSize(activeDeals.length)'), true);
   assert.equal(source.includes('oldestCheckedFirst(activeDeals, 10)'), false);
 });

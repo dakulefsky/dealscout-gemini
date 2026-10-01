@@ -180,8 +180,11 @@ router.post('/verify-prices', requireAdmin, async (req, res) => {
   try {
     // Keep the synchronous request inside the browser and Cloud Run deadlines.
     // Repeated clicks can work through the oldest unchecked inventory.
-    const requestedLimit = Math.min(2, Math.max(1, Number(req.body?.limit) || 2));
+    const requestedLimit = Math.min(6, Math.max(1, Number(req.body?.limit) || 6));
     const result = await dealCron.checkDealPricesAndAvailability({ maxChecks: requestedLimit });
+    if (result?.skipped && result.reason === 'LOCK_HELD') {
+      return res.status(409).json({ error: 'A price check is already running. Wait a moment, then try again.', code: 'PRICE_CHECK_IN_PROGRESS' });
+    }
 
     res.json({
       success: true,
