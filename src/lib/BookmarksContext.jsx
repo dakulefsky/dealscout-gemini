@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { bookmarks as bookmarksApi } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 

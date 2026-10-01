@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock3, Eraser, Globe2, History, Image, Loader2, MessageCircle, PauseCircle, PlayCircle, RefreshCw, ShieldCheck, Smartphone, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
