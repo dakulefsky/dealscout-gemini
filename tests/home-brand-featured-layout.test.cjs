@@ -17,8 +17,11 @@ test('home presents departments before products and an accessible browse toolbar
   assert.match(home, /Scroll best deals left/);
   assert.match(home, /Scroll best deals right/);
   assert.match(home, /id="best-deals-track"[^>]*overflow-x-auto/);
-  assert.match(home, /scrollBy\(\{ left: direction \* Math\.max\(240, track\.clientWidth \* 0\.82\), behavior: 'smooth' \}\)/);
-  assert.match(home, /Strong recorded discounts\. Check current prices on Amazon\./);
+  assert.match(home, /const step = firstVisibleCard\.getBoundingClientRect\(\)\.width \+ gap/);
+  assert.match(home, /scrollBy\(\{ left: direction \* step, behavior: 'smooth' \}\)/);
+  assert.match(home, /disabled=\{!spotlightScroll\.canScrollLeft\}/);
+  assert.match(home, /disabled=\{!spotlightScroll\.canScrollRight\}/);
+  assert.doesNotMatch(home, /Strong recorded discounts\. Check current prices on Amazon\./);
   assert.match(home, /if \(!node \|\| !hasMore/);
   assert.doesNotMatch(home, />Load more deals<\/button>/);
   assert.match(home, /grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6/);

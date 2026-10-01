@@ -65,6 +65,7 @@ export default function Home() {
   const [visibleCount, setVisibleCount] = useState(INITIAL_FEED_SIZE);
   const feedSentinel = useRef(null);
   const spotlightTrackRef = useRef(null);
+  const [spotlightScroll, setSpotlightScroll] = useState({ canScrollLeft: false, canScrollRight: false });
   const feedGeneration = useRef(0); const paginationRequest = useRef(null);
 
   const selectedPriceTier = useMemo(() => PRICE_TIERS.find((p) => p.value === priceTier) || PRICE_TIERS[0], [priceTier]);
@@ -101,13 +102,46 @@ export default function Home() {
     const standouts = candidates.filter((item) => item.discount >= 30);
     return balancedFeatured((standouts.length ? standouts : candidates)
       .sort((a, b) => b.discount - a.discount)
-      .map(({ deal, needsPriceCheck }) => ({ ...deal, _spotlightNeedsPriceCheck: needsPriceCheck })), 8);
+      .map(({ deal }) => deal), 8);
   }, [visibleDeals, showCuratedHome]);
   const spotlightIds = useMemo(() => new Set(spotlightDeals.map(dealIdentity)), [spotlightDeals]);
   const exploreDeals = useMemo(() => showCuratedHome ? visibleDeals.filter((deal) => !spotlightIds.has(dealIdentity(deal))) : visibleDeals, [visibleDeals, showCuratedHome, spotlightIds]);
   const progressiveDeals = exploreDeals.slice(0, visibleCount);
   const hasLocalMore = visibleCount < exploreDeals.length;
   const hasMore = hasLocalMore || Boolean(nextCursor);
+
+  const updateSpotlightScroll = useCallback(() => {
+    const track = spotlightTrackRef.current;
+    if (!track) {
+      setSpotlightScroll((current) => current.canScrollLeft || current.canScrollRight
+        ? { canScrollLeft: false, canScrollRight: false }
+        : current);
+      return;
+    }
+    const maxScrollLeft = Math.max(0, track.scrollWidth - track.clientWidth);
+    const next = {
+      canScrollLeft: track.scrollLeft > 2,
+      canScrollRight: track.scrollLeft < maxScrollLeft - 2,
+    };
+    setSpotlightScroll((current) => current.canScrollLeft === next.canScrollLeft && current.canScrollRight === next.canScrollRight ? current : next);
+  }, []);
+
+  useEffect(() => {
+    const track = spotlightTrackRef.current;
+    if (!track) return undefined;
+    const update = () => window.requestAnimationFrame(updateSpotlightScroll);
+    track.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    observer?.observe(track);
+    if (track.firstElementChild) observer?.observe(track.firstElementChild);
+    update();
+    return () => {
+      track.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+      observer?.disconnect();
+    };
+  }, [spotlightDeals.length, updateSpotlightScroll]);
 
   useEffect(() => { setVisibleCount(Math.min(INITIAL_FEED_SIZE, 12)); }, [interests, dismissals]);
   const loadRemotePage = useCallback(() => {
@@ -135,7 +169,16 @@ export default function Home() {
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
   const scrollSpotlight = (direction) => {
     const track = spotlightTrackRef.current;
-    if (track) track.scrollBy({ left: direction * Math.max(240, track.clientWidth * 0.82), behavior: 'smooth' });
+    if (!track) return;
+    const firstVisibleCard = [...track.children].find((card) => {
+      const cardRect = card.getBoundingClientRect();
+      const trackRect = track.getBoundingClientRect();
+      return cardRect.right > trackRect.left + 1 && cardRect.left < trackRect.right - 1;
+    });
+    if (!firstVisibleCard) return;
+    const gap = Number.parseFloat(window.getComputedStyle(track).columnGap || window.getComputedStyle(track).gap) || 0;
+    const step = firstVisibleCard.getBoundingClientRect().width + gap;
+    track.scrollBy({ left: direction * step, behavior: 'smooth' });
   };
   const personalized = Object.values(interests).some((score) => Number(score) > 0);
 
@@ -168,18 +211,18 @@ export default function Home() {
           <h2 id="best-deals-heading" className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Best deals</h2>
           <div className="flex items-center gap-3">
             {spotlightDeals.length > 1 && <div className="flex items-center gap-1" aria-label="Best deals scrolling controls">
-              <button type="button" aria-label="Scroll best deals left" aria-controls="best-deals-track" onClick={() => scrollSpotlight(-1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800">
+              <button type="button" aria-label="Scroll best deals left" aria-controls="best-deals-track" onClick={() => scrollSpotlight(-1)} disabled={!spotlightScroll.canScrollLeft} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800">
                 <ChevronLeft aria-hidden="true" className="h-5 w-5" />
               </button>
-              <button type="button" aria-label="Scroll best deals right" aria-controls="best-deals-track" onClick={() => scrollSpotlight(1)} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800">
+              <button type="button" aria-label="Scroll best deals right" aria-controls="best-deals-track" onClick={() => scrollSpotlight(1)} disabled={!spotlightScroll.canScrollRight} className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-800 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-800">
                 <ChevronRight aria-hidden="true" className="h-5 w-5" />
               </button>
             </div>}
             <Link to="/?category=all" className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-emerald-900">See all deals <ArrowRight aria-hidden="true" className="w-3.5 h-3.5" /></Link>
           </div>
         </div>
-        {spotlightDeals.length > 0 ? <>{spotlightDeals.some((deal) => deal._spotlightNeedsPriceCheck) && <p className="text-xs text-amber-800 mb-3">Strong recorded discounts. Check current prices on Amazon.</p>}
-          <div id="best-deals-track" ref={spotlightTrackRef} role="region" aria-label="Best deals carousel" aria-roledescription="carousel" className="flex min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth pb-3 sm:gap-4">
+        {spotlightDeals.length > 0 ? <>
+          <div id="best-deals-track" ref={spotlightTrackRef} onScroll={updateSpotlightScroll} role="region" aria-label="Best deals carousel" aria-roledescription="carousel" className="flex min-w-0 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth pb-3 sm:gap-4">
             {spotlightDeals.map((deal, index) => <div key={deal.id || deal.asin} role="group" aria-label={`Deal ${index + 1} of ${spotlightDeals.length}`} aria-roledescription="slide" className="w-[78%] max-w-[280px] shrink-0 snap-start sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)]">
               <DealCard deal={deal} viewMode="grid" imagePriority={index < 2} />
             </div>)}
