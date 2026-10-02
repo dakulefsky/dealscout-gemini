@@ -134,7 +134,7 @@ export default function CategoryPage() {
           <div className="ds-kicker">Department</div>
           <h1 className="font-heading text-4xl sm:text-5xl lg:text-[58px] font-black leading-[0.94] text-emerald-950 mt-2">{category ? category.name : 'Category'} deals</h1>
           <p className="mt-4 text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl">{seoContent.intro}</p>
-          {!loading && visibleDeals.length > 0 && <div className="mt-4 text-[11px] uppercase tracking-[0.12em] font-bold text-slate-400">{visibleDeals.length} verified deals loaded{nextCursor ? ' · more available' : ''}</div>}
+          {!loading && visibleDeals.length > 0 && <div className="mt-4 text-[11px] uppercase tracking-[0.12em] font-bold text-slate-400">{visibleDeals.length} verified {visibleDeals.length === 1 ? 'deal' : 'deals'} loaded{nextCursor ? ' · more available' : ''}</div>}
         </div>
         <div className="flex items-center gap-2">
           <label className="text-[10px] uppercase tracking-[0.14em] font-bold text-slate-400" htmlFor="category-sort">Sort</label>
@@ -160,6 +160,13 @@ export default function CategoryPage() {
         ) : (
           <>
             {viewMode === 'grid' ? <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr items-stretch">{visibleDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="grid" />)}</div> : <div>{visibleDeals.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} viewMode="list" />)}</div>}
+            {visibleDeals.length === 1 && !nextCursor && <div className="mt-5 flex flex-col gap-3 border-y border-slate-200 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-600">One deal currently meets our price and freshness standards in this department.</p>
+              <div className="flex shrink-0 items-center gap-4">
+                <Link to="/?category=all" className="text-xs font-bold text-emerald-900 underline underline-offset-4">Browse all deals</Link>
+                <Link to="/" className="inline-flex items-center gap-1 text-xs font-bold text-emerald-900 underline underline-offset-4">Other departments <ArrowRight className="h-3.5 w-3.5" /></Link>
+              </div>
+            </div>}
             <div ref={sentinelRef} className="h-10" aria-hidden="true" />
             {nextCursor ? <div className="text-center py-5 text-xs font-semibold text-slate-400">{loadingMore ? 'Loading more verified deals…' : 'More deals load as you scroll'}</div> : <div className="text-center py-8 mt-4 border-t border-emerald-950/10"><ShieldCheck className="w-4 h-4 mx-auto text-emerald-700" /></div>}
             {error && <div role="status" className="text-center text-xs text-amber-800 py-3"><div>Couldn’t load the next page.</div><button type="button" onClick={() => { setError(null); setRetryPage((value) => value + 1); }} className="mt-2 font-bold text-emerald-900 border-b border-emerald-900">Retry loading</button></div>}
