@@ -59,7 +59,7 @@ const CATEGORY_RULES = [
   },
   {
     category: 'Clothing & Accessories',
-    strong: [/\b(?:t-shirts?|shirts?|blouses?|tops|tank top|tunics?|cardigans?|hoodies?|sweatshirts?|pajamas?|pyjamas?|sleepwear|loungewear|jumpsuits?|rompers?|underwear|bras?|socks|sweaters?|jackets?|coats?|jeans|pants|trousers|leggings|dresses?|skirts?|shorts|sneakers?|boots?|slingback clogs?|clogs? for (?:women|men|girls|boys)|crocs?|sandals?|slippers?|handbags?|wallets?|backpack purse|sunglasses|jewelry|necklaces?|bracelets?|earrings?|analog watch|quartz watch)\b/i],
+    strong: [/\b(?:t-shirts?|shirts?|blouses?|tops|tank top|tunics?|cardigans?|hoodies?|sweatshirts?|pajamas?|pyjamas?|sleepwear|loungewear|jumpsuits?|rompers?|underwear|bras?|socks|sweaters?|jackets?|coats?|jeans|pants|trousers|leggings|dresses?|skirts?|shorts|sneakers?|boots?|loafers?|slingback clogs?|clogs? for (?:women|men|girls|boys)|crocs?|sandals?|slippers?|handbags?|wallets?|backpack purse|sunglasses|jewelry|necklaces?|bracelets?|earrings?|analog watch|quartz watch)\b/i],
     broad: [/\b(?:clothing|fashion|apparel|shoes?|jewelry|watches?|accessories)\b/i],
   },
   {
@@ -91,7 +91,8 @@ function matchesAny(text, patterns) {
 }
 
 function strongTitleCategory(title) {
-  const text = clean(title);
+  // Treat chocolate as a color label only when it describes leather or suede.
+  const text = clean(title).replace(/\bchocolate(?=\s+(?:(?:genuine|faux|real)\s+)?(?:suede|leather|brown|color|colour)\b)/gi, '');
   const matches = CATEGORY_RULES.filter((rule) => matchesAny(text, rule.strong));
   return matches.length === 1 ? matches[0].category : null;
 }

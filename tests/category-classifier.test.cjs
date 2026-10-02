@@ -19,6 +19,12 @@ test('uses product-specific title evidence when provider category is missing or 
   assert.equal(classifyCategory({ rawCategory: '', title: 'Ninja Air Fryer Pro 5 QT' }), 'Home & Kitchen');
   assert.equal(classifyCategory({ rawCategory: 'Other', title: 'DEWALT 20V Cordless Drill Driver Kit' }), 'Tools & Home Improvement');
   assert.equal(classifyCategory({ rawCategory: 'Grocery', title: 'CUSHIONAIRE Brooklyn Genuine Suede Slingback Clogs for Women' }), 'Clothing & Accessories');
+  assert.equal(classifyCategory({ rawCategory: 'Grocery', title: 'CUSHIONAIRE Brooklyn Genuine Suede Slingback Clogs for Women with Buckle Chocolate Genuine Suede 8.5' }), 'Clothing & Accessories');
+});
+
+test('food words used as retail color labels do not misclassify products', () => {
+  assert.equal(classifyCategory({ rawCategory: 'Other', title: 'Chocolate Brown Genuine Suede Loafers for Women' }), 'Clothing & Accessories');
+  assert.equal(classifyCategory({ rawCategory: 'Other', title: 'Hershey Milk Chocolate Bar, 1.55 oz' }), 'Grocery');
 });
 
 test('distinguishes commonly confused product types', () => {

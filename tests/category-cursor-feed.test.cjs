@@ -31,3 +31,10 @@ test('category view controls have accessible names', () => {
   assert.match(category, /aria-label="Grid view"/);
   assert.match(category, /aria-label="List view"/);
 });
+
+test('sparse departments explain their inventory and offer useful next destinations', () => {
+  assert.ok(category.includes("visibleDeals.length === 1 ? 'deal' : 'deals'"));
+  assert.ok(category.includes('One deal currently meets our price and freshness standards in this department.'));
+  assert.ok(category.includes('Browse all deals'));
+  assert.ok(category.includes('Other departments'));
+});
