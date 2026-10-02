@@ -166,7 +166,7 @@ export default function CategoryPage() {
                 <Link to="/?category=all" className="text-xs font-bold text-emerald-900 underline underline-offset-4">Browse all deals</Link>
                 <Link to="/" className="inline-flex items-center gap-1 text-xs font-bold text-emerald-900 underline underline-offset-4">Other departments <ArrowRight className="h-3.5 w-3.5" /></Link>
               </div>
-            </div>
+            </div>}
             <div ref={sentinelRef} className="h-10" aria-hidden="true" />
             {nextCursor ? <div className="text-center py-5 text-xs font-semibold text-slate-400">{loadingMore ? 'Loading more verified deals…' : 'More deals load as you scroll'}</div> : <div className="text-center py-8 mt-4 border-t border-emerald-950/10"><ShieldCheck className="w-4 h-4 mx-auto text-emerald-700" /></div>}
             {error && <div role="status" className="text-center text-xs text-amber-800 py-3"><div>Couldn’t load the next page.</div><button type="button" onClick={() => { setError(null); setRetryPage((value) => value + 1); }} className="mt-2 font-bold text-emerald-900 border-b border-emerald-900">Retry loading</button></div>}
