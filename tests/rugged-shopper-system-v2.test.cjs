@@ -10,6 +10,6 @@ test('deal cards surface plain-language price-check recency instead of a vague t
   const card = read('src/components/DealCard.jsx');
   const freshness = read('src/lib/verificationFreshness.js');
   assert.ok(card.includes("freshness.stale ? 'Check price' : freshness.label"));
-  assert.ok(freshness.includes("Price checked ${hours} hour"));
+  assert.ok(freshness.includes("Price checked ${hours}h ago"));
   assert.doesNotMatch(card, />Verified<\/span>/);
 });
