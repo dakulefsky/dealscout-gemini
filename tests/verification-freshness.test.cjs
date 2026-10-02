@@ -7,9 +7,9 @@ const unix = (ms) => Math.floor(ms / 1000);
 test('verification freshness formats recent checks', async () => {
   const { verificationFreshness } = await import('../src/lib/verificationFreshness.js');
   assert.equal(verificationFreshness(unix(NOW - 20_000), NOW).label, 'Price checked just now');
-  assert.equal(verificationFreshness(unix(NOW - 12 * 60_000), NOW).label, 'Price checked 12 minutes ago');
-  assert.equal(verificationFreshness(unix(NOW - 3 * 60 * 60_000), NOW).label, 'Price checked 3 hours ago');
-  assert.equal(verificationFreshness(unix(NOW - 60 * 60_000), NOW).label, 'Price checked 1 hour ago');
+  assert.equal(verificationFreshness(unix(NOW - 12 * 60_000), NOW).label, 'Price checked 12m ago');
+  assert.equal(verificationFreshness(unix(NOW - 3 * 60 * 60_000), NOW).label, 'Price checked 3h ago');
+  assert.equal(verificationFreshness(unix(NOW - 60 * 60_000), NOW).label, 'Price checked 1h ago');
 });
 
 test('verification freshness flags old checks as stale', async () => {
