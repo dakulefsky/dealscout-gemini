@@ -6,10 +6,11 @@ const read = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8')
 
 
 
-test('deal cards surface plain-language price-check recency instead of a vague trust badge', () => {
+test('price-check recency lives on the product detail page instead of every card', () => {
   const card = read('src/components/DealCard.jsx');
   const freshness = read('src/lib/verificationFreshness.js');
-  assert.ok(card.includes("freshness.stale ? 'Check price' : freshness.label"));
+  assert.doesNotMatch(card, /Check price|freshness/);
+  assert.match(read('src/pages/DealDetail.jsx'), /<span>\{freshness\.label\}<\/span>/);
   assert.ok(freshness.includes("Price checked ${hours}h ago"));
   assert.doesNotMatch(card, />Verified<\/span>/);
 });
