@@ -23,7 +23,7 @@ test('deal detail is product-first and keeps core commerce actions intact', () =
   assert.match(detail, /grid lg:grid-cols-\[minmax\(0,0\.85fr\)_minmax\(340px,1\.15fr\)\]/);
   assert.match(detail, /bg-white border border-slate-200 h-64 sm:h-80/);
   assert.match(detail, /View deal on Amazon/);
-  assert.match(detail, /functions\.amazonRedirect\(deal\.productUrl\)/);
+  assert.match(detail, /href=\{amazonHref\}/);
   assert.match(detail, /toggleBookmark\(deal\)/);
   assert.match(detail, /navigator\.clipboard\.writeText/);
   assert.match(detail, /focus-visible:ring-2/);

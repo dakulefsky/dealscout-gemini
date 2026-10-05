@@ -10,7 +10,7 @@ function publicSurfaceOnly(req, res, next) {
 
   // The affiliate redirect is a shopper action used by every "View on Amazon"
   // button. All other function endpoints are operational/admin-only.
-  const isPublicAffiliateRedirect = path === '/api/functions/amazon-redirect' && String(req.method || 'GET').toUpperCase() === 'POST';
+  const isPublicAffiliateRedirect = path === '/api/functions/amazon-redirect' && ['GET', 'HEAD', 'POST'].includes(String(req.method || 'GET').toUpperCase());
   if (path.startsWith('/api/functions') && !isPublicAffiliateRedirect) {
     return res.status(404).json({ error: 'Not found' });
   }

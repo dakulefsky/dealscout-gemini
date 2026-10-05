@@ -9,7 +9,7 @@ import { verificationFreshness } from '@/lib/verificationFreshness';
 import { categoryPathFromName } from '@/lib/categoryRoutes';
 import { addCategoryInterest, loadInterests, personalizedRank } from '@/lib/feedPersonalization';
 import { dealRankScore } from '@/lib/dealRanking';
-import { deals as dealsApi, functions, editorial as editorialApi } from '@/lib/api';
+import { deals as dealsApi, editorial as editorialApi } from '@/lib/api';
 import { useBookmarks } from '@/lib/BookmarksContext';
 import SidebarAds from '@/components/SidebarAds';
 import AdSensePlaceholder from '@/components/AdSensePlaceholder';
@@ -56,7 +56,6 @@ export default function DealDetail() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [retryNonce, setRetryNonce] = useState(0);
-  const [redirecting, setRedirecting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const { toast } = useToast();
   const { isSaved, toggleBookmark } = useBookmarks();
@@ -113,31 +112,10 @@ export default function DealDetail() {
 
   const dealId = deal?.id || deal?.asin;
   const saved = isSaved(dealId);
+  const amazonHref = `/api/functions/amazon-redirect?url=${encodeURIComponent(deal?.productUrl || "")}`;
 
-  async function handleBuy() {
-    if (!deal) return;
-    const amazonTab = window.open('about:blank', '_blank');
-    if (!amazonTab) {
-      toast({ title: 'Could not open Amazon', description: 'Please allow pop-ups for DealScout and try again.', variant: 'destructive' });
-      return;
-    }
-    amazonTab.opener = null;
-    setRedirecting(true);
-    try {
-      const res = await functions.amazonRedirect(deal.productUrl);
-      if (res?.redirectUrl) {
-        addCategoryInterest(deal.category, 3);
-        amazonTab.location.replace(res.redirectUrl);
-      } else {
-        amazonTab.close();
-        toast({ title: "Couldn't open Amazon", variant: 'destructive' });
-      }
-    } catch (e) {
-      amazonTab.close();
-      toast({ title: 'Could not open Amazon', description: e.message, variant: 'destructive' });
-    } finally {
-      setRedirecting(false);
-    }
+  function handleBuy() {
+    if (deal) addCategoryInterest(deal.category, 3);
   }
 
   function handleSave() {
@@ -227,7 +205,7 @@ export default function DealDetail() {
           {productTitle.details && <p className="text-sm sm:text-base font-normal leading-relaxed text-slate-600 mt-3">{productTitle.details}</p>}
           <div className="mt-5 border-y border-slate-200 py-4"><div className="flex items-baseline gap-3 flex-wrap"><span className={`text-3xl font-bold tracking-tight ${deal.isExpired ? 'text-slate-500 line-through' : 'text-emerald-950'}`}>{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-sm text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>{!deal.isExpired && savings > 0 && <div className="mt-3 flex items-center justify-between gap-3"><span className="text-sm font-bold text-emerald-800">You save {formatPrice(savings)}</span>{deal.discountPercent > 0 && <span className="text-xs font-black bg-[#dcebdc] text-emerald-950 px-2 py-1">{deal.discountPercent}% OFF</span>}</div>}</div>
           {deal.sourceVerified && !deal.isExpired && <div className={`mt-4 flex items-center gap-2 text-xs font-semibold ${freshness.stale ? 'text-amber-800' : 'text-slate-600'}`}><ShieldCheck className={`w-4 h-4 ${freshness.stale ? 'text-amber-600' : 'text-emerald-700'}`} /><span>{freshness.label}</span></div>}
-          <button onClick={handleBuy} disabled={redirecting} className={`mt-7 inline-flex items-center justify-between gap-3 w-full px-5 py-4 font-bold text-sm transition disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-emerald-950 hover:bg-emerald-900 text-white'}`}><span className="inline-flex items-center gap-2">{redirecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}{redirecting ? 'Opening Amazon…' : deal.isExpired ? 'Check current price' : 'View deal on Amazon'}</span><ExternalLink className="w-4 h-4 opacity-70" /></button>
+          <a href={amazonHref} target="_blank" rel="noopener noreferrer" onClick={handleBuy} className={`mt-7 inline-flex items-center justify-between gap-3 w-full px-5 py-4 font-bold text-sm transition disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 hover:bg-slate-900 text-white' : 'bg-emerald-950 hover:bg-emerald-900 text-white'}`}><span className="inline-flex items-center gap-2"><ShoppingBag className="h-4 w-4" />{deal.isExpired ? 'Check current price' : 'View deal on Amazon'}</span><ExternalLink className="w-4 h-4 opacity-70" /></a>
           <p className="text-[10px] leading-relaxed text-slate-400 mt-2">As an Amazon Associate I earn from qualifying purchases. Final price and availability are determined on Amazon.</p>
           <Link to={categoryPath} className="mt-7 border-t border-emerald-950/10 pt-4 flex items-center justify-between text-sm font-bold text-emerald-950 hover:text-emerald-700"><span>More {String(deal.category || 'deal').toLowerCase()} deals</span><ArrowRight className="w-4 h-4" /></Link>
           <div className="mt-8"><SidebarAds category={deal.category || 'Electronics'} /></div>
@@ -238,7 +216,7 @@ export default function DealDetail() {
 
       <MembershipOffers />
 
-      <div className="fixed lg:hidden bottom-0 inset-x-0 z-40 border-t border-emerald-950/15 bg-[#fbfaf7]/95 backdrop-blur px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(13,63,45,0.08)]"><div className="ds-shell !px-0 flex items-center gap-3"><div className="min-w-0 flex-1"><div className="text-xl font-black text-emerald-950 truncate">{formatPrice(deal.salePrice)}</div>{savings > 0 && !deal.isExpired && <div className="text-[10px] text-emerald-700 font-bold">Save {formatPrice(savings)}</div>}</div><button onClick={handleBuy} disabled={redirecting} className={`shrink-0 inline-flex items-center justify-center gap-2 px-5 py-3 font-black text-sm disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 text-white' : 'bg-emerald-950 text-white'}`}>{redirecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingBag className="w-4 h-4" />}{deal.isExpired ? 'Check Amazon' : 'View on Amazon'}</button></div></div>
+      <div className="fixed lg:hidden bottom-0 inset-x-0 z-40 border-t border-emerald-950/15 bg-[#fbfaf7]/95 backdrop-blur px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(13,63,45,0.08)]"><div className="ds-shell !px-0 flex items-center gap-3"><div className="min-w-0 flex-1"><div className="text-xl font-black text-emerald-950 truncate">{formatPrice(deal.salePrice)}</div>{savings > 0 && !deal.isExpired && <div className="text-[10px] text-emerald-700 font-bold">Save {formatPrice(savings)}</div>}</div><a href={amazonHref} target="_blank" rel="noopener noreferrer" onClick={handleBuy} className={`shrink-0 inline-flex items-center justify-center gap-2 px-5 py-3 font-black text-sm disabled:opacity-60 ${deal.isExpired ? 'bg-slate-800 text-white' : 'bg-emerald-950 text-white'}`}><ShoppingBag className="w-4 h-4" />{deal.isExpired ? 'Check Amazon' : 'View on Amazon'}</a></div></div>
     </div>
   );
 }
