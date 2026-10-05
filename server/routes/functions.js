@@ -208,6 +208,20 @@ router.post('/purge-expired', requireAdmin, async (req, res) => {
   }
 });
 
+// A native link avoids opening an empty tab while an asynchronous request runs.
+router.get('/amazon-redirect', (req, res) => {
+  const url = req.query?.url;
+  if (!url || typeof url !== 'string') return res.status(400).type('text/plain').send('Missing or invalid Amazon URL');
+  try {
+    const destination = new URL(formatAffiliateUrl(url, AMAZON_ASSOCIATE_TAG));
+    destination.hash = '';
+    res.set('Cache-Control', 'no-store');
+    return res.redirect(302, destination.toString());
+  } catch {
+    return res.status(400).type('text/plain').send('Invalid Amazon URL');
+  }
+});
+
 router.post('/amazon-redirect', (req, res) => {
   const url = req.body?.url;
   if (!url || typeof url !== 'string') return res.status(400).json({ error: 'Missing or invalid url' });

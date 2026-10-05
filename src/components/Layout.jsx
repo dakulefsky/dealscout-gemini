@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/AuthContext';
 import { useBookmarks } from '@/lib/BookmarksContext';
@@ -26,6 +26,12 @@ export default function Layout({ children }) {
   const searchRef = useRef(null);
   const isAdminArea = location.pathname.startsWith('/admin');
   const categoriesList = useActiveCategories(!isAdminArea);
+
+  // React Router keeps the document mounted: new pages must not inherit the
+  // previous page's scroll offset. Run before paint, including product-to-product.
+  useLayoutEffect(() => {
+    if (!location.hash) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [location.pathname, location.hash]);
 
   useEffect(() => {
     const handleKeyDown = (event) => {

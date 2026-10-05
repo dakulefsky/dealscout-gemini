@@ -5,8 +5,8 @@ const path = require('path');
 
 const detail = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'DealDetail.jsx'), 'utf8');
 
-test('successful Amazon redirect records stronger shopping intent than a detail-page open', () => {
-  assert.match(detail, /if \(res\?\.redirectUrl\) \{\s*addCategoryInterest\(deal\.category, 3\);\s*amazonTab\.location\.replace\(res\.redirectUrl\);/s);
+test('Amazon link clicks record stronger shopping intent than a detail-page open', () => {
+  assert.match(detail, /if \(deal\) addCategoryInterest\(deal\.category, 3\)/);
 });
 
 test('saving from detail page carries the same strong signal as saving from a deal card', () => {
