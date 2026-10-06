@@ -25,7 +25,7 @@ async function getIntegrityHealth() {
   const live = all.filter((deal) => deal.status === 'APPROVED' && deal.is_expired !== 1);
   const unverifiedApproved = live.filter((deal) => deal.source_verified !== 1);
   const missingImages = live.filter(isMissingImage);
-  const stalePrices = live.filter(isStalePrice);
+  const stalePrices = live.filter((deal) => isStalePrice(deal));
   const legacyEnrichment = live.filter(hasLegacyEnrichment);
 
   return {

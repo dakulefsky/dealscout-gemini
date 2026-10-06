@@ -172,10 +172,10 @@ export default function AdminHome() {
       </section>
 
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <Stat label="Live deals" value={publicVisibleCount} hint={freshnessHiddenCount ? `${freshnessHiddenCount} approved waiting for a fresh price check` : 'Fresh on shopper surfaces'} />
+        <Stat label="Live deals" value={publicVisibleCount} hint={freshnessHiddenCount ? `${freshnessHiddenCount} approved but currently hidden` : 'Fresh on shopper surfaces'} />
         <Stat label="Needs review" value={stats.pendingCount} />
         <Stat label="Ended" value={lifecycle.expiredCount} />
-        <Stat label="Integrity issues" value={loadFailures.includes('integrity health') ? null : integrityIssues} hint={loadFailures.includes('integrity health') ? 'Health check unavailable' : integrityIssues ? 'Needs attention' : 'Core checks clean'} />
+        <Stat label="Health flags" value={loadFailures.includes('integrity health') ? null : integrityIssues} hint={loadFailures.includes('integrity health') ? 'Health check unavailable' : integrityIssues ? 'Flags may overlap on the same deal' : 'Core checks clean'} />
         <Stat label="Publishing issues" value={publicationUnavailable ? null : publicationIssues} hint={publicationUnavailable ? 'Automation health unavailable' : publicationIssues ? 'Failed or overdue jobs' : 'Queue healthy'} />
         <Stat label="Average discount" value={stats.avgDiscount != null ? `${Number(stats.avgDiscount).toFixed(0)}%` : null} />
       </div>
