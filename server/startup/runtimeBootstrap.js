@@ -43,6 +43,7 @@ async function initializeRuntime({
   }
 
   await ensureOperationalSchemas();
+  await require('../services/primeDayPolicy').refresh();
   if (isProduction) await dealRepository.hardenProduction();
 }
 

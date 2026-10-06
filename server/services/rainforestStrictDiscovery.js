@@ -1,6 +1,8 @@
 const axios = require('axios');
 const { imageCandidates } = require('./rainforestImage');
 const { classifyCategory, normalizeCategory } = require('./categoryClassifier');
+const primeDayPolicy = require('./primeDayPolicy');
+const { scoreVerifiedDeal } = require('./dealQualityService');
 
 const ENDPOINT = 'https://api.rainforestapi.com/request';
 const SINGLE_PAGE_NEW_DEAL_FLOOR = 25;
@@ -138,6 +140,8 @@ function selectDealsForIngestion(rankedDeals = [], maxNewResults = 15, refreshEx
 }
 
 async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealType = null, categoryId = null, maxResults = 15, minDiscount = 10, refreshExistingAsins = [] } = {}) {
+  await primeDayPolicy.refresh();
+  const primeDay = primeDayPolicy.isPrimeDay();
   const apiKey = process.env.RAINFOREST_API_KEY;
   if (!apiKey) throw new Error('RAINFOREST_API_KEY is not configured');
 
@@ -155,7 +159,7 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
   if (data.request_info?.success === false) throw new Error(data.request_info.message || 'Rainforest deals request failed');
 
   // Keep this to one paid deals page. Broaden only what we retain from that already-paid response.
-  const effectiveMaxResults = Math.max(SINGLE_PAGE_NEW_DEAL_FLOOR, Number(maxResults) || 0);
+  const effectiveMaxResults = Math.max(primeDay ? 75 : SINGLE_PAGE_NEW_DEAL_FLOOR, Number(maxResults) || 0);
   const effectiveMinDiscount = Math.min(REVIEWABLE_DISCOUNT_FLOOR, Math.max(0, Number(minDiscount) || 0));
   const items = Array.isArray(data.deals_results) ? data.deals_results : (Array.isArray(data.deals) ? data.deals : []);
   const normalized = items
@@ -164,7 +168,19 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
     .filter((deal) => !isUnavailableDeal(deal))
     .filter((deal) => deal.discountPercent >= effectiveMinDiscount);
   const ranked = dedupeDeals(normalized).sort((a, b) => b.discountPercent - a.discountPercent || b.savingsAmount - a.savingsAmount);
-  return selectDealsForIngestion(ranked, effectiveMaxResults, refreshExistingAsins);
+  if (!primeDay) return selectDealsForIngestion(ranked, effectiveMaxResults, refreshExistingAsins);
+
+  // Give strong, publishable deals first access to the larger batch. Fill spare
+  // slots with modest discounts and review candidates, without extra API calls.
+  const scored = ranked.map(deal => ({ deal, quality: scoreVerifiedDeal(deal) }));
+  const strong = scored.filter(({ deal, quality }) => quality.decision === 'AUTO_APPROVE' && deal.discountPercent >= 20);
+  const other = scored.filter(({ deal, quality }) => !(quality.decision === 'AUTO_APPROVE' && deal.discountPercent >= 20));
+  const compare = (a, b) => b.quality.score - a.quality.score || b.deal.savingsAmount - a.deal.savingsAmount;
+  const existing = new Set(refreshExistingAsins);
+  const refresh = ranked.filter(deal => existing.has(deal.asin));
+  const first = selectBalancedDeals(strong.sort(compare).map(row => row.deal).filter(deal => !existing.has(deal.asin)), effectiveMaxResults);
+  const remaining = effectiveMaxResults - first.length;
+  return [...refresh, ...first, ...(remaining > 0 ? selectBalancedDeals(other.sort(compare).map(row => row.deal).filter(deal => !existing.has(deal.asin)), remaining) : [])];
 }
 
 module.exports = {

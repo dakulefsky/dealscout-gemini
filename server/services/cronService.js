@@ -11,7 +11,7 @@ const { verificationBatchSize } = require('./verificationCapacity');
 const { rediscoveryLifecycleChanges } = require('./rediscoveryLifecycle');
 const { verifiedSourceChanges } = require('./verifiedDealRefresh');
 const { canAttemptRefresh } = require('./refreshRetryPolicy');
-const { PUBLIC_MIN_DISCOUNT_PERCENT } = require('./publicDealPolicy');
+const { minimumDiscountPercent } = require('./publicDealPolicy');
 
 const TWELVE_HOURS_SECONDS = 12 * 60 * 60;
 const ONE_DAY_SECONDS = 24 * 60 * 60;
@@ -253,7 +253,7 @@ class DealCronService {
           const computedDiscount = Number.isFinite(original) && Number.isFinite(sale) && original > sale && sale > 0
             ? ((original - sale) / original) * 100
             : 0;
-          const discountEnded = liveInfo.isDeal === false || computedDiscount < PUBLIC_MIN_DISCOUNT_PERCENT;
+          const discountEnded = liveInfo.isDeal === false || computedDiscount < minimumDiscountPercent();
 
           if (Number.isFinite(original) && Number.isFinite(sale) && original > 0 && sale > 0 && sale <= original) {
             await safeRecordObservation({ asin: deal.asin, salePrice: sale, originalPrice: original, sourceProvider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
@@ -299,10 +299,11 @@ class DealCronService {
   }
 
   async syncDailyDeals(options = {}) {
+    await require('./primeDayPolicy').refresh();
     if (this.isRunning) return { skipped: true, reason: 'ALREADY_RUNNING' };
 
     const maxResults = boundedNumber(options.maxResults, 20, 1, 50);
-    const minDiscount = boundedNumber(options.minDiscount, 15, 0, 100);
+    const minDiscount = boundedNumber(options.minDiscount, minimumDiscountPercent(), 0, 100);
     const scheduled = options.scheduled === true;
 
     return this.runDistributed(JOB_LOCKS.discoverDeals, 'discover-deals', async () => {

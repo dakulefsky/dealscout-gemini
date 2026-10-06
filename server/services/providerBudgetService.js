@@ -1,3 +1,4 @@
+const { isPrimeDay, refresh } = require('./primeDayPolicy');
 const postgres = require('../storage/postgres');
 
 const BUDGET_LOCK_ID = 44005;
@@ -26,12 +27,12 @@ function positiveLimit(value, fallback) {
   return Math.floor(parsed);
 }
 
-function limitsFor(provider) {
+function limitsFor(provider, now = new Date()) {
   const key = cleanProvider(provider);
   if (key === 'rainforest') {
     return {
-      daily: positiveLimit(process.env.RAINFOREST_DAILY_REQUEST_LIMIT, 16),
-      monthly: positiveLimit(process.env.RAINFOREST_MONTHLY_REQUEST_LIMIT, 500),
+      daily: isPrimeDay(now) ? 20 : positiveLimit(process.env.RAINFOREST_DAILY_REQUEST_LIMIT, 16),
+      monthly: Math.min(500, positiveLimit(process.env.RAINFOREST_MONTHLY_REQUEST_LIMIT, 500)),
     };
   }
   if (key === 'gemini') {
@@ -104,8 +105,9 @@ function emptyStatus(provider) {
 }
 
 async function usageStatus(provider, now = new Date()) {
+  await refresh();
   const key = cleanProvider(provider);
-  const limits = limitsFor(key);
+  const limits = limitsFor(key, now);
   if (!Number.isFinite(limits.daily) && !Number.isFinite(limits.monthly)) return emptyStatus(key);
 
   let usage;
@@ -155,12 +157,14 @@ async function recordBlockedPostgres(client, provider, today) {
 }
 
 async function reserveRequest(provider, now = new Date(), { overrideDailyLimit = false } = {}) {
+  await refresh();
   const key = cleanProvider(provider);
-  const limits = limitsFor(key);
+  const limits = limitsFor(key, now);
   if (!Number.isFinite(limits.daily) && !Number.isFinite(limits.monthly)) return emptyStatus(key);
 
   const today = dayKey(now);
   const month = monthKey(now);
+  if (key === 'rainforest' && isPrimeDay(now)) overrideDailyLimit = false;
 
   if (!postgres.isConfigured()) {
     const status = localStatus(key, now);

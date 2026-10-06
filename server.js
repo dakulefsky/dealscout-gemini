@@ -125,6 +125,10 @@ async function startServer() {
   app.use(cors({ origin: createCorsOriginPolicy(corsOrigins, { isProduction }), credentials: true }));
   app.use(express.json({ limit: '1mb' }));
   app.use(apiRateLimit());
+  app.use('/api', async (_req, _res, next) => {
+    await require('./server/services/primeDayPolicy').refresh();
+    next();
+  });
   app.use(require('./server/middleware/publicSurfaceOnly.js').publicSurfaceOnly);
 
   const amazonContentPolicy = require('./server/middleware/amazonContentPolicy.js');

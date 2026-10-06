@@ -14,6 +14,6 @@ test('Rainforest broadening stays on one paid deals page', () => {
 test('single paid page retains a wider new-deal pool and reviewable discount band', () => {
   assert.match(source, /SINGLE_PAGE_NEW_DEAL_FLOOR = 25/);
   assert.match(source, /REVIEWABLE_DISCOUNT_FLOOR = 12/);
-  assert.match(source, /Math\.max\(SINGLE_PAGE_NEW_DEAL_FLOOR/);
+  assert.match(source, /Math\.max\(primeDay \? 75 : SINGLE_PAGE_NEW_DEAL_FLOOR/);
   assert.match(source, /Math\.min\(REVIEWABLE_DISCOUNT_FLOOR/);
 });

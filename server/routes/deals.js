@@ -6,7 +6,7 @@ const dealFeed = require('../repositories/dealFeedRepository');
 const categories = require('../repositories/categoryRepository');
 const editorial = require('../repositories/editorialRepository');
 const { optionalAuth, requireAdmin } = require('../middleware/auth');
-const { isPublicDeal, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
+const { isPublicDeal, minimumDiscountPercent } = require('../services/publicDealPolicy');
 const { isAmazonUrl } = require('../services/amazonUrlService');
 const { manualExpireChanges, manualRestoreChanges } = require('../services/manualDealLifecycle');
 
@@ -138,8 +138,8 @@ router.post('/', requireAdmin, async (req, res) => {
     const status = b.status || 'PENDING_REVIEW';
     if (!validStatus(status)) throw new Error('Invalid deal status');
     if (status === 'APPROVED' && !sourceVerified) throw new Error('Only source-verified deals can be approved');
-    if (status === 'APPROVED' && prices.discount < PUBLIC_MIN_DISCOUNT_PERCENT) {
-      throw new Error(`Approved deals must be at least ${PUBLIC_MIN_DISCOUNT_PERCENT}% off`);
+    if (status === 'APPROVED' && prices.discount < minimumDiscountPercent()) {
+      throw new Error(`Approved deals must be at least ${minimumDiscountPercent()}% off`);
     }
     const existing = await deals.findByIdOrAsin(asin);
     const deal = await deals.upsert({
@@ -208,8 +208,8 @@ router.patch('/:id', requireAdmin, async (req, res) => {
     const effectiveDiscount = Number.isFinite(effectiveOriginal) && Number.isFinite(effectiveSale) && effectiveOriginal > 0
       ? ((effectiveOriginal - effectiveSale) / effectiveOriginal) * 100
       : 0;
-    if (effectiveStatus === 'APPROVED' && effectiveDiscount < PUBLIC_MIN_DISCOUNT_PERCENT) {
-      throw new Error(`Approved deals must be at least ${PUBLIC_MIN_DISCOUNT_PERCENT}% off`);
+    if (effectiveStatus === 'APPROVED' && effectiveDiscount < minimumDiscountPercent()) {
+      throw new Error(`Approved deals must be at least ${minimumDiscountPercent()}% off`);
     }
     res.json(rowToDeal(await deals.update(deal.id, changes), { includeInternal: true }));
   } catch (err) {

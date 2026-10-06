@@ -1,6 +1,6 @@
-const { PUBLIC_MIN_DISCOUNT_PERCENT } = require('./publicDealPolicy');
+const { minimumDiscountPercent } = require('./publicDealPolicy');
 
-function scoreVerifiedDeal(item = {}) {
+function scoreVerifiedDeal(item = {}, now = Date.now()) {
   const original = Number(item.originalPrice ?? item.original_price);
   const sale = Number(item.salePrice ?? item.sale_price);
   const hasImage = Boolean(item.imageUrl || item.image_url);
@@ -14,8 +14,8 @@ function scoreVerifiedDeal(item = {}) {
   if (/out of stock|unavailable/.test(availability)) return { score: 0, decision: 'REJECT', reasons: ['unavailable'] };
 
   const discount = ((original - sale) / original) * 100;
-  if (discount < PUBLIC_MIN_DISCOUNT_PERCENT) {
-    return { score: 0, decision: 'REJECT', reasons: [`discount below ${PUBLIC_MIN_DISCOUNT_PERCENT}%`] };
+  if (discount < minimumDiscountPercent(now)) {
+    return { score: 0, decision: 'REJECT', reasons: [`discount below ${minimumDiscountPercent(now)}%`] };
   }
 
   let score = 45;
@@ -24,7 +24,7 @@ function scoreVerifiedDeal(item = {}) {
   else if (discount >= 30) { score += 20; reasons.push('30%+ discount'); }
   else if (discount >= 20) { score += 14; reasons.push('20%+ discount'); }
   else if (discount >= 15) { score += 8; reasons.push('15%+ discount'); }
-  else { score += 4; reasons.push(`${PUBLIC_MIN_DISCOUNT_PERCENT}%+ discount`); }
+  else { score += 4; reasons.push(`${minimumDiscountPercent(now)}%+ discount`); }
 
   if (hasImage) { score += 5; reasons.push('product image'); }
   if (item.isPrime === true || item.is_prime === true) { score += 3; reasons.push('Prime'); }

@@ -15,16 +15,16 @@ function dealAt(discount) {
     source_verified: 1,
     original_price: original,
     sale_price: sale,
-    price_check_at: Math.floor(Date.now() / 1000),
+    price_check_at: Date.parse('2026-10-01T12:00:00Z') / 1000,
   };
 }
 
 test('public catalog has a hard 15 percent minimum discount', () => {
   assert.equal(PUBLIC_MIN_DISCOUNT_PERCENT, 15);
-  assert.equal(isPublicDeal(dealAt(4.5)), false);
-  assert.equal(isPublicDeal(dealAt(14.9)), false);
-  assert.equal(isPublicDeal(dealAt(15)), true);
-  assert.equal(isPublicDeal(dealAt(30)), true);
+  assert.equal(isPublicDeal(dealAt(4.5), { nowSeconds: Date.parse('2026-10-01T12:00:00Z') / 1000 }), false);
+  assert.equal(isPublicDeal(dealAt(14.9), { nowSeconds: Date.parse('2026-10-01T12:00:00Z') / 1000 }), false);
+  assert.equal(isPublicDeal(dealAt(15), { nowSeconds: Date.parse('2026-10-01T12:00:00Z') / 1000 }), true);
+  assert.equal(isPublicDeal(dealAt(30), { nowSeconds: Date.parse('2026-10-01T12:00:00Z') / 1000 }), true);
 });
 
 test('every SQL-backed public surface includes the minimum-discount gate', () => {
@@ -36,16 +36,16 @@ test('every SQL-backed public surface includes the minimum-discount gate', () =>
     'server/repositories/bookmarkQueryRepository.js',
     'server/repositories/editorialRepository.js',
   ]) {
-    assert.match(read(file), /PUBLIC_MIN_DISCOUNT_PERCENT/, file);
+    assert.match(read(file), /minimumDiscountPercent/, file);
   }
 });
 
 test('verified refreshes expire deals once the discount drops below the floor', () => {
   const cron = read('server/services/cronService.js');
   const provider = read('server/services/providerRouter.js');
-  assert.match(cron, /computedDiscount < PUBLIC_MIN_DISCOUNT_PERCENT/);
+  assert.match(cron, /computedDiscount < minimumDiscountPercent/);
   assert.doesNotMatch(cron, /discount < 5/);
-  assert.match(provider, /normalized\.discountPercent < PUBLIC_MIN_DISCOUNT_PERCENT/);
+  assert.match(provider, /normalized\.discountPercent < minimumDiscountPercent/);
 });
 
 test('admin can find and permanently remove any verified deal', () => {
@@ -63,6 +63,6 @@ test('manual approval cannot bypass the discount floor', () => {
   const routes = read('server/routes/deals.js');
   const quality = read('server/services/dealQualityService.js');
   assert.match(routes, /Approved deals must be at least/);
-  assert.match(routes, /PUBLIC_MIN_DISCOUNT_PERCENT/);
-  assert.match(quality, /discount < PUBLIC_MIN_DISCOUNT_PERCENT/);
+  assert.match(routes, /minimumDiscountPercent/);
+  assert.match(quality, /discount < minimumDiscountPercent/);
 });

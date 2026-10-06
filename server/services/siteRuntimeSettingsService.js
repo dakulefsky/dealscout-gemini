@@ -53,6 +53,7 @@ async function get(key) {
 async function set(key, value) {
   const clean = cleanKey(key);
   const normalized = normalizeValue(clean, value);
+  if (clean.startsWith('amazon_prime_day_')) require('./primeDayPolicy').invalidate();
   if (!postgres.isConfigured()) {
     local.set(clean, normalized);
     return { key: clean, value: normalized, updatedAt: new Date().toISOString() };
@@ -69,6 +70,6 @@ async function set(key, value) {
   return { key: row.setting_key, value: row.setting_value, updatedAt: row.updated_at };
 }
 
-function resetLocalSettings() { local.clear(); }
+function resetLocalSettings() { local.clear(); require('./primeDayPolicy').invalidate(); }
 
 module.exports = { DEFAULTS, get, set, resetLocalSettings };
