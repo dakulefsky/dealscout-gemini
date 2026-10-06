@@ -180,3 +180,36 @@ test('release refuses to collapse public and private services into one Cloud Run
   invalid.GCP_ADMIN_SERVICE = invalid.GCP_WEB_SERVICE;
   assert.throws(() => buildReleasePlan(invalid), /must differ/);
 });
+
+test('RDS release uses certificate verification and the same network on all consumers', async () => {
+  const { buildReleasePlan } = await loadModule();
+  const config = { ...env(), GCP_DATABASE_MODE: 'rds', GCP_RDS_DATABASE_SECRET: 'rds-url:1', GCP_RDS_CA_SECRET: 'rds-ca:1', GCP_DB_NETWORK: 'default', GCP_DB_SUBNET: 'default' };
+  delete config.CLOUD_SQL_CONNECTION_NAME;
+  delete config.GCP_DB_SECRETS;
+  const plan = buildReleasePlan(config);
+  for (const command of plan.commands) {
+    const args = command.args;
+    assert.ok(args.includes('--clear-cloudsql-instances'));
+    assert.equal(args[args.indexOf('--vpc-egress') + 1], 'all-traffic');
+    assert.equal(args[args.indexOf('--network') + 1], 'default');
+    const envFlag = args.includes('--update-env-vars') ? '--update-env-vars' : '--set-env-vars';
+    assert.match(args[args.indexOf(envFlag) + 1], /PGSSL=verify-full/);
+    assert.match(args[args.indexOf(envFlag) + 1], /NODE_EXTRA_CA_CERTS=\/etc\/rds-ca\/aws-ca.pem/);
+    const secretFlag = args.includes('--update-secrets') ? '--update-secrets' : '--set-secrets';
+    assert.match(args[args.indexOf(secretFlag) + 1], /DATABASE_URL=rds-url:1/);
+    assert.match(args[args.indexOf(secretFlag) + 1], /\/etc\/rds-ca\/aws-ca.pem=rds-ca:1/);
+  }
+  const admin = plan.commands[1].args;
+  assert.equal(admin[admin.indexOf('--remove-env-vars') + 1], 'CLOUD_SQL_CONNECTION_NAME');
+  assert.ok(!admin.includes('--allow-unauthenticated'));
+  assert.ok(!admin.includes('--set-secrets'));
+});
+
+test('RDS configuration fails before deployment without secrets or network', async () => {
+  const { buildReleasePlan } = await loadModule();
+  const config = { ...env(), GCP_DATABASE_MODE: 'rds', GCP_RDS_DATABASE_SECRET: 'rds-url:latest', GCP_RDS_CA_SECRET: 'rds-ca:latest', GCP_DB_NETWORK: 'default', GCP_DB_SUBNET: 'default' };
+  for (const key of ['GCP_RDS_DATABASE_SECRET', 'GCP_RDS_CA_SECRET', 'GCP_DB_NETWORK', 'GCP_DB_SUBNET']) {
+    assert.throws(() => buildReleasePlan({ ...config, [key]: '' }), new RegExp(key));
+  }
+  assert.throws(() => buildReleasePlan({ ...config, GCP_DATABASE_MODE: 'typo' }), /GCP_DATABASE_MODE/);
+});
