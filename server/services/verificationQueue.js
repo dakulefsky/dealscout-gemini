@@ -11,7 +11,7 @@ function attemptAgeKey(deal) {
 }
 
 function oldestCheckedFirst(deals = [], limit = 10) {
-  const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 100);
+  const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), deals.length);
   return [...deals]
     .sort((a, b) => {
       const checkedDiff = verificationAgeKey(a) - verificationAgeKey(b);
