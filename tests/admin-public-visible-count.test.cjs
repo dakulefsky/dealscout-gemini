@@ -26,9 +26,9 @@ test('production admin stats compute shopper-visible count with freshness and ve
   assert.match(source, /price_check_at <= \$3/);
 });
 
-test('admin dashboard labels live inventory from publicVisibleCount and explains freshness holdback', () => {
+test('admin dashboard labels live inventory from publicVisibleCount and explains hidden approved inventory', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'AdminHome.jsx'), 'utf8');
   assert.match(source, /stats\.publicVisibleCount/);
-  assert.match(source, /approved waiting for a fresh price check/);
+  assert.match(source, /approved but currently hidden/);
   assert.match(source, /Visible deals:<\/span> \{publicVisibleCount/);
 });
