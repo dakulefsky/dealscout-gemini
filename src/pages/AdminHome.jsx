@@ -236,6 +236,19 @@ export default function AdminHome() {
             <div className="flex justify-between"><span className="text-slate-500">Missing images</span><span className={integrity.missingImages > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.missingImages || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Stale prices</span><span className={integrity.stalePrices > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.stalePrices || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Approved unverified</span><span className={integrity.unverifiedApproved > 0 ? 'font-bold text-rose-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.unverifiedApproved || 0}</span></div>
+            {integrity.visibility && !loadFailures.includes('integrity health') && (
+              <div className="border-t border-slate-200 pt-3 mt-3 space-y-2">
+                <h3 className="font-bold text-slate-900">Why approved deals are hidden</h3>
+                {[
+                  ['stale', 'Price older than 24 hours'], ['unchecked', 'No price check recorded'],
+                  ['belowDiscount', 'Below minimum savings'], ['invalidPrice', 'Invalid price information'],
+                  ['unverified', 'Source not verified'], ['futureCheck', 'Price check dated in the future'],
+                ].map(([key, label]) => (
+                  <div key={key} className="flex justify-between gap-3"><span className="text-slate-500">{label}</span><span className="font-bold">{integrity.visibility.hidden[key] || 0}</span></div>
+                ))}
+                <p className="text-xs text-slate-500">Each hidden deal is counted once. Counts reflect the last dashboard refresh.</p>
+              </div>
+            )}
           </div>
         </div>
       </div>

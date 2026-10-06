@@ -31,3 +31,10 @@ test('last attempt only breaks ties between equally stale deals', () => {
 test('verification queue respects the batch limit', () => {
   assert.equal(oldestCheckedFirst([{ id: 1 }, { id: 2 }, { id: 3 }], 2).length, 2);
 });
+
+test('full queue scan reaches eligible deals beyond 100 backed-off records', () => {
+  const rows = Array.from({ length: 197 }, (_, i) => ({ id: i, price_check_at: i, backedOff: i < 100 }));
+  const candidates = oldestCheckedFirst(rows, rows.length).filter(row => !row.backedOff).slice(0, 12);
+  assert.equal(candidates.length, 12);
+  assert.equal(candidates[0].id, 100);
+});

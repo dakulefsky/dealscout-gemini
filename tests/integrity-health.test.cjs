@@ -38,3 +38,21 @@ test('aggregate integrity health uses real time instead of array callback indexe
     assert.equal(health.liveDeals, 3);
   } finally { repo.listAll = original; }
 });
+
+test('hidden reasons are exclusive and reconcile with approved inventory', () => {
+  const { visibilityBreakdown } = require('../server/services/integrityHealthService');
+  const now = Math.floor(Date.now() / 1000);
+  const base = { source_verified: 1, original_price: 100, sale_price: 60, price_check_at: now - 60 };
+  const result = visibilityBreakdown([
+    base,
+    { ...base, source_verified: 0, price_check_at: 0 },
+    { ...base, sale_price: 120 },
+    { ...base, sale_price: 99 },
+    { ...base, price_check_at: 0 },
+    { ...base, price_check_at: now + 100 },
+    { ...base, price_check_at: now - 90000 },
+  ], now);
+  assert.equal(result.visible, 1);
+  assert.deepEqual(result.hidden, { unverified: 1, invalidPrice: 1, belowDiscount: 1, unchecked: 1, futureCheck: 1, stale: 1 });
+  assert.equal(result.approved, result.visible + Object.values(result.hidden).reduce((a, b) => a + b, 0));
+});

@@ -1,5 +1,5 @@
 const deals = require('../repositories/dealRepository');
-const { isPriceFresh, PUBLIC_PRICE_MAX_AGE_SECONDS } = require('./publicDealPolicy');
+const { isPriceFresh, hasValidPricePair, meetsMinimumDiscount, checkedAtSeconds, PUBLIC_PRICE_MAX_AGE_SECONDS } = require('./publicDealPolicy');
 
 function hasLegacyEnrichment(deal) {
   return Boolean(
@@ -20,6 +20,22 @@ function isStalePrice(deal, now = Math.floor(Date.now() / 1000), maxAgeSeconds =
   return !isPriceFresh(deal, now, maxAgeSeconds);
 }
 
+function visibilityBreakdown(approved, now = Math.floor(Date.now() / 1000)) {
+  const hidden = { unverified: 0, invalidPrice: 0, belowDiscount: 0, unchecked: 0, futureCheck: 0, stale: 0 };
+  let visible = 0;
+  for (const deal of approved) {
+    // Exclusive reasons: every approved active record belongs to exactly one bucket.
+    if (deal.source_verified !== 1) hidden.unverified++;
+    else if (!hasValidPricePair(deal)) hidden.invalidPrice++;
+    else if (!meetsMinimumDiscount(deal)) hidden.belowDiscount++;
+    else if (!checkedAtSeconds(deal)) hidden.unchecked++;
+    else if (checkedAtSeconds(deal) > now) hidden.futureCheck++;
+    else if (!isPriceFresh(deal, now)) hidden.stale++;
+    else visible++;
+  }
+  return { approved: approved.length, visible, hidden };
+}
+
 async function getIntegrityHealth() {
   const all = await deals.listAll();
   const live = all.filter((deal) => deal.status === 'APPROVED' && deal.is_expired !== 1);
@@ -29,6 +45,7 @@ async function getIntegrityHealth() {
   const legacyEnrichment = live.filter(hasLegacyEnrichment);
 
   return {
+    visibility: visibilityBreakdown(live),
     healthy: unverifiedApproved.length === 0 && missingImages.length === 0 && stalePrices.length === 0,
     liveDeals: live.length,
     unverifiedApproved: unverifiedApproved.length,
@@ -39,4 +56,4 @@ async function getIntegrityHealth() {
   };
 }
 
-module.exports = { getIntegrityHealth, hasLegacyEnrichment, isMissingImage, isStalePrice };
+module.exports = { getIntegrityHealth, hasLegacyEnrichment, isMissingImage, isStalePrice, visibilityBreakdown };
