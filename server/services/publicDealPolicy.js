@@ -1,5 +1,10 @@
+const { isPrimeDay } = require('./primeDayPolicy');
 const PUBLIC_PRICE_MAX_AGE_SECONDS = 24 * 60 * 60;
 const PUBLIC_MIN_DISCOUNT_PERCENT = 15;
+
+function minimumDiscountPercent(now = Date.now()) {
+  return isPrimeDay(now) ? 10 : PUBLIC_MIN_DISCOUNT_PERCENT;
+}
 
 function checkedAtSeconds(deal) {
   const value = Number(deal?.price_check_at ?? deal?.priceCheckAt ?? 0);
@@ -30,7 +35,7 @@ function discountPercent(deal) {
   return ((original - sale) / original) * 100;
 }
 
-function meetsMinimumDiscount(deal, minimum = PUBLIC_MIN_DISCOUNT_PERCENT) {
+function meetsMinimumDiscount(deal, minimum = minimumDiscountPercent()) {
   return discountPercent(deal) >= Number(minimum);
 }
 
@@ -40,7 +45,7 @@ function isPublicDeal(deal, options = {}) {
   if (deal.is_expired === 1 || deal.isExpired === true) return false;
   if (!(deal.source_verified === 1 || deal.sourceVerified === true)) return false;
   if (!hasValidPricePair(deal)) return false;
-  if (!meetsMinimumDiscount(deal)) return false;
+  if (!meetsMinimumDiscount(deal, minimumDiscountPercent(options.nowSeconds === undefined ? Date.now() : options.nowSeconds * 1000))) return false;
   return isPriceFresh(deal, options.nowSeconds, options.maxAgeSeconds);
 }
 
@@ -51,6 +56,7 @@ function freshPriceThreshold(nowSeconds = Math.floor(Date.now() / 1000), maxAgeS
 module.exports = {
   PUBLIC_PRICE_MAX_AGE_SECONDS,
   PUBLIC_MIN_DISCOUNT_PERCENT,
+  minimumDiscountPercent,
   discountPercent,
   meetsMinimumDiscount,
   checkedAtSeconds,

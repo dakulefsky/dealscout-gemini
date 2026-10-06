@@ -1,7 +1,7 @@
 const deals = require('./dealRepository');
 const postgres = require('../storage/postgres');
 const { encodeCursor, decodeCursor } = require('../services/dealCursor');
-const { isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
+const { isPublicDeal, freshPriceThreshold, minimumDiscountPercent } = require('../services/publicDealPolicy');
 const { uniqueQuantityFamilies, QUANTITY_FAMILY_SQL } = require('../services/dealVariantPolicy');
 
 const DISCOUNT_SQL = '(100.0 * (original_price - sale_price) / original_price)';
@@ -179,7 +179,7 @@ async function page(options = {}) {
     'original_price > 0',
     'sale_price > 0',
     'sale_price < original_price',
-    `${DISCOUNT_SQL} >= ${PUBLIC_MIN_DISCOUNT_PERCENT}`,
+    `${DISCOUNT_SQL} >= ${minimumDiscountPercent()}`,
     `price_check_at IS NOT NULL AND price_check_at >= ${freshness} AND price_check_at <= ${now}`,
   ];
   if (filters.category) where.push(`LOWER(COALESCE(category, '')) = LOWER($${params.push(filters.category)})`);

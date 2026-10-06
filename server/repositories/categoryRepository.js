@@ -1,7 +1,7 @@
 const db = require('../db');
 const postgres = require('../storage/postgres');
 const { classifyCategory, strongTitleCategory } = require('../services/categoryClassifier');
-const { isPublicDeal, freshPriceThreshold, PUBLIC_MIN_DISCOUNT_PERCENT } = require('../services/publicDealPolicy');
+const { isPublicDeal, freshPriceThreshold, minimumDiscountPercent } = require('../services/publicDealPolicy');
 
 let schemaReady = false;
 
@@ -129,7 +129,7 @@ async function list({ slug, activeOnly = false } = {}) {
        AND d.original_price > 0
        AND d.sale_price > 0
        AND d.sale_price < d.original_price
-       AND (100.0 * (d.original_price - d.sale_price) / d.original_price) >= ${PUBLIC_MIN_DISCOUNT_PERCENT}
+       AND (100.0 * (d.original_price - d.sale_price) / d.original_price) >= ${minimumDiscountPercent()}
        AND d.price_check_at IS NOT NULL
        AND d.price_check_at >= $1
        AND d.price_check_at <= $2

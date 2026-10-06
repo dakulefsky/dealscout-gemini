@@ -1,4 +1,4 @@
-const { PUBLIC_PRICE_MAX_AGE_SECONDS, hasValidPricePair } = require('./publicDealPolicy');
+const { PUBLIC_PRICE_MAX_AGE_SECONDS, hasValidPricePair, minimumDiscountPercent } = require('./publicDealPolicy');
 
 const CHANNELS = Object.freeze({
   WEB: 'web',
@@ -66,7 +66,8 @@ function evaluateDistribution(deal = {}, channel, nowUnix = Math.floor(Date.now(
   if (!hasValidPricePair(deal)) reasons.push('invalid_price_pair');
 
   const discountPercent = dealDiscountPercent(deal);
-  if (discountPercent < policy.minDiscountPercent) reasons.push('discount_below_channel_minimum');
+  const discountFloor = [CHANNELS.WEB, CHANNELS.APP].includes(channel) ? minimumDiscountPercent(nowUnix * 1000) : policy.minDiscountPercent;
+  if (discountPercent < discountFloor) reasons.push('discount_below_channel_minimum');
 
   const qualityScore = Number(deal.quality_score ?? deal.qualityScore ?? 0) || 0;
   if (qualityScore < policy.minQualityScore) reasons.push('quality_below_channel_minimum');
