@@ -30,6 +30,11 @@ jobs:
       GCP_ADMIN_SERVICE: ${{ vars.GCP_ADMIN_SERVICE || 'dealscout' }}
       GCP_IMAGE_REPOSITORY: ${{ vars.GCP_IMAGE_REPOSITORY }}
       GCP_RUNTIME_SERVICE_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+      GCP_DATABASE_MODE: ${{ vars.GCP_DATABASE_MODE || 'cloudsql' }}
+      GCP_RDS_DATABASE_SECRET: ${{ vars.GCP_RDS_DATABASE_SECRET }}
+      GCP_RDS_CA_SECRET: ${{ vars.GCP_RDS_CA_SECRET }}
+      GCP_DB_NETWORK: ${{ vars.GCP_DB_NETWORK }}
+      GCP_DB_SUBNET: ${{ vars.GCP_DB_SUBNET }}
       CLOUD_SQL_CONNECTION_NAME: ${{ vars.CLOUD_SQL_CONNECTION_NAME }}
       PUBLIC_WEB_URL: ${{ vars.PUBLIC_WEB_URL }}
       CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
@@ -62,8 +67,8 @@ jobs:
           set -euo pipefail
           required=(
             GCP_PROJECT_ID GCP_REGION GCP_WEB_SERVICE GCP_ADMIN_SERVICE GCP_IMAGE_REPOSITORY
-            CLOUD_SQL_CONNECTION_NAME PUBLIC_WEB_URL CORS_ORIGINS
-            AMAZON_ASSOCIATE_TAG GCP_DB_SECRETS GCP_WEB_SECRETS
+            PUBLIC_WEB_URL CORS_ORIGINS
+            AMAZON_ASSOCIATE_TAG GCP_WEB_SECRETS
           )
           missing=()
           for key in "${required[@]}" GCP_WORKLOAD_IDENTITY_PROVIDER GCP_DEPLOY_SERVICE_ACCOUNT; do
@@ -77,6 +82,7 @@ jobs:
             echo "Set these in the repository or its production environment; the two GCP identity entries are GitHub secrets." >&2
             exit 1
           fi
+          node scripts/database-release.mjs validate
           case "$PUBLIC_WEB_URL" in https://*) ;; *) echo "PUBLIC_WEB_URL must use https://" >&2; exit 1 ;; esac
           if [ "$GCP_WEB_SERVICE" = "$GCP_ADMIN_SERVICE" ]; then
             echo "Public shopper and private admin must use different Cloud Run services." >&2
@@ -149,8 +155,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node scripts/database-release.mjs validate
+          mapfile -t DB_ARGS < <(node scripts/database-release.mjs flags)
+          DB_ENV="$(node scripts/database-release.mjs env)"
+          DB_SECRETS="$(node scripts/database-release.mjs secrets)"
           PROVIDER="${DEAL_DATA_PROVIDER:-auto}"
-          ENV_VARS="^|^NODE_ENV=production|PUBLIC_SURFACE_ONLY=true|PUBLIC_WEB_URL=${PUBLIC_WEB_URL}|CORS_ORIGINS=${CORS_ORIGINS}|CLOUD_SQL_CONNECTION_NAME=${CLOUD_SQL_CONNECTION_NAME}|AMAZON_ASSOCIATE_TAG=${AMAZON_ASSOCIATE_TAG}|DEAL_DATA_PROVIDER=${PROVIDER}"
+          ENV_VARS="^|^NODE_ENV=production|PUBLIC_SURFACE_ONLY=true|PUBLIC_WEB_URL=${PUBLIC_WEB_URL}|CORS_ORIGINS=${CORS_ORIGINS}|${DB_ENV}|AMAZON_ASSOCIATE_TAG=${AMAZON_ASSOCIATE_TAG}|DEAL_DATA_PROVIDER=${PROVIDER}"
           [ -n "${RAINFOREST_DOMAIN:-}" ] && ENV_VARS+="|RAINFOREST_DOMAIN=${RAINFOREST_DOMAIN}"
           [ -n "${RAINFOREST_DAILY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|RAINFOREST_DAILY_REQUEST_LIMIT=${RAINFOREST_DAILY_REQUEST_LIMIT}"
           [ -n "${RAINFOREST_MONTHLY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|RAINFOREST_MONTHLY_REQUEST_LIMIT=${RAINFOREST_MONTHLY_REQUEST_LIMIT}"
@@ -165,9 +175,9 @@ jobs:
             --image "$GCP_IMAGE"
             --platform managed
             --allow-unauthenticated
-            --set-cloudsql-instances "$CLOUD_SQL_CONNECTION_NAME"
+            "${DB_ARGS[@]}"
             --set-env-vars "$ENV_VARS"
-            --set-secrets "${GCP_DB_SECRETS},${GCP_WEB_SECRETS}"
+            --set-secrets "${DB_SECRETS},${GCP_WEB_SECRETS}"
             --quiet
           )
           if [ -n "${GCP_RUNTIME_SERVICE_ACCOUNT:-}" ]; then
@@ -179,14 +189,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Intentionally preserve the existing private service environment, IAM,
-          # Cloud SQL attachment, and IAP configuration. Only advance its image.
-          gcloud run deploy "$GCP_ADMIN_SERVICE" \
-            --project "$GCP_PROJECT_ID" \
-            --region "$GCP_REGION" \
-            --image "$GCP_IMAGE" \
-            --platform managed \
-            --quiet
+          # Preserve private IAM/IAP and all non-database admin configuration.
+          ARGS=(run deploy "$GCP_ADMIN_SERVICE"
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
+            --image "$GCP_IMAGE" --platform managed --quiet)
+          if [ "${GCP_DATABASE_MODE:-cloudsql}" = "rds" ]; then
+            node scripts/database-release.mjs validate
+            mapfile -t DB_ARGS < <(node scripts/database-release.mjs flags)
+            DB_ENV="$(node scripts/database-release.mjs env)"
+            DB_SECRETS="$(node scripts/database-release.mjs secrets)"
+            ARGS+=("${DB_ARGS[@]}" --remove-env-vars CLOUD_SQL_CONNECTION_NAME
+              --update-env-vars "^|^${DB_ENV}" --update-secrets "$DB_SECRETS")
+            if [ -n "${GCP_RUNTIME_SERVICE_ACCOUNT:-}" ]; then
+              ARGS+=(--service-account "$GCP_RUNTIME_SERVICE_ACCOUNT")
+            fi
+          fi
+          gcloud "${ARGS[@]}"
 
       - name: Verify public and private image parity
         shell: bash

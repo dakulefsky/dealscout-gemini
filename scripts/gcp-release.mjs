@@ -1,3 +1,4 @@
+import { databaseRelease } from './database-release.mjs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -78,7 +79,7 @@ export function buildReleasePlan(env = process.env) {
   const project = requireValue(env, 'GCP_PROJECT_ID');
   const region = text(env, 'GCP_REGION', 'us-central1');
   const image = requireValue(env, 'GCP_IMAGE');
-  const cloudSql = requireValue(env, 'CLOUD_SQL_CONNECTION_NAME');
+  const database = databaseRelease(env);
   const publicWebUrl = requireValue(env, 'PUBLIC_WEB_URL');
   const corsOrigins = requireValue(env, 'CORS_ORIGINS');
   const affiliateTag = requireValue(env, 'AMAZON_ASSOCIATE_TAG');
@@ -90,8 +91,8 @@ export function buildReleasePlan(env = process.env) {
   const serviceAccount = text(env, 'GCP_RUNTIME_SERVICE_ACCOUNT');
 
   const dbSecrets = requireSecretMappings(
-    requireValue(env, 'GCP_DB_SECRETS'),
-    ['DB_USER', 'DB_PASSWORD', 'DB_NAME'],
+    database.secrets,
+    database.mode === 'rds' ? ['DATABASE_URL', '/etc/rds-ca/aws-ca.pem'] : ['DB_USER', 'DB_PASSWORD', 'DB_NAME'],
     'GCP_DB_SECRETS'
   );
   const webSecrets = requireSecretMappings(
@@ -114,7 +115,7 @@ export function buildReleasePlan(env = process.env) {
     ['PUBLIC_SURFACE_ONLY', 'true'],
     ['PUBLIC_WEB_URL', publicWebUrl],
     ['CORS_ORIGINS', corsOrigins],
-    ['CLOUD_SQL_CONNECTION_NAME', cloudSql],
+    ...database.entries,
     ['AMAZON_ASSOCIATE_TAG', affiliateTag],
     ['DEAL_DATA_PROVIDER', dealProvider],
     ['RAINFOREST_DOMAIN', text(env, 'RAINFOREST_DOMAIN')],
@@ -127,7 +128,7 @@ export function buildReleasePlan(env = process.env) {
 
   const publisherEnv = encodeEnvVars([
     ['NODE_ENV', 'production'],
-    ['CLOUD_SQL_CONNECTION_NAME', cloudSql],
+    ...database.entries,
     ['PUBLICATION_CHANNEL', 'whatsapp_status'],
     ['PUBLICATION_TRANSPORT', 'waha'],
     ['PUBLICATION_RUN_MODE', 'continuous'],
@@ -147,7 +148,7 @@ export function buildReleasePlan(env = process.env) {
     '--image', image,
     '--platform', 'managed',
     '--allow-unauthenticated',
-    '--set-cloudsql-instances', cloudSql,
+    ...database.flags,
     '--set-env-vars', webEnv,
     '--set-secrets', combinedWebSecrets,
   ];
@@ -160,12 +161,18 @@ export function buildReleasePlan(env = process.env) {
     '--platform', 'managed',
   ];
 
+  if (database.mode === 'rds') {
+    admin.push(...database.flags, '--remove-env-vars', 'CLOUD_SQL_CONNECTION_NAME',
+      '--update-env-vars', encodeEnvVars(database.entries), '--update-secrets', database.secrets);
+    if (serviceAccount) pushFlag(admin, '--service-account', serviceAccount);
+  }
+
   const publisher = ['run', 'worker-pools', 'deploy', publisherPool,
     '--project', project,
     '--region', region,
     '--image', image,
     '--instances', '1',
-    '--set-cloudsql-instances', cloudSql,
+    ...database.flags,
     '--command', 'node',
     '--args', 'publication-worker.js',
     '--set-env-vars', publisherEnv,
