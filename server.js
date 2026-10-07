@@ -76,21 +76,29 @@ function dealInitialContent(deal) {
   return `<main data-server-crawl-content="deal"><article>${image}<p>${category}</p><h1>${title}</h1><p><strong>$${current.toFixed(2)}</strong>${original > current ? ` <del>$${original.toFixed(2)}</del>` : ''}</p>${savings > 0 ? `<p>Save $${savings.toFixed(2)} while this verified price is current.</p>` : ''}${productUrl}<p><a href="/">Browse more current deals</a></p></article></main>`;
 }
 
+const categoryContent = require('./shared/categoryContent.json');
+const dealCollections = require('./shared/dealCollections.json');
+
+function collectionInitialContent(collection, deals) {
+  const links = deals.map((deal) => `<li><a href="/deal/${encodeURIComponent(deal.id || deal.asin)}">${escapeHtml(deal.title)}</a> — $${Number(deal.sale_price ?? deal.salePrice).toFixed(2)}</li>`).join('');
+  return `<main data-server-crawl-content="collection"><h1>${escapeHtml(collection.name)}</h1><p>${escapeHtml(collection.description)}</p>${links ? `<ul>${links}</ul>` : '<p>No current deals match this collection.</p>'}<h2>Before you buy</h2><p>${escapeHtml(collection.guidance)}</p><p><a href="/how-we-find-deals">How DealScout selects deals</a></p><p><a href="/">Browse departments</a></p></main>`;
+}
+
 function categoryInitialContent(category, deals = []) {
   const name = escapeHtml(category.name || 'Deals');
-  const description = escapeHtml(category.description || `Current ${name} deals and price drops.`);
+  const description = escapeHtml(categoryContent[category.slug]?.intro || category.description || `Current ${name} deals and price drops.`);
   const count = Number(category.liveCount || 0);
-  const dealLinks = (deals || []).slice(0, 12).map((deal) => {
+  const dealLinks = (deals || []).slice(0, 50).map((deal) => {
     const title = escapeHtml(deal.title || 'Deal');
     const current = Number(deal.sale_price ?? deal.salePrice ?? 0);
     return `<li><a href="/deal/${encodeURIComponent(deal.id || deal.asin)}">${title}</a>${current > 0 ? ` — ${current.toFixed(2)}` : ''}</li>`;
   }).join('');
-  return `<main data-server-crawl-content="category"><h1>${name} deals &amp; price drops</h1><p>${description}</p><p>${count} current ${count === 1 ? 'deal' : 'deals'} available.</p>${dealLinks ? `<section><h2>Current ${name} deals</h2><ul>${dealLinks}</ul></section>` : ''}<p><a href="/">Browse all current deals</a></p></main>`;
+  return `<main data-server-crawl-content="category"><h1>${name} deals &amp; price drops</h1><p>${description}</p><p>${count} current ${count === 1 ? 'deal' : 'deals'} available.</p>${categoryContent[category.slug]?.guidance ? `<p>${escapeHtml(categoryContent[category.slug].guidance)}</p>` : ''}${dealLinks ? `<section><h2>Current ${name} deals</h2><ul>${dealLinks}</ul></section>` : ''}<p><a href="/">Browse all current deals</a></p></main>`;
 }
 
 function homeInitialContent(categories = []) {
   const links = categories.map((category) => `<li><a href="/category/${encodeURIComponent(category.slug)}">${escapeHtml(category.name)}</a></li>`).join('');
-  return `<main data-server-crawl-content="home"><h1>Amazon deals &amp; price drops worth checking</h1><p>DealScout surfaces current Amazon discounts with recently verified prices and clear savings.</p>${links ? `<nav aria-label="Deal categories"><h2>Browse current deal categories</h2><ul>${links}</ul></nav>` : ''}</main>`;
+  return `<main data-server-crawl-content="home"><h1>Amazon deals &amp; price drops worth checking</h1><p>DealScout surfaces current Amazon discounts with recently verified prices and clear savings.</p>${links ? `<nav aria-label="Deal categories"><h2>Browse current deal categories</h2><ul>${links}</ul></nav>` : ''}<nav aria-label="Deal collections"><h2>Browse by budget and savings</h2><ul>${dealCollections.map((c) => `<li><a href="/deals/${c.slug}">${escapeHtml(c.shortName)}</a></li>`).join('')}</ul></nav><p><a href="/how-we-find-deals">How DealScout finds deals</a></p></main>`;
 }
 
 async function startServer() {
@@ -160,6 +168,7 @@ async function startServer() {
     try {
       const closure = await jewishClosure.currentStatus();
       if (!closure.closed) return next();
+      res.set('X-DealScout-Closure', 'scheduled');
       const retryAfter = '3600';
       res.set('Retry-After', retryAfter);
       res.set('Cache-Control', 'no-store');
@@ -229,6 +238,7 @@ async function startServer() {
         let status = 200;
         let initialContent = '';
         const dealMatch = req.path.match(/^\/deal\/([^/]+)$/);
+        const collectionMatch = req.path.match(/^\/deals\/([^/]+)$/);
         const categoryMatch = req.path.match(/^\/category\/([^/]+)$/);
         if (req.path.startsWith('/admin')) {
           meta = { ...seo.homeMeta(baseUrl), title: 'DealScout Admin', description: 'Private DealScout administration.', canonical: null, robots: 'noindex,nofollow' };
@@ -241,12 +251,25 @@ async function startServer() {
             status = 404;
             meta = { title: 'Deal not found — DealScout', description: 'This deal is no longer available.', canonical: null, robots: 'noindex,follow' };
           }
+        } else if (collectionMatch) {
+          const collection = dealCollections.find((c) => c.slug === collectionMatch[1]);
+          if (!collection) {
+            status = 404;
+            meta = { title: 'Collection not found — DealScout', description: 'This collection does not exist.', robots: 'noindex,follow' };
+          } else {
+            const page = await dealFeedRepository.page({ ...collection.filters, sort: 'best', limit: 50 });
+            meta = seo.collectionMeta(baseUrl, collection, page.items);
+            initialContent = collectionInitialContent(collection, page.items);
+          }
+        } else if (req.path === '/how-we-find-deals') {
+          meta = { title: 'How DealScout finds deals', description: 'How DealScout checks Amazon offers, calculates savings, and earns affiliate commissions.', canonical: `${baseUrl}/how-we-find-deals` };
+          initialContent = '<main data-server-crawl-content="methodology"><h1>How DealScout finds deals</h1><p>Offers pass automated price, availability and product-data checks. Admin controls allow manual review and corrections; publication does not necessarily mean a personal editor recommendation.</p><h2>Prices and savings</h2><p>Savings compare the checked offer price with the reference price supplied by the Amazon listing. They do not guarantee the lowest historical price. Check the exact size, color, quantity and seller.</p><h2>Keeping offers current</h2><p>Public listings require a price check within the past 24 hours. Product pages show the check time. Amazon has the final price, shipping terms and availability.</p><h2>How we earn</h2><p>As an Amazon Associate we earn from qualifying purchases.</p><p><a href="/disclosure">Affiliate disclosure</a> · <a href="/support">Report a problem</a> · <a href="/">Browse departments</a></p></main>';
         } else if (categoryMatch) {
           const rows = await categoryRepository.list({ slug: decodeURIComponent(categoryMatch[1]), activeOnly: false });
           if (rows[0]) {
             let categoryDeals = [];
             try {
-              const page = await dealFeedRepository.page({ category: rows[0].name, limit: 12, sort: 'discount_desc' });
+              const page = await dealFeedRepository.page({ category: rows[0].name, limit: 50, sort: 'discount_desc' });
               categoryDeals = page.items || [];
             } catch (error) {
               console.warn('[DealScout] Category crawl links unavailable:', error.message);
