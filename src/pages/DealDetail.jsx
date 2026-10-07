@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
+import ShareDeal from '@/components/ShareDeal';
 import { useParams, Link } from 'react-router-dom';
 import { Image } from '@/components/ui/image';
-import { useToast } from '@/components/ui/use-toast';
 import DealCard, { formatPrice } from '@/components/DealCard';
 import MembershipOffers from '@/components/MembershipOffers';
 import { splitProductTitle } from '@/lib/productTitle';
@@ -13,7 +13,7 @@ import { deals as dealsApi, editorial as editorialApi } from '@/lib/api';
 import { useBookmarks } from '@/lib/BookmarksContext';
 import SidebarAds from '@/components/SidebarAds';
 import AdSensePlaceholder from '@/components/AdSensePlaceholder';
-import { ArrowLeft, ShoppingBag, Loader2, Heart, Share2, CheckCircle2, ExternalLink, ShieldCheck, AlertTriangle, Star, ArrowRight, BadgePercent } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Loader2, Heart, CheckCircle2, ExternalLink, ShieldCheck, AlertTriangle, Star, ArrowRight, BadgePercent } from 'lucide-react';
 
 function dealIdentity(deal) {
   return String(deal?.id || deal?.asin || '').trim();
@@ -56,8 +56,6 @@ export default function DealDetail() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [retryNonce, setRetryNonce] = useState(0);
-  const [copiedLink, setCopiedLink] = useState(false);
-  const { toast } = useToast();
   const { isSaved, toggleBookmark } = useBookmarks();
 
   useEffect(() => {
@@ -124,36 +122,6 @@ export default function DealDetail() {
     toggleBookmark(deal);
   }
 
-  async function handleShare() {
-    const url = window.location.href;
-    if (typeof navigator.share === 'function') {
-      try {
-        await navigator.share({ title: deal?.title || 'DealScout deal', url });
-        return;
-      } catch (error) {
-        if (error?.name === 'AbortError') return;
-      }
-    }
-
-    if (navigator.clipboard?.writeText) {
-      try {
-        await navigator.clipboard.writeText(url);
-        setCopiedLink(true);
-        toast({ title: 'Link copied' });
-        setTimeout(() => setCopiedLink(false), 2500);
-        return;
-      } catch {
-        // Fall through to an explicit error instead of claiming the link was copied.
-      }
-    }
-
-    toast({
-      title: 'Could not share link',
-      description: 'Copy the page address from your browser and share it from there.',
-      variant: 'destructive',
-    });
-  }
-
   if (loading) return <div className="ds-shell py-24 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-800" /></div>;
 
   if (!deal) {
@@ -200,7 +168,7 @@ export default function DealDetail() {
         </main>
 
         <aside className="lg:sticky lg:top-24 min-w-0">
-          <div className="flex items-center justify-between gap-4"><Link to={categoryPath} className="ds-kicker hover:text-emerald-700">{deal.category || 'Deal'}</Link><div className="flex items-center gap-1"><button type="button" onClick={handleShare} aria-label="Share deal" className="w-9 h-9 border border-emerald-950/15 flex items-center justify-center text-slate-500 hover:text-emerald-900 focus-visible:ring-2 focus-visible:ring-emerald-800">{copiedLink ? <CheckCircle2 className="w-4 h-4 text-emerald-700" /> : <Share2 className="w-4 h-4" />}</button><button type="button" onClick={handleSave} aria-label={saved ? `Remove ${deal.title} from saved deals` : `Save ${deal.title}`} className={`w-9 h-9 border flex items-center justify-center focus-visible:ring-2 focus-visible:ring-emerald-800 ${saved ? 'bg-emerald-950 text-white border-emerald-950' : 'border-emerald-950/15 text-slate-500 hover:text-emerald-900'}`}><Heart className={`w-4 h-4 ${saved ? 'fill-white' : ''}`} /></button></div></div>
+          <div className="flex items-center justify-between gap-4"><Link to={categoryPath} className="ds-kicker hover:text-emerald-700">{deal.category || 'Deal'}</Link><div className="flex items-center gap-1"><ShareDeal deal={deal} /><button type="button" onClick={handleSave} aria-label={saved ? `Remove ${deal.title} from saved deals` : `Save ${deal.title}`} className={`w-9 h-9 border flex items-center justify-center focus-visible:ring-2 focus-visible:ring-emerald-800 ${saved ? 'bg-emerald-950 text-white border-emerald-950' : 'border-emerald-950/15 text-slate-500 hover:text-emerald-900'}`}><Heart className={`w-4 h-4 ${saved ? 'fill-white' : ''}`} /></button></div></div>
           <h1 className="text-xl sm:text-2xl font-bold leading-snug text-slate-900 mt-4">{productTitle.name}</h1>
           {productTitle.details && <p className="text-sm sm:text-base font-normal leading-relaxed text-slate-600 mt-3">{productTitle.details}</p>}
           <div className="mt-5 border-y border-slate-200 py-4"><div className="flex items-baseline gap-3 flex-wrap"><span className={`text-3xl font-bold tracking-tight ${deal.isExpired ? 'text-slate-500 line-through' : 'text-emerald-950'}`}>{formatPrice(deal.salePrice)}</span>{deal.originalPrice > deal.salePrice && <span className="text-sm text-slate-400 line-through">{formatPrice(deal.originalPrice)}</span>}</div>{!deal.isExpired && savings > 0 && <div className="mt-3 flex items-center justify-between gap-3"><span className="text-sm font-bold text-emerald-800">You save {formatPrice(savings)}</span>{deal.discountPercent > 0 && <span className="text-xs font-black bg-[#dcebdc] text-emerald-950 px-2 py-1">{deal.discountPercent}% OFF</span>}</div>}</div>
