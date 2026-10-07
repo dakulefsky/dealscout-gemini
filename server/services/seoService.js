@@ -58,7 +58,7 @@ function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now()
 }
 
 function buildRobots(baseUrl) {
-  return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: ${baseUrl}/sitemap.xml\n`;
+  return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nAllow: /api/v1/deals\nAllow: /api/v1/categories\nAllow: /api/v1/seasonal-promotion\nAllow: /api/editorial/\nSitemap: ${baseUrl}/sitemap.xml\n`;
 }
 
 function replaceMeta(html, { title, description, canonical, robots = 'index,follow', jsonLd, image, nonce }) {
