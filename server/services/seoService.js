@@ -59,7 +59,7 @@ function replaceMeta(html, { title, description, canonical, robots = 'index,foll
     .replace(/\s*<meta\s+name=["']robots["'][^>]*>/gi, '')
     .replace(/\s*<link\s+rel=["']canonical["'][^>]*>/gi, '')
     .replace(/\s*<meta\s+property=["']og:(?:title|description|url|image)["'][^>]*>/gi, '')
-    .replace(/\s*<meta\s+name=["']twitter:(?:title|description|image)["'][^>]*>/gi, '');
+    .replace(/\s*<meta\s+name=["']twitter:(?:card|title|description|image)["'][^>]*>/gi, '');
 
   const additions = [
     `<meta name="robots" content="${htmlEscape(robots)}" />`,
@@ -67,7 +67,8 @@ function replaceMeta(html, { title, description, canonical, robots = 'index,foll
     `<meta property="og:title" content="${htmlEscape(title)}" />`,
     `<meta property="og:description" content="${htmlEscape(description)}" />`,
     canonical ? `<meta property="og:url" content="${htmlEscape(canonical)}" />` : '',
-    image ? `<meta property="og:image" content="${htmlEscape(image)}" />` : '',
+    image ? `<meta property="og:image" content="${htmlEscape(image)}" />\n<meta property="og:image:alt" content="${htmlEscape(title)}" />` : '',
+    `<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}" />`,
     `<meta name="twitter:title" content="${htmlEscape(title)}" />`,
     `<meta name="twitter:description" content="${htmlEscape(description)}" />`,
     image ? `<meta name="twitter:image" content="${htmlEscape(image)}" />` : '',

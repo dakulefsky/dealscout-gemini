@@ -52,15 +52,14 @@ test('secondary product content failures cannot erase a valid core deal', () => 
   assert.ok(primaryCatchIndex > secondaryCatchIndex);
 });
 
-test('product share uses native sharing when available and only claims clipboard success after awaiting it', () => {
-  assert.match(source, /async function handleShare\(\)/);
-  assert.match(source, /typeof navigator\.share === 'function'/);
-  assert.match(source, /await navigator\.share\(\{ title: deal\?\.title \|\| 'DealScout deal', url \}\)/);
-  assert.match(source, /if \(error\?\.name === 'AbortError'\) return/);
-  assert.match(source, /await navigator\.clipboard\.writeText\(url\)/);
-  assert.match(source, /toast\(\{ title: 'Link copied' \}\)/);
-  assert.match(source, /Could not share link/);
-  assert.doesNotMatch(source, /navigator\.clipboard\.writeText\(window\.location\.href\);\s*setCopiedLink\(true\)/);
+test('product sharing keeps native sharing and honest clipboard feedback', () => {
+  const share = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'ShareDeal.jsx'), 'utf8');
+  assert.match(source, /<ShareDeal/);
+  assert.match(share, /await navigator\.share/);
+  assert.match(share, /AbortError/);
+  assert.match(share, /await navigator\.clipboard\.writeText\(share\.message\)/);
+  assert.ok(share.indexOf('await navigator.clipboard.writeText') < share.indexOf("title: 'Deal copied'"));
+  assert.match(share, /Select and copy the message below/);
 });
 
 

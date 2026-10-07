@@ -25,7 +25,7 @@ test('deal detail is product-first and keeps core commerce actions intact', () =
   assert.match(detail, /View deal on Amazon/);
   assert.match(detail, /href=\{amazonHref\}/);
   assert.match(detail, /toggleBookmark\(deal\)/);
-  assert.match(detail, /navigator\.clipboard\.writeText/);
+  assert.match(detail, /<ShareDeal deal=\{deal\}/);
   assert.match(detail, /focus-visible:ring-2/);
   assert.match(detail, /Keep browsing/);
   assert.doesNotMatch(detail, /rounded-3xl/);
