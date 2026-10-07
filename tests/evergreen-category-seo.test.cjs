@@ -38,13 +38,13 @@ test('sitemap focuses on canonical URLs and fresh deal lastmod values', () => {
 
 test('category shopper page contains evergreen guidance and internal category links', () => {
   const page = fs.readFileSync(path.join(root, 'src', 'pages', 'CategoryPage.jsx'), 'utf8');
-  const content = fs.readFileSync(path.join(root, 'src', 'lib', 'categorySeoContent.js'), 'utf8');
+  const content = fs.readFileSync(path.join(root, 'shared', 'categoryContent.json'), 'utf8');
 
   assert.match(page, /categorySeoContent/);
   assert.match(page, /Buying notes/);
   assert.match(page, /Related deal categories/);
   assert.match(page, /to=\{`\/category\/\$\{item\.slug\}`\}/);
-  assert.match(content, /electronics:/);
+  assert.match(content, /"electronics":/);
   assert.match(content, /home-kitchen/);
-  assert.match(content, /grocery:/);
+  assert.match(content, /"grocery":/);
 });

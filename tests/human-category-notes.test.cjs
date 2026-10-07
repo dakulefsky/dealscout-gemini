@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'categorySeoContent.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'shared', 'categoryContent.json'), 'utf8');
 
 test('category notes stay concrete and avoid generic SEO-template language', () => {
   assert.doesNotMatch(source, /permanent category|stable destination|live offers change|lasting destination|search discovery/i);
@@ -17,5 +17,5 @@ test('canonical departments each carry explicit guidance copy', () => {
   for (const slug of slugs) {
     assert.ok(source.includes(slug), `missing ${slug}`);
   }
-  assert.ok((source.match(/guidance:/g) || []).length >= slugs.length);
+  assert.ok((source.match(/"guidance":/g) || []).length >= slugs.length);
 });

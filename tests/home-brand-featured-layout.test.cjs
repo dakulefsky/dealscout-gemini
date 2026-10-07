@@ -6,7 +6,7 @@ const home = fs.readFileSync(path.join(__dirname, '..', 'src/pages/Home.jsx'), '
 test('home presents departments before products and an accessible browse toolbar', () => {
   assert.match(home, /Shop by department/);
   assert.ok(home.indexOf('aria-label="Shop by department"') < home.indexOf('aria-labelledby="best-deals-heading"'));
-  assert.match(home, /encodeURIComponent\(category.name\)/);
+  assert.match(home, /to=\{`\/category\/\$\{category\.slug\}`\}/);
   assert.match(home, /\.map\(\(category\)/);
   assert.match(home, /aria-labelledby="best-deals-heading"/);
   assert.match(home, /aria-labelledby="browse-deals-heading"/);

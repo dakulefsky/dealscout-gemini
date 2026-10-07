@@ -1,3 +1,5 @@
+const categoryContent = require('../../shared/categoryContent.json');
+const collections = require('../../shared/dealCollections.json');
 const { PUBLIC_PRICE_MAX_AGE_SECONDS, hasValidPricePair } = require('./publicDealPolicy');
 
 const PUBLIC_PRICE_MAX_AGE_HOURS = PUBLIC_PRICE_MAX_AGE_SECONDS / 3600;
@@ -17,10 +19,19 @@ function siteBase(req, configuredOrigin) {
   return `${protocol}://${req.get('host')}`.replace(/\/$/, '');
 }
 
+function collectionMatches(collection, deal) {
+  const sale = Number(deal.sale_price ?? deal.salePrice);
+  const original = Number(deal.original_price ?? deal.originalPrice);
+  if (!Number.isFinite(sale) || !Number.isFinite(original) || sale <= 0 || original <= sale) return false;
+  return (collection.filters.maxPrice === undefined || sale <= collection.filters.maxPrice)
+    && (collection.filters.minDiscount === undefined || (1 - sale / original) * 100 >= collection.filters.minDiscount);
+}
+
 function priceCheckAgeHours(deal, nowMs = Date.now()) {
   const checkedAt = Number(deal?.price_check_at ?? deal?.priceCheckAt ?? 0);
   if (!Number.isFinite(checkedAt) || checkedAt <= 0) return Infinity;
-  return Math.max(0, (nowMs - checkedAt * 1000) / 3600000);
+  if (checkedAt * 1000 > nowMs) return Infinity;
+  return (nowMs - checkedAt * 1000) / 3600000;
 }
 
 function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now(), maxDealAgeHours = PUBLIC_PRICE_MAX_AGE_HOURS }) {
@@ -37,6 +48,8 @@ function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now()
     { loc: `${baseUrl}/`, lastmod: iso(latestCheck) },
     ...categories.map((c) => ({ loc: `${baseUrl}/category/${encodeURIComponent(c.slug)}`, lastmod: iso(latestByCategory.get(String(c.name || '').trim().toLowerCase())) })),
     ...freshDeals.map((d) => ({ loc: `${baseUrl}/deal/${encodeURIComponent(d.id || d.asin)}`, lastmod: iso(d.price_check_at) })),
+    ...collections.filter((c) => freshDeals.some((d) => collectionMatches(c, d))).map((c) => ({ loc: `${baseUrl}/deals/${c.slug}` })),
+    { loc: `${baseUrl}/how-we-find-deals` },
     { loc: `${baseUrl}/disclosure` },
     { loc: `${baseUrl}/privacy` },
     { loc: `${baseUrl}/support` },
@@ -103,10 +116,10 @@ function categoryMeta(baseUrl, category, deals = []) {
   const name = category?.name || 'Amazon Deals';
   const slug = category?.slug || 'other';
   const canonical = `${baseUrl}/category/${encodeURIComponent(slug)}`;
-  const description = category?.description
+  const description = categoryContent[slug]?.intro ? `Browse current ${name} deals on DealScout. ${categoryContent[slug].intro}` : category?.description
     ? `Browse current ${name} deals and price drops on DealScout. ${category.description}`
     : `Browse current ${name} deals and price drops on DealScout, with recently verified prices and rotating live offers.`;
-  const dealItems = (deals || []).slice(0, 12).map((deal, index) => ({
+  const dealItems = (deals || []).slice(0, 50).map((deal, index) => ({
     '@type': 'ListItem',
     position: index + 1,
     name: deal.title,
@@ -133,6 +146,23 @@ function categoryMeta(baseUrl, category, deals = []) {
     ],
   };
   return { title: `${name} Deals & Price Drops — DealScout`, description, canonical, jsonLd };
+}
+
+function collectionMeta(baseUrl, collection, deals = []) {
+  const canonical = `${baseUrl}/deals/${collection.slug}`;
+  return {
+    title: `${collection.name} — DealScout`, description: collection.description, canonical,
+    robots: deals.length ? 'index,follow' : 'noindex,follow',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'CollectionPage',
+      name: collection.name, description: collection.description, url: canonical,
+      mainEntity: { '@type': 'ItemList', itemListElement: deals.map((d, index) => ({
+        '@type': 'ListItem', position: index + 1, name: d.title,
+        url: `${baseUrl}/deal/${encodeURIComponent(d.id || d.asin)}`,
+      })) },
+    },
+  };
 }
 
 function dealMeta(baseUrl, deal, nowMs = Date.now()) {
@@ -183,4 +213,4 @@ function dealMeta(baseUrl, deal, nowMs = Date.now()) {
   return { title, description, canonical, image, jsonLd, robots: 'index,follow' };
 }
 
-module.exports = { siteBase, priceCheckAgeHours, buildSitemap, buildRobots, replaceMeta, homeMeta, categoryMeta, dealMeta };
+module.exports = { collectionMeta, collectionMatches, siteBase, priceCheckAgeHours, buildSitemap, buildRobots, replaceMeta, homeMeta, categoryMeta, dealMeta };

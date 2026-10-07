@@ -19,6 +19,7 @@ RUN npm ci --omit=dev --no-audit --no-fund \
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node server.js publication-worker.js ./
 COPY --chown=node:node server ./server
+COPY --chown=node:node shared ./shared
 
 USER node
 EXPOSE 8080

@@ -1,0 +1,5 @@
+[
+  {"slug":"under-25","name":"Amazon deals under $25","shortName":"Under $25","description":"Browse current Amazon discounts priced at $25 or less, from household essentials to small gifts and everyday accessories.","guidance":"Compare pack quantity and shipping before buying. A low item price does not always mean a lower total cost.","filters":{"maxPrice":25}},
+  {"slug":"under-50","name":"Amazon deals under $50","shortName":"Under $50","description":"Find current Amazon deals priced at $50 or less across electronics, home, clothing and other departments.","guidance":"Compare the exact model, size and included accessories. These are current listed prices, before any shipping or taxes.","filters":{"maxPrice":50}},
+  {"slug":"half-price","name":"Amazon deals at least 50% off","shortName":"50% off or more","description":"Browse current Amazon offers with a checked price at least 50% below the listed reference price.","guidance":"The percentage compares the checked price with the listing’s reference price; it is not a guarantee of the lowest historical price. Confirm the selected variant on Amazon.","filters":{"minDiscount":50}}
+]

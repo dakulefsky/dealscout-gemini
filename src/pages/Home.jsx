@@ -1,3 +1,4 @@
+import dealCollections from '../../shared/dealCollections.json';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, ChevronLeft, ChevronRight, TrendingDown, Search, LayoutGrid, List, RotateCcw, SlidersHorizontal, ShoppingBag, Laptop, House, Shirt, HeartPulse, PawPrint, Blocks } from 'lucide-react';
@@ -195,7 +196,7 @@ export default function Home() {
         {categories.length > 0 ? <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2">
           {categories.filter((category) => category.name !== 'Other').map((category) => {
             const { Icon } = departmentStyle(category.name);
-            return <Link key={category.id || category.slug || category.name} to={`/?category=${encodeURIComponent(category.name)}`} className="group flex items-center gap-2 min-h-16 px-2 sm:px-3 py-2 border border-slate-200 rounded-md text-xs sm:text-sm font-semibold leading-tight text-slate-800 hover:border-emerald-800 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">
+            return <Link key={category.id || category.slug || category.name} to={`/category/${category.slug}`} className="group flex items-center gap-2 min-h-16 px-2 sm:px-3 py-2 border border-slate-200 rounded-md text-xs sm:text-sm font-semibold leading-tight text-slate-800 hover:border-emerald-800 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800">
               <span className="flex items-center justify-center w-8 h-8 shrink-0 text-slate-600"><Icon aria-hidden="true" className="w-[18px] h-[18px]" /></span>
               <span className="flex-1 min-w-0">{category.name}</span><ArrowRight aria-hidden="true" className="hidden sm:block w-3.5 h-3.5 shrink-0 text-slate-400 group-hover:text-emerald-800" />
             </Link>;
@@ -204,6 +205,9 @@ export default function Home() {
         </div> : <Link to="/?category=all" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-900 underline underline-offset-4">Browse all deals<ArrowRight aria-hidden="true" className="w-4 h-4" /></Link>}
       </nav>}
 
+      {showCuratedHome && <nav aria-label="Browse by budget and savings" className="mb-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+        <span className="text-slate-500">Quick finds</span>{dealCollections.map((c) => <Link key={c.slug} to={`/deals/${c.slug}`} className="font-semibold text-slate-800 underline underline-offset-4 hover:text-emerald-800">{c.shortName}</Link>)}
+      </nav>}
       {showCuratedHome && !loading && <SeasonalPromotionBanner hasLiveDeals={deals.length > 0} />}
 
       {showCuratedHome && !loading && <section aria-labelledby="best-deals-heading" className="mb-8 min-w-0 border border-slate-300 border-t-4 border-t-slate-800 bg-[#f7f5ef] px-3 sm:px-5 py-5">
