@@ -129,6 +129,7 @@ async function startServer() {
   if (trustProxy !== false) app.set('trust proxy', trustProxy);
   const { securityHeaders, apiRateLimit } = require('./server/middleware/securityBaseline.js');
   app.use(securityHeaders);
+  app.use('/api', require('./server/middleware/apiIndexing').apiIndexing);
   app.use(require('./server/middleware/apiResponseContract.js').apiResponseContract);
   app.use(cors({ origin: createCorsOriginPolicy(corsOrigins, { isProduction }), credentials: true }));
   app.use(express.json({ limit: '1mb' }));
