@@ -6,9 +6,11 @@ DealScout production uses one immutable container image across three deployments
 - **Private admin:** the IAP-protected `dealscout` Cloud Run service running the same image. Its existing private access and runtime settings are preserved when advancing the image.
 - **WhatsApp Status publisher:** one Cloud Run worker-pool instance running `node publication-worker.js` continuously.
 
-All three use the same Cloud SQL instance. The publisher has no public HTTP endpoint and must not receive web-only authentication/provider secrets.
+Production web/admin now use AWS RDS when `GCP_DATABASE_MODE=rds`; the stopped Cloud SQL instance is a migration fallback, not the active datastore. The publisher is an optional separate rollout; its presence in the release helper does not prove a live worker pool exists. It has no public HTTP endpoint and must not receive web-only authentication/provider secrets.
 
-For website releases, run the repository's **Deploy Web** GitHub Actions workflow from the release commit. It builds the image once, deploys that exact image to both the public and private Cloud Run services, verifies their configured images match, then runs the public smoke test. Publishing a commit alone does not update either live service. The private admin retains IAP; the public service keeps `PUBLIC_SURFACE_ONLY=true`, which hides admin routes there.
+For website releases, merging/pushing to `main` automatically runs **Deploy Web**; workflow dispatch also remains available. It builds the image once, deploys that image to both public and private services, verifies image/traffic parity, runs the public smoke test, then deploys the bounded maintenance job. The private admin retains IAP; public keeps `PUBLIC_SURFACE_ONLY=true`. The workflow does not deploy the optional continuous WhatsApp worker pool.
+
+For the AWS database, set `GCP_DATABASE_MODE=rds`, `GCP_RDS_DATABASE_SECRET=dealscout-rds-database-url:latest`, `GCP_RDS_CA_SECRET=dealscout-rds-ca:latest`, `GCP_DB_NETWORK=default`, and `GCP_DB_SUBNET=default`. The URL must not contain SSL query parameters: TLS is controlled by `PGSSL=verify-full` and the mounted regional AWS CA bundle. Run `scripts/check-gcp-infrastructure.sh` in Google Cloud Shell and `scripts/check-aws-infrastructure.sh` in AWS CloudShell for read-only inventories before removing migration fallbacks.
 
 ## Build first
 

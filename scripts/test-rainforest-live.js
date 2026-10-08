@@ -7,6 +7,8 @@ const require = createRequire(import.meta.url);
 const { getProviderStatus, fetchProductByAsin, fetchDealsList } = require('../server/services/providerRouter');
 const { formatAffiliateUrl } = require('../server/services/amazonUrlService');
 const { scoreVerifiedDeal } = require('../server/services/dealQualityService');
+const { runProviderCall } = require('../server/services/providerThrottle');
+const postgres = require('../server/storage/postgres');
 
 const TEST_ASIN = process.env.TEST_ASIN || 'B0GGGQDY9H';
 
@@ -22,10 +24,10 @@ function pick(obj, keys) {
 
 async function printSafeRainforestDiagnostics() {
   try {
-    const response = await axios.get('https://api.rainforestapi.com/request', {
+    const response = await runProviderCall('rainforest', () => axios.get('https://api.rainforestapi.com/request', {
       params: { api_key: process.env.RAINFOREST_API_KEY, type: 'product', amazon_domain: 'amazon.com', asin: TEST_ASIN },
       timeout: 20000,
-    });
+    }));
     const data = response.data || {};
     const product = data.product || {};
     const buybox = product.buybox_winner || {};
@@ -41,6 +43,12 @@ async function printSafeRainforestDiagnostics() {
 }
 
 async function main() {
+  // A standalone GitHub runner has an isolated in-memory usage counter and
+  // cannot enforce production's shared 500/month allowance. Never spend calls
+  // from this script until connected to the same durable production ledger.
+  if (!postgres.isConfigured()) {
+    return fail('Live provider tests require the shared PostgreSQL usage ledger; use the private admin lookup instead');
+  }
   if (!process.env.RAINFOREST_API_KEY) return fail('RAINFOREST_API_KEY is not configured');
   if (!process.env.AMAZON_ASSOCIATE_TAG) return fail('AMAZON_ASSOCIATE_TAG is not configured');
 
@@ -89,4 +97,4 @@ async function main() {
   console.log('\nPASS: Rainforest lookup, automatic discovery, and quality scoring are live.');
 }
 
-main().catch((error) => fail(error?.message || String(error)));
+main().catch((error) => fail(error?.message || String(error))).finally(() => postgres.closePool());

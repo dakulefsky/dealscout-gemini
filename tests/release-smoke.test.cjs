@@ -78,6 +78,17 @@ test('release smoke permits an empty public catalog but validates the public sur
   assert.ok(result.checks.includes('public-home-indexable'));
 });
 
+test('release smoke catches a missing, duplicate or wrong Associates tag', async () => {
+  const { runReleaseSmoke } = await loadSmoke();
+  const base = 'https://deals.example.com';
+  for (const query of ['', '?tag=wrong-20', '?tag=test-20&tag=other-20']) {
+    const normal = healthyFetch({ base });
+    const fetchImpl = (url, options) => new URL(url).pathname === '/api/functions/amazon-redirect'
+      ? jsonResponse({ redirectUrl: `https://www.amazon.com/dp/B08PZHYWJS${query}` }) : normal(url, options);
+    await assert.rejects(runReleaseSmoke(base, { fetchImpl, expectedAffiliateTag: 'test-20' }), /Associates tag/);
+  }
+});
+
 test('release smoke fails closed on readiness or v1 tracing regressions', async () => {
   const { runReleaseSmoke } = await loadSmoke();
   const base = 'https://deals.example.com';

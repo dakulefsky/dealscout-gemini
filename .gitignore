@@ -7,6 +7,11 @@ dist/
 # Environment
 server/.env
 .env
+.env.*
+!.env.example
+gha-creds-*.json
+*.dump
+server/data/
 
 # SQLite database files
 server/*.sqlite

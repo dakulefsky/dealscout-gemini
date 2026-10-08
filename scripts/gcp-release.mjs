@@ -17,7 +17,7 @@ function cleanCsv(value) {
   return String(value || '').split(',').map((item) => item.trim()).filter(Boolean).join(',');
 }
 
-function parseSecretMappings(value, sourceName) {
+export function parseSecretMappings(value, sourceName) {
   const mappings = new Map();
   for (const entry of cleanCsv(value).split(',').filter(Boolean)) {
     const separator = entry.indexOf('=');
@@ -47,7 +47,8 @@ function serializeSecretMappings(...maps) {
   return [...merged.entries()].map(([key, secret]) => `${key}=${secret}`).join(',');
 }
 
-function validateProviderSecrets(provider, webSecrets) {
+export function validateProviderSecrets(provider, webSecrets) {
+  if (!['rainforest', 'amazon_paapi', 'auto'].includes(provider)) throw new Error('DEAL_DATA_PROVIDER must be rainforest, amazon_paapi or auto');
   const hasRainforest = webSecrets.has('RAINFOREST_API_KEY');
   const paapiKeys = ['AMAZON_PAAPI_ACCESS_KEY', 'AMAZON_PAAPI_SECRET_KEY', 'AMAZON_PAAPI_PARTNER_TAG'];
   const hasPaapi = paapiKeys.every((key) => webSecrets.has(key));
@@ -63,7 +64,7 @@ function validateProviderSecrets(provider, webSecrets) {
   }
 }
 
-function encodeEnvVars(entries) {
+export function encodeEnvVars(entries) {
   const pairs = entries.filter(([, value]) => value !== undefined && value !== null && String(value) !== '');
   for (const [key, value] of pairs) {
     if (String(key).includes('|') || String(value).includes('|')) throw new Error(`Environment value for ${key} cannot contain |`);

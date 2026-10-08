@@ -2,6 +2,23 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const cron = require('../server/services/cronService');
 
+test('provider pause leaves cleanup running without claiming paid discovery or verification cadence', async () => {
+  const settings = require('../server/services/channelSettingsService');
+  const original = cron.purgeOldExpiredDeals;
+  settings.resetLocalSettings();
+  await settings.setEnabled('provider_api', false);
+  cron.purgeOldExpiredDeals = async () => ({ purgedCount: 0 });
+  try {
+    const result = await cron.runFullCycle({ scheduled: true });
+    assert.equal(result.discovery.reason, 'PROVIDER_PAUSED');
+    assert.equal(result.verification.reason, 'PROVIDER_PAUSED');
+    assert.equal(result.purge.purgedCount, 0);
+  } finally {
+    settings.resetLocalSettings();
+    cron.purgeOldExpiredDeals = original;
+  }
+});
+
 test('a failed maintenance lane does not skip the other scheduled work', async () => {
   const originals = {
     purge: cron.purgeOldExpiredDeals,

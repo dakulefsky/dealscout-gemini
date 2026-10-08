@@ -132,6 +132,10 @@ async function startServer() {
   app.use('/api', require('./server/middleware/apiIndexing').apiIndexing);
   app.use(require('./server/middleware/apiResponseContract.js').apiResponseContract);
   app.use(cors({ origin: createCorsOriginPolicy(corsOrigins, { isProduction }), credentials: true }));
+  // Infrastructure probes must not consume shopper rate limits or query the
+  // Prime Day/calendar settings before reporting process/database health.
+  app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+  app.get('/api/ready', runtimeBootstrap.readinessEndpoint);
   app.use(express.json({ limit: '1mb' }));
   app.use(apiRateLimit());
   app.use('/api', async (_req, _res, next) => {
@@ -211,8 +215,6 @@ async function startServer() {
   app.use('/api/ai', require('./server/routes/ai.js'));
 
   try { dealCron.start(); } catch (cronErr) { console.warn('[DealScout] Scheduler initialization warning:', cronErr.message); }
-  app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
-  app.get('/api/ready', runtimeBootstrap.readinessEndpoint);
 
   let vite = null;
   if (!isProduction) {
