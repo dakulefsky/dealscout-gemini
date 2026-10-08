@@ -36,3 +36,31 @@ test('scheduled workflow reuses the identity and executes a job without a build 
   assert.match(workflow, /jobs execute dealscout-maintenance/);
   assert.doesNotMatch(workflow, /builds submit|allow-unauthenticated|curl/);
 });
+
+test('first rollout verifies one execution, updates do not execute, and denied inspection cannot become a deployment', () => {
+  const os = require('node:os');
+  const path = require('node:path');
+  const { spawnSync } = require('node:child_process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dealscout-job-cli-'));
+  const output = path.join(dir, 'args.json');
+  const fake = path.join(dir, 'gcloud');
+  fs.writeFileSync(fake, `#!${process.execPath}\nconst fs=require('node:fs'); const args=process.argv.slice(2); if(args.includes('describe')) { if(process.env.MOCK_JOB==='missing'){console.error('NOT_FOUND: Job does not exist');process.exit(1);} if(process.env.MOCK_JOB==='denied'){console.error('PERMISSION_DENIED');process.exit(1);} } else {fs.writeFileSync(process.env.MOCK_OUTPUT,JSON.stringify(args));}\n`);
+  fs.chmodSync(fake, 0o755);
+  try {
+    for (const mode of ['missing', 'existing', 'denied']) {
+      fs.rmSync(output, { force: true });
+      const result = spawnSync(process.execPath, [path.join(__dirname, '../scripts/maintenance-release.mjs')], {
+        env: { ...process.env, ...config, PATH: `${dir}:${process.env.PATH}`, MOCK_JOB: mode, MOCK_OUTPUT: output }, encoding: 'utf8',
+      });
+      if (mode === 'denied') {
+        assert.notEqual(result.status, 0);
+        assert.equal(fs.existsSync(output), false);
+      } else {
+        assert.equal(result.status, 0, result.stderr);
+        const args = JSON.parse(fs.readFileSync(output, 'utf8'));
+        assert.equal(args.includes('--execute-now'), mode === 'missing');
+        assert.equal(args.includes('--wait'), mode === 'missing');
+      }
+    }
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
