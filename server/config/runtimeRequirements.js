@@ -1,6 +1,6 @@
 const { resolvePublicWebUrl, resolveCorsOrigins } = require('./publicSurface');
 
-const RUNTIME_ROLES = Object.freeze({ WEB: 'web', PUBLICATION_WORKER: 'publication_worker' });
+const RUNTIME_ROLES = Object.freeze({ WEB: 'web', PUBLICATION_WORKER: 'publication_worker', MAINTENANCE: 'maintenance' });
 
 function clean(value) {
   return String(value ?? '').trim();

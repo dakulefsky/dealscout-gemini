@@ -8,7 +8,7 @@ const { minimumDiscountPercent } = require('./publicDealPolicy');
 const { classifyCategory } = require('./categoryClassifier');
 
 const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
-const PROVIDER_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
+const PROVIDER_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN', 'PROVIDER_PAUSED']);
 const RAINFOREST_BULK_CACHE_TTL_MS = 5 * 60 * 1000;
 const rainforestBulkCache = new Map();
 let rainforestBulkCacheAt = 0;

@@ -185,6 +185,9 @@ router.post('/verify-prices', requireAdmin, async (req, res) => {
     if (result?.skipped && result.reason === 'LOCK_HELD') {
       return res.status(409).json({ error: 'A price check is already running. Wait a moment, then try again.', code: 'PRICE_CHECK_IN_PROGRESS' });
     }
+    if (result?.status === 'NOTICE' && result.error) {
+      return res.status(503).json({ ...result, success: false });
+    }
 
     res.json({
       success: true,

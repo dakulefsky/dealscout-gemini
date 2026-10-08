@@ -41,6 +41,9 @@ test('Cloud SQL settings build a Unix socket pg configuration without nested SSL
       password: 'secret-password',
       database: 'dealscout',
       max: 4,
+      connectionTimeoutMillis: 10000,
+      statement_timeout: 30000,
+      idleTimeoutMillis: 30000,
       ssl: false,
     });
   });
@@ -61,6 +64,9 @@ test('partial Cloud SQL settings do not override a valid DATABASE_URL', () => {
       connectionString: 'postgresql://user:pass@example.com/dealscout',
       ssl: false,
       max: 5,
+      connectionTimeoutMillis: 10000,
+      statement_timeout: 30000,
+      idleTimeoutMillis: 30000,
     });
   });
 });

@@ -144,6 +144,11 @@ async function runReleaseSmoke(baseUrl, options = {}) {
     body: { url: 'https://www.amazon.com/dp/B08PZHYWJS' },
   });
   assert(/^https:\/\/(?:www\.)?amazon\.com\//i.test(String(affiliate.body?.redirectUrl || '')), 'affiliate redirect endpoint did not return an Amazon URL');
+  const affiliateUrl = new URL(affiliate.body.redirectUrl);
+  const tags = affiliateUrl.searchParams.getAll('tag');
+  const expectedTag = options.expectedAffiliateTag || process.env.AMAZON_ASSOCIATE_TAG;
+  assert(tags.length === 1 && tags[0].trim(), 'affiliate redirect must contain exactly one nonempty Associates tag');
+  if (expectedTag) assert(tags[0] === expectedTag, 'affiliate redirect does not use the configured Associates tag');
   checks.push('affiliate-redirect');
 
   const health = await requestJson(target, '/api/health', fetchOptions);

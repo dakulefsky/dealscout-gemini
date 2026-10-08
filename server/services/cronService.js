@@ -167,6 +167,10 @@ class DealCronService {
     };
 
     const purge = await runJob('purge-expired', 'purge-expired', () => this.purgeOldExpiredDeals({ scheduled }));
+    const providerSetting = await require('./channelSettingsService').get('provider_api');
+    if (!providerSetting.enabled) {
+      return { purge, verification: { skipped: true, reason: 'PROVIDER_PAUSED' }, discovery: { skipped: true, reason: 'PROVIDER_PAUSED' } };
+    }
     // One discovery request can refresh many existing ASINs and add new inventory,
     // so give that bulk request priority before spending the remaining provider
     // allowance on single-ASIN verification calls.
@@ -221,6 +225,7 @@ class DealCronService {
       let checkedCount = 0;
       let deferredCount = 0;
       let itemFailureCount = 0;
+      let verifiedCount = 0;
       let providerDeferred = false;
       let providerDeferredReason = null;
       let providerRetryAtUnix = null;
@@ -244,6 +249,8 @@ class DealCronService {
             }
             continue;
           }
+
+          verifiedCount += 1;
 
           await refreshStates.recordSuccess(deal.asin, { at: attemptAt, provider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
           const outOfStock = liveInfo.availability && /out of stock|unavailable/i.test(liveInfo.availability);
@@ -290,10 +297,12 @@ class DealCronService {
       }
 
       this.stats.dealsExpired += expiredCount;
-      await recordJobSuccess('verify-prices');
+      const totalFailure = checkedCount > 0 && verifiedCount === 0 && !providerDeferred;
+      if (!totalFailure) await recordJobSuccess('verify-prices');
       return {
-        checkedCount, expiredCount, deferredCount, itemFailureCount, eligibleCount: activeDeals.length, batchSize,
+        checkedCount, verifiedCount, expiredCount, deferredCount, itemFailureCount, eligibleCount: activeDeals.length, batchSize,
         providerDeferred, providerDeferredReason, providerRetryAt: providerRetryAtUnix,
+        ...(totalFailure ? { status: 'NOTICE', error: 'No product prices could be verified in this batch' } : {}),
       };
     });
   }

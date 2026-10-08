@@ -22,6 +22,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     environment: production
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
@@ -30,6 +31,8 @@ jobs:
       GCP_ADMIN_SERVICE: ${{ vars.GCP_ADMIN_SERVICE || 'dealscout' }}
       GCP_IMAGE_REPOSITORY: ${{ vars.GCP_IMAGE_REPOSITORY }}
       GCP_RUNTIME_SERVICE_ACCOUNT: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+      GCP_WEB_MAX_INSTANCES: ${{ vars.GCP_WEB_MAX_INSTANCES || '3' }}
+      GCP_ADMIN_MAX_INSTANCES: ${{ vars.GCP_ADMIN_MAX_INSTANCES || '1' }}
       GCP_DATABASE_MODE: ${{ vars.GCP_DATABASE_MODE || 'cloudsql' }}
       GCP_RDS_DATABASE_SECRET: ${{ vars.GCP_RDS_DATABASE_SECRET }}
       GCP_RDS_CA_SECRET: ${{ vars.GCP_RDS_CA_SECRET }}
@@ -83,6 +86,12 @@ jobs:
             exit 1
           fi
           node scripts/database-release.mjs validate
+          for key in GCP_WEB_MAX_INSTANCES GCP_ADMIN_MAX_INSTANCES; do
+            if ! [[ "${!key}" =~ ^([1-9]|1[0-9]|20)$ ]]; then
+              echo "$key must be an integer from 1 to 20" >&2
+              exit 1
+            fi
+          done
           case "$PUBLIC_WEB_URL" in https://*) ;; *) echo "PUBLIC_WEB_URL must use https://" >&2; exit 1 ;; esac
           if [ "$GCP_WEB_SERVICE" = "$GCP_ADMIN_SERVICE" ]; then
             echo "Public shopper and private admin must use different Cloud Run services." >&2
@@ -167,6 +176,8 @@ jobs:
           [ -n "${GEMINI_MODEL:-}" ] && ENV_VARS+="|GEMINI_MODEL=${GEMINI_MODEL}"
           [ -n "${GEMINI_DAILY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|GEMINI_DAILY_REQUEST_LIMIT=${GEMINI_DAILY_REQUEST_LIMIT}"
           [ -n "${GEMINI_MONTHLY_REQUEST_LIMIT:-}" ] && ENV_VARS+="|GEMINI_MONTHLY_REQUEST_LIMIT=${GEMINI_MONTHLY_REQUEST_LIMIT}"
+          # Advance shared runtime settings with the image on both services.
+          echo "GCP_COMMON_ENV=${ENV_VARS/|PUBLIC_SURFACE_ONLY=true/}" >> "$GITHUB_ENV"
 
           ARGS=(
             run deploy "$GCP_WEB_SERVICE"
@@ -175,6 +186,7 @@ jobs:
             --image "$GCP_IMAGE"
             --platform managed
             --allow-unauthenticated
+            --min-instances 0 --max-instances "$GCP_WEB_MAX_INSTANCES"
             "${DB_ARGS[@]}"
             --set-env-vars "$ENV_VARS"
             --set-secrets "${DB_SECRETS},${GCP_WEB_SECRETS}"
@@ -192,14 +204,16 @@ jobs:
           # Preserve private IAM/IAP and all non-database admin configuration.
           ARGS=(run deploy "$GCP_ADMIN_SERVICE"
             --project "$GCP_PROJECT_ID" --region "$GCP_REGION"
-            --image "$GCP_IMAGE" --platform managed --quiet)
+            --image "$GCP_IMAGE" --platform managed
+            --min-instances 0 --max-instances "$GCP_ADMIN_MAX_INSTANCES"
+            --update-env-vars "$GCP_COMMON_ENV" --quiet)
           if [ "${GCP_DATABASE_MODE:-cloudsql}" = "rds" ]; then
             node scripts/database-release.mjs validate
             mapfile -t DB_ARGS < <(node scripts/database-release.mjs flags)
             DB_ENV="$(node scripts/database-release.mjs env)"
             DB_SECRETS="$(node scripts/database-release.mjs secrets)"
             ARGS+=("${DB_ARGS[@]}" --remove-env-vars CLOUD_SQL_CONNECTION_NAME
-              --update-env-vars "^|^${DB_ENV}" --update-secrets "$DB_SECRETS")
+              --remove-secrets DB_USER,DB_PASSWORD,DB_NAME --update-secrets "$DB_SECRETS")
             if [ -n "${GCP_RUNTIME_SERVICE_ACCOUNT:-}" ]; then
               ARGS+=(--service-account "$GCP_RUNTIME_SERVICE_ACCOUNT")
             fi
@@ -239,6 +253,17 @@ jobs:
         env:
           DEALSCOUT_SMOKE_URL: ${{ vars.PUBLIC_WEB_URL }}
         run: npm run smoke:release
+
+      - name: Deploy bounded maintenance job
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Use the verified public runtime identity; no new credential or key.
+          GCP_RUNTIME_SERVICE_ACCOUNT="$(gcloud run services describe "$GCP_WEB_SERVICE" \
+            --project "$GCP_PROJECT_ID" --region "$GCP_REGION" \
+            --format='value(spec.template.spec.serviceAccountName)')"
+          export GCP_RUNTIME_SERVICE_ACCOUNT
+          node scripts/maintenance-release.mjs
 
       - name: Deployment summary
         shell: bash

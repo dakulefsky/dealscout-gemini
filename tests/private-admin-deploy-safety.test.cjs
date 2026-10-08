@@ -18,3 +18,11 @@ test('main branch deploys both services automatically and still runs release smo
   assert.match(workflow, /if: \$\{\{ github\.event_name == 'push' \|\| inputs\.run_smoke \}\}/);
   assert.match(workflow, /Verify public and private image parity/);
 });
+
+test('private service receives shared affiliate/provider budgets without replacing private settings', () => {
+  assert.match(workflow, /GCP_COMMON_ENV=\$\{ENV_VARS\/\|PUBLIC_SURFACE_ONLY=true\/\}/);
+  assert.match(workflow, /--update-env-vars "\$GCP_COMMON_ENV"/);
+  assert.match(workflow, /GCP_WEB_MAX_INSTANCES.*\|\| '3'/);
+  assert.match(workflow, /GCP_ADMIN_MAX_INSTANCES.*\|\| '1'/);
+  assert.match(workflow, /--min-instances 0/);
+});
