@@ -101,3 +101,23 @@ test('release smoke fails closed on readiness or v1 tracing regressions', async 
     /X-DealScout-API-Version/
   );
 });
+
+test('scheduled closure still validates readiness and public isolation without testing closed shopper APIs', async () => {
+  const { runReleaseSmoke } = await loadSmoke();
+  const base = 'https://deals.example.com';
+  const requests = [];
+  const normal = healthyFetch({ base, requests });
+  const fetchImpl = (url, options) => new URL(url).pathname === '/'
+    ? new Response('Closed', { status: 503, headers: { 'x-dealscout-closure': 'scheduled' } }) : normal(url, options);
+  const result = await runReleaseSmoke(base, { fetchImpl });
+  assert.equal(result.scheduledClosure, true);
+  assert.ok(result.checks.includes('readiness'));
+  assert.ok(result.checks.includes('private-admin-hidden'));
+  assert.ok(requests.every(r => !r.url.includes('/api/v1/') && r.method !== 'POST'));
+});
+
+test('static homepage probes time out instead of hanging a release', async () => {
+  const { runReleaseSmoke } = await loadSmoke();
+  const fetchImpl = (_url, { signal }) => new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('cancelled'))));
+  await assert.rejects(runReleaseSmoke('https://deals.example.com', { fetchImpl, timeoutMs: 10 }), /\/ timed out/);
+});

@@ -11,6 +11,7 @@ const maintenanceCadenceRepository = require('../repositories/maintenanceCadence
 const providerBudgetService = require('../services/providerBudgetService');
 const channelSettingsService = require('../services/channelSettingsService');
 const { RUNTIME_ROLES, assertProductionRuntime } = require('../config/runtimeRequirements');
+const { waitForDatabase } = require('./databaseReadiness');
 
 async function ensureOperationalSchemas() {
   await Promise.all([
@@ -35,11 +36,10 @@ async function initializeRuntime({
 } = {}) {
   if (isProduction) {
     assertProductionRuntime(process.env, { postgresConfigured: postgres.isConfigured(), role });
-    const database = await postgres.health();
-    if (!database.healthy) {
-      const detail = database.error ? `: ${database.error}` : '';
-      throw new Error(`PostgreSQL readiness check failed during production startup${detail}`);
-    }
+    // Direct VPC + NAT can need a minute to establish a cold instance's route.
+    // Keep individual connection/request bounds while allowing bounded startup
+    // retries before any HTTP listener or maintenance lane is opened.
+    await waitForDatabase({ health: () => postgres.health() });
   }
 
   await ensureOperationalSchemas();

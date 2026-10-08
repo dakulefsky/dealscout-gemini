@@ -39,7 +39,7 @@ async function requestJson(baseUrl, requestPath, {
 } = {}) {
   if (typeof fetchImpl !== 'function') throw new Error('fetch is required');
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetchImpl(`${baseUrl}${requestPath}`, {
       method,
@@ -64,7 +64,7 @@ async function requestJson(baseUrl, requestPath, {
     }
     return { response, body: responseBody };
   } catch (error) {
-    if (controller.signal.aborted && error?.name === 'AbortError') throw new Error(`${requestPath} timed out`);
+    if (controller.signal.aborted) throw new Error(`${requestPath} timed out`);
     throw error;
   } finally {
     clearTimeout(timer);
@@ -88,12 +88,26 @@ async function runReleaseSmoke(baseUrl, options = {}) {
   const fetchOptions = { timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS, fetchImpl };
   const checks = [];
 
-  const homepage = await fetchImpl(`${target}/`, {
-    headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
-    redirect: 'error',
-  });
-  assert(homepage.ok, `homepage failed: HTTP ${homepage.status}`);
-  const homepageHtml = await homepage.text();
+  async function requestText(requestPath, redirect = 'error') {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), fetchOptions.timeoutMs);
+    try {
+      const response = await fetchImpl(`${target}${requestPath}`, {
+        signal: controller.signal, redirect, headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
+      });
+      const text = await response.text();
+      return { response, text };
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error(`${requestPath} timed out`);
+      throw error;
+    } finally { clearTimeout(timer); }
+  }
+
+  const { response: homepage, text: homepageText } = await requestText('/');
+  const scheduledClosure = homepage.status === 503 && homepage.headers.get('x-dealscout-closure') === 'scheduled';
+  assert(homepage.ok || scheduledClosure, `homepage failed: HTTP ${homepage.status}`);
+  const homepageHtml = homepageText;
+  if (!scheduledClosure) {
   assert(homepageHtml.includes('ca-pub-7492088381598802'), 'homepage is missing the configured AdSense site code');
   checks.push('public-home-adsense');
 
@@ -101,42 +115,44 @@ async function runReleaseSmoke(baseUrl, options = {}) {
   assert(/<meta\s+name=["']robots["']\s+content=["']index,follow["']/i.test(homepageHtml), 'homepage is not explicitly indexable');
   assert(homepageHtml.includes('data-server-crawl-content="home"'), 'homepage is missing server-rendered crawl content');
   checks.push('public-home-indexable');
+  }
 
-  const robots = await fetchImpl(`${target}/robots.txt`, {
-    headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
-    redirect: 'error',
-  });
+  const { response: robots, text: robotsText } = await requestText('/robots.txt');
   assert(robots.ok, `robots.txt failed: HTTP ${robots.status}`);
-  const robotsBody = await robots.text();
+  const robotsBody = robotsText;
   assert(/Allow:\s*\//.test(robotsBody), 'robots.txt does not allow public crawling');
   assert(robotsBody.includes(`Sitemap: ${target}/sitemap.xml`), 'robots.txt points at the wrong sitemap origin');
   checks.push('robots-indexable');
 
-  const sitemap = await fetchImpl(`${target}/sitemap.xml`, {
-    headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
-    redirect: 'error',
-  });
+  const { response: sitemap, text: sitemapText } = await requestText('/sitemap.xml');
   assert(sitemap.ok, `sitemap.xml failed: HTTP ${sitemap.status}`);
-  const sitemapBody = await sitemap.text();
+  const sitemapBody = sitemapText;
   assert(sitemapBody.includes(`<loc>${target}/</loc>`), 'sitemap is missing the public homepage');
   assert(!sitemapBody.includes('/admin'), 'sitemap must never expose admin URLs');
   checks.push('sitemap-indexable');
 
-  const adsTxt = await fetchImpl(`${target}/ads.txt`, {
-    headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
-    redirect: 'error',
-  });
+  const { response: adsTxt, text: adsTxtText } = await requestText('/ads.txt');
   assert(adsTxt.ok, `ads.txt failed: HTTP ${adsTxt.status}`);
-  const adsTxtBody = (await adsTxt.text()).trim();
+  const adsTxtBody = adsTxtText.trim();
   assert(adsTxtBody.split(/\r?\n/).includes('google.com, pub-7492088381598802, DIRECT, f08c47fec0942fa0'), 'ads.txt is missing the authorized AdSense seller record');
   checks.push('adsense-ads-txt');
 
-  const admin = await fetchImpl(`${target}/admin`, {
-    headers: { 'User-Agent': 'DealScout-Release-Smoke/1' },
-    redirect: 'manual',
-  });
+  const { response: admin, text: adminText } = await requestText('/admin', 'manual');
   assert(admin.status === 404, `public /admin must return 404, received HTTP ${admin.status}`);
   checks.push('private-admin-hidden');
+
+  const health = await requestJson(target, '/api/health', fetchOptions);
+  assert(health.body?.status === 'ok', '/api/health did not report status=ok');
+  checks.push('liveness');
+
+  const ready = await requestJson(target, '/api/ready', fetchOptions);
+  assert(ready.body?.status === 'ready', '/api/ready did not report status=ready');
+  checks.push('readiness');
+
+  if (scheduledClosure) {
+    checks.push('scheduled-closure');
+    return { target, browserOrigin, checks, inventoryObserved: false, scheduledClosure: true };
+  }
 
   const affiliate = await requestJson(target, '/api/functions/amazon-redirect', {
     ...fetchOptions,
@@ -150,14 +166,6 @@ async function runReleaseSmoke(baseUrl, options = {}) {
   assert(tags.length === 1 && tags[0].trim(), 'affiliate redirect must contain exactly one nonempty Associates tag');
   if (expectedTag) assert(tags[0] === expectedTag, 'affiliate redirect does not use the configured Associates tag');
   checks.push('affiliate-redirect');
-
-  const health = await requestJson(target, '/api/health', fetchOptions);
-  assert(health.body?.status === 'ok', '/api/health did not report status=ok');
-  checks.push('liveness');
-
-  const ready = await requestJson(target, '/api/ready', fetchOptions);
-  assert(ready.body?.status === 'ready', '/api/ready did not report status=ready');
-  checks.push('readiness');
 
   const meta = await requestJson(target, '/api/v1/meta', fetchOptions);
   assertV1Headers(meta.response, '/api/v1/meta');
@@ -204,7 +212,8 @@ async function main() {
   console.log(`DealScout release smoke passed for ${result.target}`);
   console.log(`Checks: ${result.checks.join(', ')}`);
   if (result.browserOrigin) console.log(`Browser CORS verified for ${result.browserOrigin}`);
-  if (!result.inventoryObserved) console.log('Feed is healthy but currently contains no public inventory; detail lookup skipped.');
+  if (result.scheduledClosure) console.log('Scheduled closure verified; shopper and affiliate checks deferred until reopening.');
+  else if (!result.inventoryObserved) console.log('Feed is healthy but currently contains no public inventory; detail lookup skipped.');
 }
 
 const isDirect = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
