@@ -41,6 +41,8 @@ function formatAffiliateUrl(url, associateTag = process.env.AMAZON_ASSOCIATE_TAG
   if (!url || typeof url !== 'string') return url;
   if (!isAmazonUrl(url)) throw new Error('Affiliate URLs must use an Amazon-owned host');
   const parsed = new URL(url);
+  // Review/offer anchors otherwise land shoppers in the middle of Amazon's page.
+  parsed.hash = '';
   const tag = String(associateTag || '').trim();
   if (!tag) return parsed.toString();
   parsed.searchParams.set('tag', tag);
