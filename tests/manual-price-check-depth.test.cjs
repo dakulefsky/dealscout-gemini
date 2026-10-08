@@ -20,7 +20,7 @@ test('manual verification reports the batch result to the admin client', () => {
 test('manual verification scans past deals that are still in retry backoff', () => {
   const cron = fs.readFileSync(path.join(__dirname, '..', 'server/services/cronService.js'), 'utf8');
   assert.match(cron, /if \(scheduled\) \{\s*const claim = await this\.claimCadence\('verify-prices', JOB_INTERVALS\.verifyPrices, true\)/);
-  assert.match(cron, /oldestCheckedFirst\(activeDeals, Math\.max\(1, activeDeals\.length\)\)/);
+  assert.match(cron, /departmentVerificationQueue\(activeDeals,/);
   assert.match(cron, /Manual checks must not push the next scheduled daily verification out/);
 });
 

@@ -236,6 +236,11 @@ export default function AdminHome() {
             <div className="flex justify-between"><span className="text-slate-500">Missing images</span><span className={integrity.missingImages > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.missingImages || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Stale prices</span><span className={integrity.stalePrices > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.stalePrices || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Approved unverified</span><span className={integrity.unverifiedApproved > 0 ? 'font-bold text-rose-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.unverifiedApproved || 0}</span></div>
+            {integrity.departmentSupply && !loadFailures.includes('integrity health') && <div className="border-t border-slate-200 pt-3 mt-3">
+              <h3 className="font-bold text-slate-900">Live department supply</h3>
+              <p className="text-xs text-slate-500 mt-1 mb-2">Soft target: {integrity.departmentSupply.targetLiveDeals} distinct fresh deals per department, within the provider budget.</p>
+              {integrity.departmentSupply.departments.map(({ name, visible }) => <div key={name} className="flex justify-between gap-3 py-1"><span className="text-slate-500">{name}</span><span className={visible >= integrity.departmentSupply.targetLiveDeals ? 'font-bold text-emerald-700' : 'font-bold text-amber-700'}>{visible}</span></div>)}
+            </div>}
             {integrity.visibility && !loadFailures.includes('integrity health') && (
               <div className="border-t border-slate-200 pt-3 mt-3 space-y-2">
                 <h3 className="font-bold text-slate-900">Why approved deals are hidden</h3>

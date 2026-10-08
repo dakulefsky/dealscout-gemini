@@ -1,4 +1,5 @@
 const deals = require('../repositories/dealRepository');
+const { departmentStock, TARGET_LIVE_DEALS } = require('./departmentSupplyService');
 const { isPriceFresh, hasValidPricePair, meetsMinimumDiscount, checkedAtSeconds, PUBLIC_PRICE_MAX_AGE_SECONDS } = require('./publicDealPolicy');
 
 function hasLegacyEnrichment(deal) {
@@ -46,6 +47,7 @@ async function getIntegrityHealth() {
 
   return {
     visibility: visibilityBreakdown(live),
+    departmentSupply: { targetLiveDeals: TARGET_LIVE_DEALS, departments: Object.entries(departmentStock(all)).filter(([name]) => name !== 'Other').map(([name, visible]) => ({ name, visible })) },
     healthy: unverifiedApproved.length === 0 && missingImages.length === 0 && stalePrices.length === 0,
     liveDeals: live.length,
     unverifiedApproved: unverifiedApproved.length,

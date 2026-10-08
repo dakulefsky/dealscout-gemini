@@ -31,5 +31,5 @@ test('provider router supplies the current catalog ASINs to the single Rainfores
   const source = fs.readFileSync(path.join(__dirname, '../server/services/providerRouter.js'), 'utf8');
   assert.match(source, /const existing = await deals\.listAll\(\)/);
   assert.match(source, /refreshExistingAsins = existing\.map/);
-  assert.match(source, /fetchStrictRainforestDeals\(\{ \.\.\.options, refreshExistingAsins \}\)/);
+  assert.match(source, /fetchStrictRainforestDeals\(\{ \.\.\.options,[^\n]*refreshExistingAsins \}\)/);
 });

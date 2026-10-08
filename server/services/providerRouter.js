@@ -226,7 +226,10 @@ async function fetchDealsList(options = {}) {
     try {
       const existing = await deals.listAll();
       const refreshExistingAsins = existing.map((deal) => deal.asin).filter(Boolean);
-      const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals({ ...options, refreshExistingAsins }), { overrideDailyLimit: options.overrideDailyLimit === true });
+      const supply = require('./departmentSupplyService');
+      const plan = await supply.prepareDiscovery(existing, options.amazonDomain || 'amazon.com');
+      if (options.categoryId) plan.targets = []; // Explicit manual category choices remain authoritative.
+      const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals({ ...options, categoryId: options.categoryId || plan.categoryId, departmentStock: plan.stock, onCategories: rows => supply.recordDiscovery(plan, rows), refreshExistingAsins }), { overrideDailyLimit: options.overrideDailyLimit === true });
       const verified = (result || []).map((item) => normalizeVerifiedProduct(item, 'RAINFOREST')).filter(Boolean);
       cacheRainforestBulkResults(verified);
       if (verified.length) return verified;

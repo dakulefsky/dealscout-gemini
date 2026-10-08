@@ -6,7 +6,7 @@ const { fetchDealsList, fetchProductByAsin, getProviderStatus } = require('./pro
 const { recordObservation } = require('./priceHistoryService');
 const { scoreVerifiedDeal } = require('./dealQualityService');
 const { publishingDecision, getHoldbackPercent } = require('./editorialCadenceService');
-const { oldestCheckedFirst } = require('./verificationQueue');
+const { departmentVerificationQueue } = require('./departmentSupplyService');
 const { verificationBatchSize } = require('./verificationCapacity');
 const { rediscoveryLifecycleChanges } = require('./rediscoveryLifecycle');
 const { verifiedSourceChanges } = require('./verifiedDealRefresh');
@@ -218,9 +218,9 @@ class DealCronService {
       const activeDeals = all.filter((deal) => !deal.is_expired && deal.status === 'APPROVED' && deal.source_verified === 1);
       const dailyBatchSize = dailyPriceVerificationBatchSize(activeDeals.length);
       const batchSize = maxChecks == null ? dailyBatchSize : Math.min(dailyBatchSize, Math.max(1, Math.floor(Number(maxChecks) || 1)));
-      // Scan the full oldest-first queue so retry backoff on a few failures
+      // Scan the full department-balanced queue so retry backoff on a few failures
       // cannot make every manual batch appear to do nothing.
-      const verificationCandidates = oldestCheckedFirst(activeDeals, Math.max(1, activeDeals.length));
+      const verificationCandidates = departmentVerificationQueue(activeDeals, Math.floor(Date.now() / 1000), { includeFresh: !scheduled });
       let expiredCount = 0;
       let checkedCount = 0;
       let deferredCount = 0;

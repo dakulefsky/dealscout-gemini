@@ -2,6 +2,7 @@ const postgres = require('../storage/postgres');
 
 const DEFAULTS = Object.freeze({
   closure_location: 'jerusalem',
+  rainforest_department_discovery: '',
   amazon_prime_day_start: '',
   amazon_prime_day_end: '',
 });
@@ -27,7 +28,9 @@ function normalizeValue(key, value) {
     if (normalized && (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== normalized)) throw new Error(`${key} must be a valid calendar date`);
     return normalized;
   }
-  return String(value ?? '');
+  const normalized = String(value ?? '');
+  if (key === 'rainforest_department_discovery' && normalized.length > 32768) throw new Error('Discovery state is too large');
+  return normalized;
 }
 
 async function ensureSchema() {
