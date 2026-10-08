@@ -213,3 +213,30 @@ test('RDS configuration fails before deployment without secrets or network', asy
   }
   assert.throws(() => buildReleasePlan({ ...config, GCP_DATABASE_MODE: 'typo' }), /GCP_DATABASE_MODE/);
 });
+
+test('CLI releases keep the same bounded replicas and scale-to-zero defaults as Actions', async () => {
+  const { buildReleasePlan } = await loadModule();
+  const plan = buildReleasePlan(env());
+  for (const [index, max] of [[0, '3'], [1, '1']]) {
+    const args = plan.commands[index].args;
+    assert.equal(args[args.indexOf('--min-instances') + 1], '0');
+    assert.equal(args[args.indexOf('--max-instances') + 1], max);
+  }
+  const custom = buildReleasePlan({ ...env(), GCP_WEB_MAX_INSTANCES: '2', GCP_ADMIN_MAX_INSTANCES: '2' });
+  assert.equal(custom.commands[0].args[custom.commands[0].args.indexOf('--max-instances') + 1], '2');
+  for (const value of ['0', '-1', '21', '1.5', 'many']) {
+    assert.throws(() => buildReleasePlan({ ...env(), GCP_ADMIN_MAX_INSTANCES: value }), /integer from 1 to 20/);
+  }
+});
+
+test('CLI admin release receives shared budgets and affiliate settings without replacing private settings', async () => {
+  const { buildReleasePlan } = await loadModule();
+  const args = buildReleasePlan(env()).commands[1].args;
+  const shared = args[args.indexOf('--update-env-vars') + 1];
+  assert.match(shared, /AMAZON_ASSOCIATE_TAG=dealscout-20/);
+  assert.match(shared, /RAINFOREST_MONTHLY_REQUEST_LIMIT=500/);
+  assert.match(shared, /DEAL_DATA_PROVIDER=rainforest/);
+  assert.doesNotMatch(shared, /PUBLIC_SURFACE_ONLY/);
+  assert.equal(args.includes('--set-env-vars'), false);
+  assert.equal(args.includes('--allow-unauthenticated'), false);
+});

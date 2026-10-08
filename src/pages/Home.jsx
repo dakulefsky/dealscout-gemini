@@ -164,7 +164,7 @@ export default function Home() {
         if (generation === feedGeneration.current) setLoadingMore(false);
       });
   }, [feedParams, loading, loadingMore, nextCursor]);
-  useEffect(() => { const node = feedSentinel.current; if (!node || !hasMore || typeof IntersectionObserver === 'undefined') return undefined; const observer = new IntersectionObserver((entries) => { if (!entries.some((entry) => entry.isIntersecting)) return; if (hasLocalMore) setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)); else loadRemotePage(); }, { rootMargin: '700px 0px' }); observer.observe(node); return () => observer.disconnect(); }, [hasMore, hasLocalMore, exploreDeals.length, loadRemotePage]);
+  useEffect(() => { const node = feedSentinel.current; if (!node || !hasMore || loading || error || typeof IntersectionObserver === 'undefined') return undefined; const observer = new IntersectionObserver((entries) => { if (!entries.some((entry) => entry.isIntersecting)) return; if (hasLocalMore) setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)); else loadRemotePage(); }, { rootMargin: '700px 0px' }); observer.observe(node); return () => observer.disconnect(); }, [hasMore, hasLocalMore, exploreDeals.length, loadRemotePage, loading, error]);
 
   const resetAllFilters = () => { setActiveCat('all'); setSearchQuery(''); setMinDiscount(0); setPriceTier('all'); setSort('best'); setSearchParams({}); };
   const resetPersonalization = () => { try { window.localStorage.removeItem(STORAGE_KEY); } catch { /* optional */ } setInterests({}); };
@@ -258,8 +258,15 @@ export default function Home() {
 
         {loading ? <div role="status" aria-label="Loading deals" className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="aspect-[3/4] bg-slate-50 rounded-md animate-pulse" />)}</div>
           : error && deals.length === 0 ? <div role="alert" className="text-center py-12"><p>Couldn’t load deals. Please try again.</p><Button onClick={() => setRetryNonce((value) => value + 1)} className="mt-4">Try again</Button></div>
-          : visibleDeals.length === 0 ? <div className="text-center py-12"><TrendingDown className="h-8 w-8 text-slate-300 mx-auto" /><h3 className="font-semibold mt-3">{hasActiveFilters ? 'No deals match your filters' : 'No current deals right now'}</h3>{hasActiveFilters && <Button onClick={resetAllFilters} variant="outline" size="sm" className="mt-3">Reset filters</Button>}</div>
-          : <>{feedGrid(progressiveDeals)}<div ref={feedSentinel} className="h-10" aria-hidden="true" />{loadingMore && <p role="status" className="text-center py-5 text-sm text-slate-500">Finding more deals…</p>}{error && <div role="status" className="text-center text-sm text-amber-800 py-3">Couldn’t load more deals. <button onClick={loadRemotePage} className="underline font-semibold">Try again</button></div>}{!hasMore && !error && <div role="status" className="text-center py-5 text-sm text-slate-600">You’ve reached the end of the current deals. <Link to="/?category=all" className="font-semibold underline underline-offset-4">Browse all departments</Link></div>}</>}
+          : <>
+            {visibleDeals.length === 0 ? <div className="text-center py-12"><TrendingDown className="h-8 w-8 text-slate-300 mx-auto" /><h3 className="font-semibold mt-3">{nextCursor ? 'More deals are available' : hasActiveFilters ? 'No deals match your filters' : 'No current deals right now'}</h3>{hasActiveFilters && !nextCursor && <Button onClick={resetAllFilters} variant="outline" size="sm" className="mt-3">Reset filters</Button>}</div> : feedGrid(progressiveDeals)}
+            {hasMore && !error && <div ref={feedSentinel} data-feed-sentinel className="h-10" aria-hidden="true" />}
+            {loadingMore && <p role="status" className="text-center py-5 text-sm text-slate-500">Finding more deals…</p>}
+            {hasMore && !loadingMore && !error && <div className="text-center py-3"><Button variant="outline" onClick={() => { if (hasLocalMore) setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)); else loadRemotePage(); }}>Load more deals</Button></div>}
+            {error && <div role="status" className="text-center text-sm text-amber-800 py-3">Couldn’t load more deals. <button onClick={loadRemotePage} className="underline font-semibold">Try again</button></div>}
+            {visibleDeals.length > 0 && !hasMore && !error && <div role="status" className="text-center py-5 text-sm text-slate-600">You’ve reached the end of the current deals. <Link to="/?category=all" className="font-semibold underline underline-offset-4">Browse all departments</Link></div>}
+          </>}
+
       </section>
       {showCuratedHome && <MembershipOffers />}
     </div>
