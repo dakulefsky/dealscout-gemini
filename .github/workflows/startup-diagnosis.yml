@@ -1,8 +1,9 @@
-name: Read-only startup diagnosis
+name: Read-only infrastructure inventory
 on:
   push:
     branches: [main]
     paths: [.github/workflows/startup-diagnosis.yml]
+  workflow_dispatch:
 permissions:
   contents: read
   id-token: write
@@ -12,15 +13,11 @@ jobs:
     environment: production
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v7
       - uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v3
-      - name: Read failed revision logs
-        run: |
-          gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="dealscout-web" AND resource.labels.revision_name="dealscout-web-00045-hfj"' --project=project-1c568b10-6e24-4dc2-b2b --limit=30 --format='value(textPayload,jsonPayload.message)' --freshness=1h
-      - name: Read serving revision status
-        if: always()
-        run: |
-          gcloud run services describe dealscout-web --project=project-1c568b10-6e24-4dc2-b2b --region=us-central1 --format='json(status.latestReadyRevisionName,status.latestCreatedRevisionName,status.traffic,status.conditions)'
+      - name: Collect permitted infrastructure evidence
+        run: bash scripts/check-gcp-infrastructure.sh
