@@ -42,3 +42,12 @@ test('active function and SiteStripe routes do not import the legacy Rainforest 
   assert.match(functionsRoute, /amazonUrlService/);
   assert.match(siteStripe, /amazonUrlService/);
 });
+
+
+test('affiliate links open at the product top while preserving options and one owner tag', () => {
+  const link = new URL(formatAffiliateUrl('https://www.amazon.com/dp/B08PZHYWJS?th=1&psc=1&tag=old-20&tag=other-20#customerReviews', 'dankul-20'));
+  assert.equal(link.hash, '');
+  assert.equal(link.searchParams.get('th'), '1');
+  assert.equal(link.searchParams.get('psc'), '1');
+  assert.deepEqual(link.searchParams.getAll('tag'), ['dankul-20']);
+});

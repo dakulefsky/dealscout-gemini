@@ -14,18 +14,19 @@ const { RUNTIME_ROLES, assertProductionRuntime } = require('../config/runtimeReq
 const { waitForDatabase } = require('./databaseReadiness');
 
 async function ensureOperationalSchemas() {
-  await Promise.all([
-    dealRepository.ensureSchema(),
-    userRepository.ensureSchema(),
-    categoryRepository.ensureSchema(),
-    editorialRepository.ensureSchema(),
-    activityRepository.ensureSchema(),
-    refreshStateRepository.ensureSchema(),
-    publicationQueueRepository.ensureSchema(),
-    maintenanceCadenceRepository.ensureSchema(),
-    providerBudgetService.ensureSchema(),
-    channelSettingsService.ensureSchema(),
-  ]);
+  // Reuse the connection warmed by readiness instead of launching ten schema
+  // tasks into a five-client pool. Cold connections and queued DDL can otherwise
+  // exhaust the acquisition deadline even though SELECT 1 already succeeded.
+  await dealRepository.ensureSchema();
+  await userRepository.ensureSchema();
+  await categoryRepository.ensureSchema();
+  await editorialRepository.ensureSchema();
+  await activityRepository.ensureSchema();
+  await refreshStateRepository.ensureSchema();
+  await publicationQueueRepository.ensureSchema();
+  await maintenanceCadenceRepository.ensureSchema();
+  await providerBudgetService.ensureSchema();
+  await channelSettingsService.ensureSchema();
   await bookmarkRepository.ensureSchema();
   await categoryRepository.repairImportedCategories();
 }

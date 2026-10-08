@@ -62,3 +62,15 @@ Local lint has zero errors (ten existing refresh/unused warnings). Production fr
 ## Follow-up validation
 
 717 local tests passed, lint has zero errors (10 existing warnings), and the production build passed. No paid provider pull was used in the audit. Rainforest remains capped at 500 calls/month. Changes require a successful production rollout before their live behavior is claimed.
+
+## Final rollout outcome (08:52 UTC)
+
+PR 342 passed GitHub Quality and merged as 5e693fa97332b08d7f1712bed297ece2547c5244. Deploy Web run 37752204626 built successfully, but public revision dealscout-web-00046-7ll failed startup. Private/parity/smoke/maintenance steps were skipped. The working previous public revision passed a nine-page live crawl; /admin and /api/ai/status returned 404, private unauthenticated access returned 302, and /api/ready returned ready. No further deployment retry is justified without the exact fatal startup log, which this connected identity cannot read.
+
+A fresh duplicate-tag affiliate probe confirmed exactly dankul-20, but found that a supplied review fragment was still retained. This corrects the earlier broad statement about fragment removal: it was not true for all paths. A focused follow-up clears fragments while retaining product options and the owner tag; it is held for the next verified release rather than triggering another speculative deployment.
+
+Runtime dependency audit again found zero high/critical advisories and two moderate React Router entries. AWS backup, firewall, instance cost and Google billing/storage checks remain unavailable.
+
+## Startup failure identified from application logs (10:20 UTC)
+
+The uploaded stderr shows four transient network retries, followed by a successful readiness check and entry into ensureOperationalSchemas. The fatal error is pg-pool's queued acquisition timeout at editorialRepository.ensureSchema inside Promise.all; the failure is after readiness, not a password or TCP port error. Ten concurrent schema tasks were competing in a five-client pool during cold network startup. Startup now initializes schemas sequentially, reusing the warmed connection, then initializes bookmarks/category repair as before. Pool limits, connection/statement timeouts and verified TLS are unchanged. A regression test checks bounded concurrency and verifies schema failure prevents later repairs and serving startup. This diagnosis justifies a targeted release attempt; it does not guarantee other blockers are absent.
