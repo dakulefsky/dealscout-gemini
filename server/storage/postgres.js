@@ -127,7 +127,7 @@ async function health() {
     await query('SELECT 1');
     return { configured: true, healthy: true };
   } catch (err) {
-    return { configured: true, healthy: false, error: err.message };
+    return { configured: true, healthy: false, error: err.message, code: err.code };
   }
 }
 

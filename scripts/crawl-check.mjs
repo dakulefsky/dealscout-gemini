@@ -4,16 +4,28 @@ import { fileURLToPath } from 'node:url';
 // Only visit the public origin and a bounded sample; never call discovery APIs.
 export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = globalThis.fetch) {
   const origin = new URL(base).origin;
-  async function get(url) {
+  async function get(url, timeoutMs = 15000) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetchImpl(url, { signal: controller.signal, redirect: 'manual', headers: { 'User-Agent': 'DealScout-Crawl-Check/1' } });
       const text = await response.text();
       return { status: response.status, text, headers: response.headers };
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error(`${url} timed out after ${timeoutMs}ms`);
+      throw new Error(`${url} request failed: ${error.message}`);
     } finally { clearTimeout(timer); }
   }
-  const home = await get(origin + '/');
+  // Direct VPC cold starts can exceed a 15-second first-page probe.
+  // One bounded retry is safe here: this is a read-only page, never a provider pull.
+  let home;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      home = await get(origin + '/', 30000);
+      if (attempt === 0 && [502, 503, 504].includes(home.status) && home.headers.get('x-dealscout-closure') !== 'scheduled') continue;
+      break;
+    } catch (error) { if (attempt === 1) throw error; }
+  }
   const scheduled = home.status === 503 && home.headers.get('x-dealscout-closure') === 'scheduled';
   if (home.status !== 200 && !scheduled) throw new Error(`Homepage returned HTTP ${home.status}`);
   const robots = await get(origin + '/robots.txt');

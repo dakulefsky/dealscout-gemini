@@ -30,6 +30,8 @@ const LOCATIONS = Object.freeze({
 });
 
 const currentCache = new Map();
+const currentRequests = new Map();
+const CALENDAR_REQUEST_TIMEOUT_MS = 5000;
 const calendarCache = new Map();
 let selectedLocationCache = null;
 
@@ -40,7 +42,7 @@ function locationConfig(location = 'jerusalem') {
 }
 
 async function selectedLocation(nowMs = Date.now()) {
-  if (selectedLocationCache && nowMs - selectedLocationCache.at < LOCATION_TTL_MS) return selectedLocationCache.value;
+  if (selectedLocationCache && nowMs >= selectedLocationCache.at && nowMs - selectedLocationCache.at < LOCATION_TTL_MS) return selectedLocationCache.value;
   const setting = await siteSettings.get('closure_location');
   const value = locationConfig(setting.value || 'jerusalem');
   selectedLocationCache = { at: nowMs, value };
@@ -48,16 +50,26 @@ async function selectedLocation(nowMs = Date.now()) {
 }
 
 async function fetchJson(url) {
-  const response = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'DealScout/1.0 jewish-closure-calendar' } });
-  if (!response.ok) throw new Error(`Hebcal request failed with HTTP ${response.status}`);
-  return response.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CALENDAR_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json', 'User-Agent': 'DealScout/1.0 jewish-closure-calendar' } });
+    if (!response.ok) throw new Error(`Hebcal request failed with HTTP ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('Hebcal request timed out');
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 
 async function currentStatus(now = new Date(), options = {}) {
   const config = options.location ? locationConfig(options.location) : await selectedLocation();
   const nowMs = now.getTime();
   const cached = currentCache.get(config.key);
-  if (cached?.value && nowMs - cached.at < CURRENT_TTL_MS) return cached.value;
+  if (cached?.value && nowMs >= cached.at && nowMs - cached.at < CURRENT_TTL_MS) return cached.value;
+  const requestKey = `${config.key}:${Math.floor(nowMs / CURRENT_TTL_MS)}`;
+  if (currentRequests.has(requestKey)) return currentRequests.get(requestKey);
+  const request = (async () => {
   const url = new URL('https://www.hebcal.com/zmanim');
   url.searchParams.set('cfg', 'json');
   url.searchParams.set('im', '1');
@@ -65,6 +77,7 @@ async function currentStatus(now = new Date(), options = {}) {
   url.searchParams.set('dt', now.toISOString());
   if (config.israel) url.searchParams.set('i', 'on');
   const payload = await fetchJson(url);
+  if (typeof payload?.status?.isAssurBemlacha !== 'boolean') throw new Error('Hebcal response is missing a valid closure status');
   const value = {
     closed: payload?.status?.isAssurBemlacha === true,
     localTime: payload?.status?.localTime || null,
@@ -76,6 +89,9 @@ async function currentStatus(now = new Date(), options = {}) {
   };
   currentCache.set(config.key, { at: nowMs, value });
   return value;
+  })();
+  currentRequests.set(requestKey, request);
+  try { return await request; } finally { currentRequests.delete(requestKey); }
 }
 
 function pairClosures(items = []) {
@@ -123,7 +139,8 @@ async function yearCalendar(year, { location = 'jerusalem' } = {}) {
   url.searchParams.set('b', String(config.candleMinutes));
   url.searchParams.set('m', String(config.havdalahMinutes));
   const payload = await fetchJson(url);
-  const value = pairClosures(payload?.items || []);
+  if (!Array.isArray(payload?.items)) throw new Error('Hebcal response is missing calendar events');
+  const value = pairClosures(payload.items);
   calendarCache.set(key, { at: Date.now(), value });
   return value;
 }
@@ -139,6 +156,7 @@ async function upcomingClosures({ from = new Date(), limit = 16, location = 'jer
 
 function resetCaches() {
   currentCache.clear();
+  currentRequests.clear();
   calendarCache.clear();
   selectedLocationCache = null;
 }

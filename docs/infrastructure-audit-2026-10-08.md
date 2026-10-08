@@ -4,7 +4,24 @@
 
 Audited the repository's deployment pipeline, Docker packaging, PostgreSQL connectivity, maintenance cadence, quota accounting, public/private boundaries, affiliate flow, and runtime dependencies. Public HTTP checks succeeded for liveness/readiness. The private Cloud Run URL redirects unauthenticated callers to Google sign-in; public admin, AI and operational endpoints return 404. This verifies observed access behavior, not the full account IAM policy.
 
-AWS and Google Cloud account APIs are not connected to this audit session. Backup retention, restore coverage, machine size, full firewall/IAM configuration, actual bills, and obsolete resource charges require the read-only account scripts below. Earlier migration output confirmed both services moved to the RDS database and Google SQL was stopped; this audit does not pretend to independently verify that account state.
+AWS account APIs are not connected. A read-only production GitHub workflow obtained selected Google Cloud service configuration; other Google account checks were denied or unavailable. Backup retention, restore coverage, machine size, full firewall/IAM configuration, actual bills, and obsolete resource charges require the read-only account scripts below. Earlier migration output confirmed both services moved to the RDS database and Google SQL was stopped; this audit does not pretend to independently verify that account state.
+
+## Follow-up account evidence (08:34 UTC)
+
+- Public traffic remains 100% on ready revision `dealscout-web-00044-6s6`; attempted revision `00045-hfj` failed startup. The latest public deployment is not successful. The deployment identity cannot read Cloud Logging, so the exact fatal startup cause remains unverified.
+- Private service is healthy on `dealscout-00215-q98`, with IAP enabled and no public IAM bindings. It uses a separate Cloud Build source-deploy image for commit `b0d8b3f`, while the public workflow uses a gcr.io image. There are two independently advancing deployment paths. Consolidating them needs inspection of the existing Cloud Build trigger before disabling it.
+- Both actual serving revisions allow up to 20 instances, with concurrency 80 and 512 MiB RAM. The public service also has a service-level ceiling of 20. Lower 3/1 revision caps are release configuration, not verified live limits. Private min instances is zero.
+- Both services use the default Direct VPC network, all-traffic egress, the same RDS database secret and regional CA mount; neither has a Cloud SQL attachment. The private service retains old DB_USER/DB_PASSWORD/DB_NAME environment entries. Values were deliberately not retrieved.
+- Only the network-check Cloud Run job exists. Scheduled maintenance run 37738912243 failed with NOT_FOUND for dealscout-maintenance; the prior failed rollout never created it. Unattended maintenance is not operational yet.
+- Overnight crawl run 37735055480 aborted its first homepage request after 15 seconds. Later liveness/readiness checks were successful. This is a monitoring failure, not enough evidence to attribute a sustained outage.
+- NAT, fixed-IP metadata, IAM roles, secret-version metadata, federation configuration and Google SQL fallback state could not be verified with this identity. Billing API is disabled. No account permissions were widened, secret contents retrieved, or APIs enabled.
+
+### Additional fixes validated in this follow-up
+
+- Startup retries only transient PostgreSQL network/readiness failures, with eight attempts and a 90-second retry budget. Authentication, certificate and configuration failures still fail immediately. Google documents Direct VPC/NAT cold-start connection delays of 30 seconds or longer; a single 10-second attempt was insufficient for that topology. This addresses a verified risk but does not establish the fatal cause of revision 00045.
+- Calendar fetches now have a five-second deadline through response-body reading. Concurrent checks share one request per location/time window. Missing or malformed closure status fails closed instead of becoming an open-site status; cache entries cannot be reused for earlier dates. Existing Jerusalem/New York rules are retained.
+- Every release smoke static-page fetch is bounded. Scheduled closure still checks liveness, readiness, robots, sitemap, ads.txt and public admin isolation, while deferring closed shopper APIs. Unmarked 503 responses still fail. Public crawl monitoring permits one bounded homepage retry for transient cold-start failures and reports the affected URL on timeouts.
+- Read-only inventory disables interactive prompts and describes the specific egress IP instead of treating a permission-denied list warning as an empty successful result.
 
 ## Confirmed problems addressed
 
@@ -41,3 +58,7 @@ Check the following before considering the infrastructure fully verified:
 ## Validation
 
 Local lint has zero errors (ten existing refresh/unused warnings). Production frontend build passes. Tests include a real bounded network-failure check, lock-session disposal, job exit/error/resource handling, role/secret/network boundaries, quota deferral, email composition compatibility and affiliate regression checks. GitHub Quality and deployment status should be recorded after this patch is merged; these local checks alone do not certify a live rollout.
+
+## Follow-up validation
+
+717 local tests passed, lint has zero errors (10 existing warnings), and the production build passed. No paid provider pull was used in the audit. Rainforest remains capped at 500 calls/month. Changes require a successful production rollout before their live behavior is claimed.

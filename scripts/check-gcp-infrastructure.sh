@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Read-only inventory. Never accesses secret contents or prints environment values.
 set -uo pipefail
+export CLOUDSDK_CORE_DISABLE_PROMPTS=1
 project=project-1c568b10-6e24-4dc2-b2b
 region=us-central1
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,7 +36,7 @@ for service in dealscout-web dealscout; do
 done
 check 'Google SQL fallback state and storage' gcloud sql instances describe dealscout-db --project "$project" --format='json(state,settings.activationPolicy,region,settings.tier,settings.dataDiskSizeGb,settings.dataDiskType,settings.availabilityType,settings.backupConfiguration.enabled)'
 check 'NAT and fixed IP route' gcloud compute routers nats describe dealscout-nat --router=dealscout-router --region "$region" --project "$project" --format='json(natIpAllocateOption,natIps,subnetworks,endpointTypes)'
-check 'Reserved regional IPs' gcloud compute addresses list --project "$project" --filter='region:us-central1' --format='table(name,address,status,addressType,users)'
+check 'Reserved application egress IP' gcloud compute addresses describe dealscout-egress --project "$project" --region "$region" --format='table(name,address,status,addressType,users)'
 check 'Database secret version metadata' gcloud secrets versions list dealscout-rds-database-url --project "$project" --format='table(name,state,createTime)'
 check 'CA secret version metadata' gcloud secrets versions list dealscout-rds-ca --project "$project" --format='table(name,state,createTime)'
 check 'Maintenance job existence' gcloud run jobs list --project "$project" --region "$region" --format='table(metadata.name,status.latestCreatedExecution.name,status.latestCreatedExecution.completionTimestamp)'
