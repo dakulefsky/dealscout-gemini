@@ -32,14 +32,12 @@ export function maintenanceRelease(env = process.env) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const args = maintenanceRelease();
-    const lookup = spawnSync('gcloud', ['run', 'jobs', 'describe', args[3],
+    const lookup = spawnSync('gcloud', ['run', 'jobs', 'list', `--filter=metadata.name=${args[3]}`,
       '--project', process.env.GCP_PROJECT_ID, '--region', process.env.GCP_REGION,
       '--format=value(metadata.name)'], { encoding: 'utf8' });
     if (lookup.error) throw lookup.error;
-    if (lookup.status !== 0) {
-      if (!/NOT_FOUND|not found|does not exist/i.test(lookup.stderr || '')) {
-        throw new Error('Unable to inspect the maintenance job; check deployment identity permissions');
-      }
+    if (lookup.status !== 0) throw new Error('Unable to inspect the maintenance job; check deployment identity permissions');
+    if (!lookup.stdout.trim()) {
       // Verify only the first rollout. Later image updates need not provision
       // another task or do maintenance merely because someone changed the UI.
       args.push('--execute-now', '--wait');

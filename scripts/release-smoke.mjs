@@ -146,7 +146,7 @@ async function runReleaseSmoke(baseUrl, options = {}) {
   assert(/^https:\/\/(?:www\.)?amazon\.com\//i.test(String(affiliate.body?.redirectUrl || '')), 'affiliate redirect endpoint did not return an Amazon URL');
   const affiliateUrl = new URL(affiliate.body.redirectUrl);
   const tags = affiliateUrl.searchParams.getAll('tag');
-  const expectedTag = options.expectedAffiliateTag || process.env.AMAZON_ASSOCIATE_TAG;
+  const expectedTag = options.expectedAffiliateTag;
   assert(tags.length === 1 && tags[0].trim(), 'affiliate redirect must contain exactly one nonempty Associates tag');
   if (expectedTag) assert(tags[0] === expectedTag, 'affiliate redirect does not use the configured Associates tag');
   checks.push('affiliate-redirect');
@@ -197,7 +197,10 @@ async function runReleaseSmoke(baseUrl, options = {}) {
 
 async function main() {
   const target = process.argv[2] || process.env.DEALSCOUT_SMOKE_URL;
-  const result = await runReleaseSmoke(target, { browserOrigin: process.env.DEALSCOUT_SMOKE_ORIGIN });
+  const result = await runReleaseSmoke(target, {
+    browserOrigin: process.env.DEALSCOUT_SMOKE_ORIGIN,
+    expectedAffiliateTag: process.env.AMAZON_ASSOCIATE_TAG,
+  });
   console.log(`DealScout release smoke passed for ${result.target}`);
   console.log(`Checks: ${result.checks.join(', ')}`);
   if (result.browserOrigin) console.log(`Browser CORS verified for ${result.browserOrigin}`);
