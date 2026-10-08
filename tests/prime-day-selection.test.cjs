@@ -78,7 +78,7 @@ test('Prime discovery retains more good candidates from one paid page, strongest
     assert.ok(result.slice(70).every(deal => deal.discountPercent === 10));
     assert.equal(new Set(result.map(deal => deal.asin)).size, 75);
     settings.resetLocalSettings();
-    assert.equal((await fetchStrictRainforestDeals({ maxResults: 15 })).length, 25);
+    assert.equal((await fetchStrictRainforestDeals({ maxResults: 15 })).length, 40);
   } finally {
     axios.get = originalGet;
     if (originalKey === undefined) delete process.env.RAINFOREST_API_KEY; else process.env.RAINFOREST_API_KEY = originalKey;

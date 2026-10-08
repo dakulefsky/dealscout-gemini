@@ -5,7 +5,7 @@ const primeDayPolicy = require('./primeDayPolicy');
 const { scoreVerifiedDeal } = require('./dealQualityService');
 
 const ENDPOINT = 'https://api.rainforestapi.com/request';
-const SINGLE_PAGE_NEW_DEAL_FLOOR = 25;
+const SINGLE_PAGE_NEW_DEAL_FLOOR = 40;
 const REVIEWABLE_DISCOUNT_FLOOR = 12;
 
 function moneyValue(value) {
@@ -168,15 +168,15 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
     .filter((deal) => !isUnavailableDeal(deal))
     .filter((deal) => deal.discountPercent >= effectiveMinDiscount);
   const ranked = dedupeDeals(normalized).sort((a, b) => b.discountPercent - a.discountPercent || b.savingsAmount - a.savingsAmount);
-  if (!primeDay) return selectDealsForIngestion(ranked, effectiveMaxResults, refreshExistingAsins);
 
-  // Give strong, publishable deals first access to the larger batch. Fill spare
-  // slots with modest discounts and review candidates, without extra API calls.
+  // On ordinary days as well as Prime Day, use the paid page for good live
+  // deals first. Review candidates only fill spare slots; rejected deals never
+  // consume new-candidate capacity. Existing observations still refresh for free.
   const scored = ranked.map(deal => ({ deal, quality: scoreVerifiedDeal(deal) }));
   const strong = scored.filter(({ deal, quality }) => quality.decision === 'AUTO_APPROVE' && deal.discountPercent >= 20);
-  const other = scored.filter(({ deal, quality }) => !(quality.decision === 'AUTO_APPROVE' && deal.discountPercent >= 20));
-  const compare = (a, b) => b.quality.score - a.quality.score || b.deal.savingsAmount - a.deal.savingsAmount;
-  const existing = new Set(refreshExistingAsins);
+  const other = scored.filter(({ deal, quality }) => quality.decision !== 'REJECT' && !(quality.decision === 'AUTO_APPROVE' && deal.discountPercent >= 20));
+  const compare = (a, b) => Number(b.quality.decision === 'AUTO_APPROVE') - Number(a.quality.decision === 'AUTO_APPROVE') || b.quality.score - a.quality.score || b.deal.savingsAmount - a.deal.savingsAmount;
+  const existing = new Set(refreshExistingAsins.map(asin => String(asin || '').trim().toUpperCase()));
   const refresh = ranked.filter(deal => existing.has(deal.asin));
   const first = selectBalancedDeals(strong.sort(compare).map(row => row.deal).filter(deal => !existing.has(deal.asin)), effectiveMaxResults);
   const remaining = effectiveMaxResults - first.length;
