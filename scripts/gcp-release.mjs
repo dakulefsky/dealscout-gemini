@@ -13,6 +13,14 @@ function requireValue(env, key) {
   return result;
 }
 
+function replicaLimit(env, key, fallback) {
+  const value = text(env, key) || String(fallback);
+  if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 20) {
+    throw new Error(`${key} must be an integer from 1 to 20`);
+  }
+  return String(Number(value));
+}
+
 function cleanCsv(value) {
   return String(value || '').split(',').map((item) => item.trim()).filter(Boolean).join(',');
 }
@@ -88,6 +96,8 @@ export function buildReleasePlan(env = process.env) {
   const webService = text(env, 'GCP_WEB_SERVICE', 'dealscout-web');
   const adminService = text(env, 'GCP_ADMIN_SERVICE', 'dealscout');
   if (adminService === webService) throw new Error('GCP_ADMIN_SERVICE must differ from GCP_WEB_SERVICE');
+  const webMaxInstances = replicaLimit(env, 'GCP_WEB_MAX_INSTANCES', 3);
+  const adminMaxInstances = replicaLimit(env, 'GCP_ADMIN_MAX_INSTANCES', 1);
   const publisherPool = text(env, 'GCP_PUBLISHER_POOL', 'dealscout-publisher');
   const serviceAccount = text(env, 'GCP_RUNTIME_SERVICE_ACCOUNT');
 
@@ -111,9 +121,8 @@ export function buildReleasePlan(env = process.env) {
   const combinedWebSecrets = serializeSecretMappings(dbSecrets, webSecrets);
   const combinedPublisherSecrets = serializeSecretMappings(dbSecrets, publisherSecrets);
 
-  const webEnv = encodeEnvVars([
+  const commonEntries = [
     ['NODE_ENV', 'production'],
-    ['PUBLIC_SURFACE_ONLY', 'true'],
     ['PUBLIC_WEB_URL', publicWebUrl],
     ['CORS_ORIGINS', corsOrigins],
     ...database.entries,
@@ -125,7 +134,8 @@ export function buildReleasePlan(env = process.env) {
     ['GEMINI_MODEL', text(env, 'GEMINI_MODEL')],
     ['GEMINI_DAILY_REQUEST_LIMIT', text(env, 'GEMINI_DAILY_REQUEST_LIMIT')],
     ['GEMINI_MONTHLY_REQUEST_LIMIT', text(env, 'GEMINI_MONTHLY_REQUEST_LIMIT')],
-  ]);
+  ];
+  const webEnv = encodeEnvVars([...commonEntries, ['PUBLIC_SURFACE_ONLY', 'true']]);
 
   const publisherEnv = encodeEnvVars([
     ['NODE_ENV', 'production'],
@@ -149,6 +159,7 @@ export function buildReleasePlan(env = process.env) {
     '--image', image,
     '--platform', 'managed',
     '--allow-unauthenticated',
+    '--min-instances', '0', '--max-instances', webMaxInstances,
     ...database.flags,
     '--set-env-vars', webEnv,
     '--set-secrets', combinedWebSecrets,
@@ -160,11 +171,13 @@ export function buildReleasePlan(env = process.env) {
     '--region', region,
     '--image', image,
     '--platform', 'managed',
+    '--min-instances', '0', '--max-instances', adminMaxInstances,
+    '--update-env-vars', encodeEnvVars(commonEntries),
   ];
 
   if (database.mode === 'rds') {
     admin.push(...database.flags, '--remove-env-vars', 'CLOUD_SQL_CONNECTION_NAME',
-      '--update-env-vars', encodeEnvVars(database.entries), '--update-secrets', database.secrets);
+      '--update-secrets', database.secrets);
     if (serviceAccount) pushFlag(admin, '--service-account', serviceAccount);
   }
 
