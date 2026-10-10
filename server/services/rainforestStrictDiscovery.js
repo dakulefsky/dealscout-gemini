@@ -2,6 +2,8 @@ const axios = require('axios');
 const { imageCandidates } = require('./rainforestImage');
 const { classifyCategory, normalizeCategory } = require('./categoryClassifier');
 const primeDayPolicy = require('./primeDayPolicy');
+const { uniqueQuantityFamilies } = require('./dealVariantPolicy');
+const { TARGET_LIVE_DEALS } = require('./departmentSupplyService');
 const { scoreVerifiedDeal } = require('./dealQualityService');
 
 const ENDPOINT = 'https://api.rainforestapi.com/request';
@@ -85,22 +87,38 @@ function dedupeDeals(items) {
   return [...byAsin.values()];
 }
 
-function selectBalancedDeals(rankedDeals = [], maxResults = 15) {
+function selectBalancedDeals(rankedDeals = [], maxResults = 15, departmentStock = {}) {
   const limit = Math.max(1, Number.parseInt(maxResults, 10) || 15);
   const maxPerCategory = Math.max(2, Math.ceil(limit / 4));
   const counts = new Map();
   const selected = [];
   const selectedAsins = new Set();
 
+  const supplied = category => Number(departmentStock[category]) || 0;
+  const order = [...rankedDeals].sort((a, b) => supplied(normalizeCategory(a.category) || 'Other') - supplied(normalizeCategory(b.category) || 'Other'));
+
   // First give each represented category one strong slot. This keeps the top of
   // a single paid response from looking like one repeated product aisle.
-  for (const deal of rankedDeals) {
+  for (const deal of order) {
     if (selected.length >= limit) break;
     const category = normalizeCategory(deal.category) || 'Other';
     if (counts.has(category)) continue;
     selected.push(deal);
     selectedAsins.add(deal.asin);
     counts.set(category, 1);
+  }
+
+  while (Object.keys(departmentStock).length && selected.length < limit) {
+    const projected = deal => {
+      const category = normalizeCategory(deal.category) || 'Other';
+      return supplied(category) + (counts.get(category) || 0);
+    };
+    const thin = rankedDeals.filter(deal => !selectedAsins.has(deal.asin) && projected(deal) < TARGET_LIVE_DEALS)
+      .sort((a, b) => projected(a) - projected(b));
+    if (!thin.length) break;
+    const deal = thin[0];
+    const category = normalizeCategory(deal.category) || 'Other';
+    selected.push(deal); selectedAsins.add(deal.asin); counts.set(category, (counts.get(category) || 0) + 1);
   }
 
   // Then add more strong deals while keeping one category from consuming the
@@ -139,7 +157,7 @@ function selectDealsForIngestion(rankedDeals = [], maxNewResults = 15, refreshEx
   return [...refreshMatches, ...selectedNew];
 }
 
-async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealType = null, categoryId = null, maxResults = 15, minDiscount = 10, refreshExistingAsins = [] } = {}) {
+async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealType = null, categoryId = null, maxResults = 15, minDiscount = 10, refreshExistingAsins = [], departmentStock = {}, onCategories = null } = {}) {
   await primeDayPolicy.refresh();
   const primeDay = primeDayPolicy.isPrimeDay();
   const apiKey = process.env.RAINFOREST_API_KEY;
@@ -157,6 +175,7 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
 
   const data = response.data || {};
   if (data.request_info?.success === false) throw new Error(data.request_info.message || 'Rainforest deals request failed');
+  if (onCategories) await onCategories(data.categories);
 
   // Keep this to one paid deals page. Broaden only what we retain from that already-paid response.
   const effectiveMaxResults = Math.max(primeDay ? 75 : SINGLE_PAGE_NEW_DEAL_FLOOR, Number(maxResults) || 0);
@@ -172,15 +191,18 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
   // On ordinary days as well as Prime Day, use the paid page for good live
   // deals first. Review candidates only fill spare slots; rejected deals never
   // consume new-candidate capacity. Existing observations still refresh for free.
-  const scored = ranked.map(deal => ({ deal, quality: scoreVerifiedDeal(deal) }));
-  const strong = scored.filter(({ deal, quality }) => quality.decision === 'AUTO_APPROVE' && deal.discountPercent >= 20);
-  const other = scored.filter(({ deal, quality }) => quality.decision !== 'REJECT' && !(quality.decision === 'AUTO_APPROVE' && deal.discountPercent >= 20));
-  const compare = (a, b) => Number(b.quality.decision === 'AUTO_APPROVE') - Number(a.quality.decision === 'AUTO_APPROVE') || b.quality.score - a.quality.score || b.deal.savingsAmount - a.deal.savingsAmount;
   const existing = new Set(refreshExistingAsins.map(asin => String(asin || '').trim().toUpperCase()));
   const refresh = ranked.filter(deal => existing.has(deal.asin));
-  const first = selectBalancedDeals(strong.sort(compare).map(row => row.deal).filter(deal => !existing.has(deal.asin)), effectiveMaxResults);
+  const compare = (a, b) => b.quality.score - a.quality.score || b.deal.savingsAmount - a.deal.savingsAmount;
+  const scored = ranked.filter(deal => !existing.has(deal.asin))
+    .map(deal => ({ deal, quality: scoreVerifiedDeal(deal) }))
+    .sort((a, b) => Number(b.quality.decision === 'AUTO_APPROVE') - Number(a.quality.decision === 'AUTO_APPROVE') || compare(a, b));
+  const distinctAsins = new Set(uniqueQuantityFamilies(scored.map(row => row.deal)).map(deal => deal.asin));
+  const publishable = scored.filter(row => distinctAsins.has(row.deal.asin) && row.quality.decision === 'AUTO_APPROVE');
+  const review = scored.filter(row => distinctAsins.has(row.deal.asin) && row.quality.decision === 'PENDING_REVIEW');
+  const first = selectBalancedDeals(publishable.sort(compare).map(row => row.deal), effectiveMaxResults, departmentStock);
   const remaining = effectiveMaxResults - first.length;
-  return [...refresh, ...first, ...(remaining > 0 ? selectBalancedDeals(other.sort(compare).map(row => row.deal).filter(deal => !existing.has(deal.asin)), remaining) : [])];
+  return [...refresh, ...first, ...(remaining > 0 ? selectBalancedDeals(review.sort(compare).map(row => row.deal), remaining, departmentStock) : [])];
 }
 
 module.exports = {
