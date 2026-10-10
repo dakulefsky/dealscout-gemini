@@ -11,12 +11,17 @@ const WHATSAPP_STATUS_PUBLICATION_LOCK = 620031;
 function sleep(ms, signal) {
   if (signal?.aborted) return Promise.resolve();
   return new Promise((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    timer.unref?.();
-    signal?.addEventListener('abort', () => {
-      clearTimeout(timer);
+    const finish = () => {
+      signal?.removeEventListener?.('abort', onAbort);
       resolve();
-    }, { once: true });
+    };
+    const onAbort = () => {
+      clearTimeout(timer);
+      finish();
+    };
+    const timer = setTimeout(finish, ms);
+    timer.unref?.();
+    signal?.addEventListener('abort', onAbort, { once: true });
   });
 }
 
@@ -97,7 +102,7 @@ async function runPublicationCycleUnlocked(config, adapter, dependencies = {}) {
     attempts,
     published: attempts.filter((item) => item.status === 'published').length,
     retriesScheduled: attempts.filter((item) => item.status === 'retry_scheduled').length,
-    failed: attempts.filter((item) => item.status === 'failed').length,
+    failed: attempts.filter((item) => ['failed', 'lease_lost'].includes(item.status)).length,
     cadenceDeferred: false,
     paused: false,
     nextPublishEligibleAt: null,

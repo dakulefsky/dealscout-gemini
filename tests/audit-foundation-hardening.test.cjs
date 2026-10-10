@@ -57,7 +57,8 @@ test('shared API client bounds requests and supports cancellation', () => {
   assert.match(core, /DEFAULT_TIMEOUT_MS/);
   assert.match(core, /AbortController/);
   assert.match(core, /signal: controller\.signal/);
-  assert.match(browser, /globalThis\.crypto\?\.randomUUID/);
+  assert.match(browser, /createBrowserIdentity/);
+  assert.match(read('src/lib/browserIdentity.js'), /crypto\?\.randomUUID/);
   assert.match(browser, /createDealScoutClient/);
 });
 

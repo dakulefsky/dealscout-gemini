@@ -201,6 +201,7 @@ router.patch('/:id', requireAdmin, async (req, res) => {
       const effectiveVerified = changes.source_verified !== undefined ? changes.source_verified : deal.source_verified;
       if (b.status === 'APPROVED' && effectiveVerified !== 1) throw new Error('Only source-verified deals can be approved');
       changes.status = b.status;
+      if (b.status === 'REJECTED') { changes.is_expired = 0; changes.expired_at = null; }
     }
     const effectiveStatus = changes.status ?? deal.status;
     const effectiveOriginal = changes.original_price ?? Number(deal.original_price);

@@ -51,16 +51,22 @@ async function optionalAuth(req, _res, next) {
 }
 
 async function requireAuth(req, res, next) {
+  let tokenUser;
   try {
-    const tokenUser = verifyBearer(req);
-    if (!tokenUser) return res.status(401).json({ error: 'Unauthorized' });
+    tokenUser = verifyBearer(req);
+  } catch (err) {
+    if (/JWT_SECRET/.test(err.message)) return res.status(503).json({ error: 'Authentication is not configured' });
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+  if (!tokenUser) return res.status(401).json({ error: 'Unauthorized' });
+  try {
     const currentUser = await resolveCurrentUser(tokenUser);
     if (!currentUser) return res.status(401).json({ error: 'Invalid or expired token' });
     req.user = currentUser;
     next();
   } catch (err) {
-    if (/JWT_SECRET/.test(err.message)) return res.status(503).json({ error: 'Authentication is not configured' });
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    console.warn('[auth] Current user lookup failed:', err.message);
+    return res.status(503).json({ error: 'Authentication service is temporarily unavailable' });
   }
 }
 

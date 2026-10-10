@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { getEventListeners } = require('node:events');
 const fs = require('fs');
 const path = require('path');
 
@@ -104,4 +105,13 @@ test('production image and scripts expose a graceful standalone publisher proces
   assert.match(workerEntry, /process\.once\('SIGTERM'/);
   assert.match(workerEntry, /process\.once\('SIGINT'/);
   assert.match(workerEntry, /await postgres\.closePool\(\)/);
+});
+test('completed worker polling delays do not accumulate abort listeners', async () => {
+  const { sleep } = require('../server/services/publicationWorkerRuntime');
+  const controller = new AbortController();
+  const keepAlive = setInterval(() => {}, 1000);
+  try {
+    for (let index = 0; index < 15; index += 1) await sleep(1, controller.signal);
+    assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
+  } finally { clearInterval(keepAlive); }
 });

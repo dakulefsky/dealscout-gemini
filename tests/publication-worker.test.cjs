@@ -83,6 +83,22 @@ test('worker schedules retry when an adapter throws', async () => {
   assert.ok(db.tables.publication_jobs[0].next_attempt_at > NOW);
 });
 
+test('a reclaimed lease survives the old worker finishing its transport call', async () => {
+  const deal = verifiedDeal();
+  db.tables.deals.push(deal);
+  await queue.enqueueDeal(deal, CHANNELS.WHATSAPP_STATUS, { nowUnix: NOW });
+  const result = await worker.runPublicationOnce(CHANNELS.WHATSAPP_STATUS, {
+    async publish() {
+      await queue.leaseNext(CHANNELS.WHATSAPP_STATUS, { nowUnix: NOW + 16 });
+      return 'old-worker-result';
+    },
+  }, { nowUnix: NOW, leaseSeconds: 15 });
+  assert.equal(result.status, 'lease_lost');
+  assert.equal(db.tables.publication_jobs[0].state, queue.STATES.LEASED);
+  assert.equal(db.tables.publication_jobs[0].attempts, 2);
+  assert.equal(db.tables.publication_jobs[0].external_publication_id, null);
+});
+
 test('worker is idle when there is nothing eligible to publish', async () => {
   const result = await worker.runPublicationOnce(CHANNELS.WHATSAPP_STATUS, { async publish() {} }, { nowUnix: NOW });
   assert.deepEqual(result, { status: 'idle', channel: CHANNELS.WHATSAPP_STATUS, jobId: null });

@@ -19,12 +19,15 @@ async function runPublicationOnce(channel, adapter, options = {}) {
   if (!leased) return { status: 'idle', channel, jobId: null };
 
   const { job, deal } = leased;
+  // A reclaimed job has a new attempt number. A delayed worker must never
+  // complete or requeue the newer worker's lease.
+  const leaseOptions = { ...options, expectedAttempt: job.attempts };
   try {
     // Compose only after the queue service has revalidated the current deal.
     // Adapters receive transport-ready factual content, but never own deal truth.
     const content = composePublicationContent(channel, deal, options);
     const result = normalizeAdapterResult(await adapter.publish({ channel, job, deal, content }));
-    const completed = await publication.completePublication(job.id, result.externalPublicationId, options);
+    const completed = await publication.completePublication(job.id, result.externalPublicationId, leaseOptions);
     if (!completed) throw new Error('Publication lease was lost before completion');
     return {
       status: 'published',
@@ -34,9 +37,9 @@ async function runPublicationOnce(channel, adapter, options = {}) {
       externalPublicationId: completed.external_publication_id,
     };
   } catch (error) {
-    const failed = await publication.failPublication(job.id, error, options);
+    const failed = await publication.failPublication(job.id, error, leaseOptions);
     return {
-      status: failed?.state === 'failed' ? 'failed' : 'retry_scheduled',
+      status: !failed ? 'lease_lost' : failed.state === 'failed' ? 'failed' : 'retry_scheduled',
       channel,
       jobId: job.id,
       asin: job.asin,

@@ -1,34 +1,11 @@
 import { createDealScoutClient } from './apiCore';
+import { createBrowserIdentity } from './browserIdentity';
 
-const TOKEN_KEY = 'ds_token';
-const GUEST_ID_KEY = 'ds_guest_id';
 const BASE_URL = import.meta.env.VITE_API_URL || '';
-
-function randomGuestId() {
-  if (globalThis.crypto?.randomUUID) return `guest_${globalThis.crypto.randomUUID()}`;
-  const bytes = new Uint8Array(16);
-  globalThis.crypto?.getRandomValues?.(bytes);
-  if (bytes.some(Boolean)) return `guest_${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
-  return `guest_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
-}
-
-function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export function setToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
-}
-
-function getGuestId() {
-  let guestId = localStorage.getItem(GUEST_ID_KEY);
-  if (!guestId) {
-    guestId = randomGuestId();
-    localStorage.setItem(GUEST_ID_KEY, guestId);
-  }
-  return guestId;
-}
+const identity = createBrowserIdentity({ storage: () => globalThis.localStorage });
+export const getToken = identity.getToken;
+export const setToken = identity.setToken;
+const getGuestId = identity.getGuestId;
 
 const client = createDealScoutClient({
   baseUrl: BASE_URL,

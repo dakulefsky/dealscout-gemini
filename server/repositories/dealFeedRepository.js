@@ -68,7 +68,9 @@ function cursorFromRow(row, sort) {
         : Number(row.created_at);
   const numericCandidate = Number(candidate);
   const createdAt = Number(row.created_at);
-  const primary = Number.isFinite(numericCandidate) ? numericCandidate : 0;
+  // PostgreSQL NUMERIC scores arrive as decimal strings. Converting those to
+  // JavaScript doubles changes the page boundary and can repeat or skip rows.
+  const primary = Number.isFinite(numericCandidate) ? candidate : 0;
   return encodeCursor({
     sort,
     primary,

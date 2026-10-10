@@ -81,6 +81,21 @@ test('expired worker leases can be reclaimed after a crash', async () => {
   assert.equal(reclaimed.lease_until, NOW + 46);
 });
 
+test('a delayed worker cannot complete, fail, or cancel a reclaimed lease', async () => {
+  await queue.enqueueDeal(verifiedDeal(), CHANNELS.WHATSAPP_STATUS, { nowUnix: NOW });
+  const first = await queue.leaseNext(CHANNELS.WHATSAPP_STATUS, { nowUnix: NOW, leaseSeconds: 15 });
+  const second = await queue.leaseNext(CHANNELS.WHATSAPP_STATUS, { nowUnix: NOW + 16 });
+  const staleOptions = { nowUnix: NOW + 17, expectedAttempt: first.attempts };
+  assert.equal(await queue.markPublished(first.id, staleOptions), null);
+  assert.equal(await queue.failJob(first.id, 'old transport failure', staleOptions), null);
+  assert.equal(await queue.cancelJob(first.id, 'old eligibility result', staleOptions), null);
+  const current = await queue.findById(second.id);
+  assert.equal(current.state, queue.STATES.LEASED);
+  assert.equal(current.attempts, second.attempts);
+  const published = await queue.markPublished(second.id, { nowUnix: NOW + 18, expectedAttempt: second.attempts });
+  assert.equal(published.state, queue.STATES.PUBLISHED);
+});
+
 test('publication failures back off and become terminal after bounded attempts', async () => {
   await queue.enqueueDeal(verifiedDeal(), CHANNELS.WHATSAPP_STATUS, { nowUnix: NOW });
   let job = await queue.leaseNext(CHANNELS.WHATSAPP_STATUS, { nowUnix: NOW });
