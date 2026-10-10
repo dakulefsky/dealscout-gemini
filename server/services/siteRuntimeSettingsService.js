@@ -8,6 +8,7 @@ const DEFAULTS = Object.freeze({
 });
 
 const local = new Map();
+let schemaPromise = null;
 
 function cleanKey(key) {
   const value = String(key || '').trim().toLowerCase();
@@ -35,13 +36,18 @@ function normalizeValue(key, value) {
 
 async function ensureSchema() {
   if (!postgres.isConfigured()) return;
-  await postgres.query(`
+  if (!schemaPromise) schemaPromise = postgres.query(`
     CREATE TABLE IF NOT EXISTS site_runtime_settings (
       setting_key TEXT PRIMARY KEY,
       setting_value TEXT NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
-  `);
+  `).catch(error => {
+    // A transient startup failure must allow the next request to retry.
+    schemaPromise = null;
+    throw error;
+  });
+  await schemaPromise;
 }
 
 async function get(key) {

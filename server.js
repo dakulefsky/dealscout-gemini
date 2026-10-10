@@ -72,7 +72,7 @@ function dealInitialContent(deal) {
   const savings = Math.max(0, original - current);
   const category = escapeHtml(deal.category || 'Deals');
   const image = deal.image_url ? `<img src="${escapeHtml(deal.image_url)}" alt="${title}" width="320" height="320" />` : '';
-  const productUrl = deal.product_url ? `<p><a href="${escapeHtml(deal.product_url)}" rel="nofollow sponsored">View current deal on Amazon</a></p>` : '';
+  const productUrl = deal.product_url ? `<p><a href="/api/functions/amazon-redirect?url=${escapeHtml(encodeURIComponent(deal.product_url))}" rel="nofollow sponsored">View current deal on Amazon</a></p>` : '';
   return `<main data-server-crawl-content="deal"><article>${image}<p>${category}</p><h1>${title}</h1><p><strong>$${current.toFixed(2)}</strong>${original > current ? ` <del>$${original.toFixed(2)}</del>` : ''}</p>${savings > 0 ? `<p>Save $${savings.toFixed(2)} while this verified price is current.</p>` : ''}${productUrl}<p><a href="/">Browse more current deals</a></p></article></main>`;
 }
 
@@ -306,16 +306,16 @@ async function startServer() {
         res.status(status).type('html').send(injectInitialContent(nonceReady, initialContent));
       } catch (err) {
         console.warn('[DealScout] SEO render fallback:', err.message);
-        res.status(503).type('html').send(indexTemplate);
+        const failure = seo.renderFailure(err);
+        res.set('Cache-Control', 'no-store');
+        if (failure.retryAfter) res.set('Retry-After', failure.retryAfter);
+        res.status(failure.status).type('html').send(failure.html);
       }
     });
   }
 
   app.use((req, res, next) => { if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'API route not found' }); next(); });
-  app.use((err, req, res, _next) => {
-    console.error('[DealScout] Unhandled request error:', err);
-    if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
-  });
+  app.use(require('./server/middleware/requestErrorHandler.js').requestErrorHandler);
 
   const httpServer = app.listen(PORT, '0.0.0.0', () => console.log(`[DealScout] Server running on port ${PORT}`));
   let shuttingDown = false;

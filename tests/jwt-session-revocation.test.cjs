@@ -20,8 +20,10 @@ test('new JWTs carry the current account auth version', () => {
 });
 
 test('password reset invalidates every previously issued JWT for the account', () => {
-  assert.match(authRoute, /token_version: Number\(user\.token_version \|\| 0\) \+ 1/);
-  assert.match(authRoute, /password: await bcrypt\.hash\(newPassword, 12\)/);
+  assert.match(authRoute, /users\.consumePasswordReset\(user\.id, tokenHash, passwordHash\)/);
+  assert.match(authRoute, /await bcrypt\.hash\(newPassword, 12\)/);
+  assert.match(userRepository, /user\.token_version = Number\(user\.token_version \|\| 0\) \+ 1/);
+  assert.match(userRepository, /token_version = COALESCE\(token_version, 0\) \+ 1/);
 });
 
 test('authenticated middleware resolves current account state and rejects stale token versions', () => {

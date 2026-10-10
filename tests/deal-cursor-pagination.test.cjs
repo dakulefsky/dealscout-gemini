@@ -86,6 +86,16 @@ test('database numeric sort keys retain exact decimal precision in the cursor', 
   assert.match(feedRepo, /params\.push\(cursor\.primary\)/);
 });
 
+test('the actual feed cursor preserves PostgreSQL decimal sort scores', () => {
+  const primary = '46.12345678901234567890';
+  for (const sort of ['best', 'discount_desc']) {
+    const cursor = feed.cursorFromRow({ sort_score: primary, created_at: 2_000_000_000, id: 'B000000001' }, sort);
+    assert.equal(decodeCursor(cursor, sort).primary, primary);
+  }
+  const fallback = feed.cursorFromRow({ sort_score: 'NaN', created_at: 2_000_000_000, id: 'B000000001' }, 'best');
+  assert.equal(decodeCursor(fallback, 'best').primary, 0);
+});
+
 test('feed ordering uses deterministic id tie-breakers for every supported sort', () => {
   assert.match(feedRepo, /\$\{DISCOUNT_SQL\} DESC, created_at DESC, id DESC/);
   assert.match(feedRepo, /sale_price ASC, created_at DESC, id DESC/);

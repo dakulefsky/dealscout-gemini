@@ -243,7 +243,7 @@ async function bulkStatus(ids, status) {
       if (status === 'APPROVED' && !isVerified(d)) continue;
       const changes = { status };
       if (status === 'EXPIRED') { changes.is_expired = 1; changes.expired_at = nowUnix(); }
-      else if (status === 'APPROVED') { changes.is_expired = 0; changes.expired_at = null; }
+      else if (status === 'APPROVED' || status === 'REJECTED') { changes.is_expired = 0; changes.expired_at = null; }
       await update(d.asin, changes); updatedCount += 1;
     }
     return updatedCount;
@@ -253,8 +253,8 @@ async function bulkStatus(ids, status) {
   const result = await postgres.query(`
     UPDATE deals
        SET status = $2,
-           is_expired = CASE WHEN $2 = 'EXPIRED' THEN 1 WHEN $2 = 'APPROVED' THEN 0 ELSE is_expired END,
-           expired_at = CASE WHEN $2 = 'EXPIRED' THEN $3::bigint WHEN $2 = 'APPROVED' THEN NULL ELSE expired_at END
+           is_expired = CASE WHEN $2 = 'EXPIRED' THEN 1 WHEN $2 IN ('APPROVED','REJECTED') THEN 0 ELSE is_expired END,
+           expired_at = CASE WHEN $2 = 'EXPIRED' THEN $3::bigint WHEN $2 IN ('APPROVED','REJECTED') THEN NULL ELSE expired_at END
      WHERE (id = ANY($1::text[]) OR asin = ANY($1::text[]))
        AND ($2 <> 'APPROVED' OR source_verified = 1)
   `, [keys, status, expiredAt]);
@@ -279,13 +279,13 @@ async function purgeExpired(maxAgeSeconds = 86400) {
   const threshold = nowUnix() - Number(maxAgeSeconds);
   if (!postgres.isConfigured()) {
     const before = db.tables.deals.length;
-    const purgedDeals = db.tables.deals.filter((d) => (d.is_expired === 1 || d.status === 'EXPIRED') && d.expired_at && d.expired_at <= threshold);
+    const purgedDeals = db.tables.deals.filter((d) => d.status !== 'REJECTED' && (d.is_expired === 1 || d.status === 'EXPIRED') && d.expired_at && d.expired_at <= threshold);
     db.tables.deals = db.tables.deals.filter((d) => !purgedDeals.includes(d));
     if (purgedDeals.length) db.saveDb();
     return { purgedCount: before - db.tables.deals.length, purgedDeals: purgedDeals.map((d) => ({ id:d.id, asin:d.asin, title:d.title, expiredAt:d.expired_at })), remainingTotal: db.tables.deals.length };
   }
   await ensureSchema();
-  const result = await postgres.query(`DELETE FROM deals WHERE (is_expired = 1 OR status = 'EXPIRED') AND expired_at IS NOT NULL AND expired_at <= $1 RETURNING id, asin, title, expired_at`, [threshold]);
+  const result = await postgres.query(`DELETE FROM deals WHERE status <> 'REJECTED' AND (is_expired = 1 OR status = 'EXPIRED') AND expired_at IS NOT NULL AND expired_at <= $1 RETURNING id, asin, title, expired_at`, [threshold]);
   const remaining = await postgres.query('SELECT COUNT(*)::int AS count FROM deals');
   return { purgedCount: result.rowCount, purgedDeals: result.rows.map((d) => ({ id:d.id, asin:d.asin, title:d.title, expiredAt:d.expired_at })), remainingTotal: remaining.rows[0].count };
 }

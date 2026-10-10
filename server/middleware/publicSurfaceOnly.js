@@ -18,7 +18,7 @@ function publicSurfaceOnly(req, res, next) {
   // Public shoppers only read deals/categories. Guest bookmarks and notification
   // registration remain available through their dedicated routes.
   const method = String(req.method || 'GET').toUpperCase();
-  if (method !== 'GET' && (
+  if (!['GET', 'HEAD'].includes(method) && (
     path.startsWith('/api/v1/deals') ||
     path.startsWith('/api/deals') ||
     path.startsWith('/api/v1/categories') ||

@@ -39,6 +39,13 @@ test('public shopper service blocks admin catalog mutations', () => {
   assert.equal(run('/api/editorial/B000000001', 'PUT').statusCode, 404);
 });
 
+test('public catalog HEAD requests follow the same read-only access as GET', () => {
+  for (const path of ['/api/v1/deals/feed', '/api/deals/item', '/api/v1/categories', '/api/categories']) {
+    assert.equal(run(path, 'HEAD').nextCalled, true);
+    assert.equal(run(path, 'DELETE').statusCode, 404);
+  }
+});
+
 
 test('public shopper service still blocks every other operational function endpoint', () => {
   assert.equal(run('/api/functions/provider-status').statusCode, 404);

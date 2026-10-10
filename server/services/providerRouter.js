@@ -104,7 +104,8 @@ async function applyRainforestBulkRefreshes(existingDeals, verifiedItems, verifi
   for (const item of verifiedItems || []) {
     const normalized = normalizeVerifiedProduct(item, 'RAINFOREST');
     const existing = normalized ? existingByAsin.get(normalized.asin) : null;
-    if (!existing) continue;
+    // Manual rejection stays authoritative, including when a price expires.
+    if (!existing || existing.status === 'REJECTED') continue;
     if (normalized.discountPercent < minimumDiscountPercent()) {
       await deals.expire(existing.id, `Verified discount fell below ${minimumDiscountPercent()}%`);
       refreshedCount += 1;

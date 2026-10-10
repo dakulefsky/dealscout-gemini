@@ -250,9 +250,6 @@ class DealCronService {
             continue;
           }
 
-          verifiedCount += 1;
-
-          await refreshStates.recordSuccess(deal.asin, { at: attemptAt, provider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
           const outOfStock = liveInfo.availability && /out of stock|unavailable/i.test(liveInfo.availability);
           const original = Number(liveInfo.originalPrice);
           const sale = Number(liveInfo.salePrice);
@@ -268,7 +265,9 @@ class DealCronService {
 
           if (outOfStock || discountEnded) {
             await deals.expire(deal.id, outOfStock ? 'Product unavailable at verified source' : 'Verified deal ended');
+            verifiedCount += 1;
             expiredCount += 1;
+            await refreshStates.recordSuccess(deal.asin, { at: attemptAt, provider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
             continue;
           }
 
@@ -277,6 +276,8 @@ class DealCronService {
           if (Number.isFinite(original) && Number.isFinite(sale) && original >= sale) changes.original_price = original;
           if (Number.isFinite(discount) && discount >= 0) changes.discount_percent = discount;
           await deals.update(deal.id, changes);
+          verifiedCount += 1;
+          await refreshStates.recordSuccess(deal.asin, { at: attemptAt, provider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
         } catch (err) {
           if (shouldStopProviderBatch(err)) {
             providerDeferred = true;

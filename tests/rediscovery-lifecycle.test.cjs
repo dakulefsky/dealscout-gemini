@@ -28,3 +28,11 @@ test('manual rejection is sticky across normal rediscovery', () => {
   assert.deepEqual(rediscoveryLifecycleChanges({ status: 'REJECTED', is_expired: 0 }, 'APPROVED'), {});
   assert.deepEqual(rediscoveryLifecycleChanges({ status: 'REJECTED', is_expired: 0 }, 'PENDING_REVIEW'), {});
 });
+
+test('rejecting an expired listing cannot be undone by automated rediscovery', () => {
+  for (const is_expired of [1, true]) {
+    for (const status of ['APPROVED', 'PENDING_REVIEW']) {
+      assert.deepEqual(rediscoveryLifecycleChanges({ status: 'REJECTED', is_expired, expired_at: 123 }, status), {});
+    }
+  }
+});

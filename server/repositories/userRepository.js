@@ -191,4 +191,27 @@ async function updateFields(id, fields) {
   return result.rows[0] || null;
 }
 
-module.exports = { ensureSchema, bootstrapProductionAdmin, findById, findByEmail, findByResetToken, create, updateFields };
+async function consumePasswordReset(id, tokenHash, passwordHash, nowMs = Date.now()) {
+  if (!id || !tokenHash || !passwordHash) return null;
+  if (!postgres.isConfigured()) {
+    const user = (db.tables.users || []).find((row) => row.id === id && row.reset_token === tokenHash && Number(row.reset_expires) >= nowMs);
+    if (!user) return null;
+    user.password = passwordHash;
+    user.reset_token = null;
+    user.reset_expires = null;
+    user.token_version = Number(user.token_version || 0) + 1;
+    db.saveDb();
+    return clone(user);
+  }
+  await ensureSchema();
+  // Compare and consume in one write. The token may have been replaced or used
+  // while bcrypt was hashing the submitted password.
+  const result = await postgres.query(`
+    UPDATE users SET password = $1, reset_token = NULL, reset_expires = NULL,
+      token_version = COALESCE(token_version, 0) + 1
+    WHERE id = $2 AND reset_token = $3 AND reset_expires >= $4
+    RETURNING *`, [passwordHash, id, tokenHash, nowMs]);
+  return result.rows[0] || null;
+}
+
+module.exports = { ensureSchema, bootstrapProductionAdmin, findById, findByEmail, findByResetToken, create, updateFields, consumePasswordReset };

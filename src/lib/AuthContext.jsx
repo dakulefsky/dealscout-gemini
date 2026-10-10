@@ -1,5 +1,5 @@
 import { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { auth as authApi, setToken } from '@/lib/api';
+import { auth as authApi, getToken, setToken } from '@/lib/api';
 
 const AuthContext = createContext();
 
@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
       setAuthChecked(true);
       return;
     }
-    const token = localStorage.getItem('ds_token');
+    const token = getToken();
     if (token) {
       checkUserAuth();
     } else {

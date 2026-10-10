@@ -190,6 +190,7 @@ async function reserveRequest(provider, now = new Date(), { overrideDailyLimit =
   await ensureSchema();
   const client = await postgres.getPool().connect();
   let budgetError = null;
+  let releaseError;
   try {
     await client.query('BEGIN');
     await client.query('SELECT pg_advisory_xact_lock($1)', [BUDGET_LOCK_ID]);
@@ -221,10 +222,12 @@ async function reserveRequest(provider, now = new Date(), { overrideDailyLimit =
 
     await client.query('COMMIT');
   } catch (error) {
-    try { await client.query('ROLLBACK'); } catch {}
+    try { await client.query('ROLLBACK'); } catch (rollbackError) { releaseError = rollbackError; }
     throw error;
   } finally {
-    client.release();
+    // A session with an unknown transaction/lock state must not be reused.
+    if (releaseError) client.release(releaseError);
+    else client.release();
   }
 
   if (budgetError) throw budgetError;

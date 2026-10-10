@@ -12,6 +12,24 @@ function htmlEscape(value = '') {
   return String(value).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 
+function renderFailure(error) {
+  const badRequest = error instanceof URIError;
+  const title = badRequest ? 'This link is invalid' : 'DealScout is temporarily unavailable';
+  const message = badRequest ? 'Check the link or browse the latest deals below.'
+    : 'We couldn’t load this page right now. Please try again shortly.';
+  // A failed render must remain readable without the React bundle or database.
+  // Never leak the database error, advertise stale offers, or return a blank shell.
+  return {
+    status: badRequest ? 400 : 503,
+    retryAfter: badRequest ? null : '60',
+    html: `<!doctype html><html lang="en"><head><meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width,initial-scale=1" />
+      <meta name="robots" content="noindex,follow" /><title>${title}</title>
+      <style>body{margin:0;padding:48px 24px;background:#f7f5ef;color:#173428;font:16px/1.6 Arial,sans-serif}main{max-width:600px;margin:10vh auto}h1{font-size:28px;line-height:1.2}a{color:inherit}</style>
+      </head><body><main><h1>${title}</h1><p>${message}</p><p><a href="/">Browse DealScout</a></p></main></body></html>`,
+  };
+}
+
 function siteBase(req, configuredOrigin) {
   if (configuredOrigin) return String(configuredOrigin).replace(/\/$/, '');
   const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
@@ -213,4 +231,4 @@ function dealMeta(baseUrl, deal, nowMs = Date.now()) {
   return { title, description, canonical, image, jsonLd, robots: 'index,follow' };
 }
 
-module.exports = { collectionMeta, collectionMatches, siteBase, priceCheckAgeHours, buildSitemap, buildRobots, replaceMeta, homeMeta, categoryMeta, dealMeta };
+module.exports = { renderFailure, collectionMeta, collectionMatches, siteBase, priceCheckAgeHours, buildSitemap, buildRobots, replaceMeta, homeMeta, categoryMeta, dealMeta };

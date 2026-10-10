@@ -50,19 +50,19 @@ async function leaseNextPublishable(channel, options = {}) {
 
     const current = await deals.findByIdOrAsin(job.asin);
     if (!current) {
-      await queue.cancelJob(job.id, 'Deal no longer exists', { nowUnix: now });
+      await queue.cancelJob(job.id, 'Deal no longer exists', { nowUnix: now, expectedAttempt: job.attempts });
       continue;
     }
 
     const evaluation = evaluateDistribution(current, channel, now);
     if (!evaluation.eligible) {
-      await queue.cancelJob(job.id, `Deal no longer eligible: ${evaluation.reasons.join(', ')}`, { nowUnix: now });
+      await queue.cancelJob(job.id, `Deal no longer eligible: ${evaluation.reasons.join(', ')}`, { nowUnix: now, expectedAttempt: job.attempts });
       continue;
     }
 
     const currentCheck = unix(current.price_check_at ?? current.priceCheckAt);
     if (!currentCheck || currentCheck !== job.source_price_check_at) {
-      await queue.cancelJob(job.id, 'Verification snapshot changed before publication', { nowUnix: now });
+      await queue.cancelJob(job.id, 'Verification snapshot changed before publication', { nowUnix: now, expectedAttempt: job.attempts });
       // Queue the newer verified snapshot if it still qualifies. The idempotency
       // key prevents duplicate jobs when multiple workers notice the same change.
       await queue.enqueueDeal(current, channel, { nowUnix: now, scheduledAt: now });
@@ -78,6 +78,7 @@ async function leaseNextPublishable(channel, options = {}) {
 async function completePublication(jobId, externalPublicationId, options = {}) {
   return queue.markPublished(jobId, {
     externalPublicationId,
+    expectedAttempt: options.expectedAttempt,
     nowUnix: unix(options.nowUnix, nowUnix()),
   });
 }
@@ -85,6 +86,7 @@ async function completePublication(jobId, externalPublicationId, options = {}) {
 async function failPublication(jobId, error, options = {}) {
   return queue.failJob(jobId, error, {
     maxAttempts: options.maxAttempts,
+    expectedAttempt: options.expectedAttempt,
     nowUnix: unix(options.nowUnix, nowUnix()),
   });
 }

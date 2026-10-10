@@ -208,6 +208,7 @@ async function leaseNext(channel, options = {}) {
 
   await ensureSchema();
   const client = await postgres.getPool().connect();
+  let releaseError;
   try {
     await client.query('BEGIN');
     const candidate = await client.query(`
@@ -232,10 +233,11 @@ async function leaseNext(channel, options = {}) {
     await client.query('COMMIT');
     return rowFromPg(updated.rows[0]);
   } catch (err) {
-    try { await client.query('ROLLBACK'); } catch { /* preserve original error */ }
+    try { await client.query('ROLLBACK'); } catch (rollbackError) { releaseError = rollbackError; }
     throw err;
   } finally {
-    client.release();
+    if (releaseError) client.release(releaseError);
+    else client.release();
   }
 }
 
@@ -254,8 +256,9 @@ async function findById(id) {
 async function markPublished(id, options = {}) {
   const now = asUnix(options.nowUnix, nowUnix());
   const externalId = safeText(options.externalPublicationId, 500) || null;
+  const expectedAttempt = options.expectedAttempt ?? null;
   if (!postgres.isConfigured()) {
-    const index = db.tables.publication_jobs.findIndex((job) => job.id === id && job.state === STATES.LEASED);
+    const index = db.tables.publication_jobs.findIndex((job) => job.id === id && job.state === STATES.LEASED && (expectedAttempt === null || job.attempts === expectedAttempt));
     if (index < 0) return null;
     const next = normalizeJob({
       ...db.tables.publication_jobs[index], state: STATES.PUBLISHED, lease_until: null,
@@ -271,8 +274,8 @@ async function markPublished(id, options = {}) {
     UPDATE publication_jobs
        SET state = 'published', lease_until = NULL, next_attempt_at = NULL,
            last_error = NULL, external_publication_id = $2, published_at = $3, updated_at = $3
-     WHERE id = $1 AND state = 'leased'
-     RETURNING *`, [id, externalId, now]);
+     WHERE id = $1 AND state = 'leased' AND ($4::integer IS NULL OR attempts = $4)
+     RETURNING *`, [id, externalId, now, expectedAttempt]);
   return rowFromPg(result.rows[0]);
 }
 
@@ -285,13 +288,13 @@ async function failJob(id, error, options = {}) {
   const now = asUnix(options.nowUnix, nowUnix());
   const maxAttempts = Math.max(1, Math.min(20, Number(options.maxAttempts) || DEFAULT_MAX_ATTEMPTS));
   const current = await findById(id);
-  if (!current || current.state !== STATES.LEASED) return null;
+  if (!current || current.state !== STATES.LEASED || (options.expectedAttempt != null && current.attempts !== options.expectedAttempt)) return null;
   const terminal = current.attempts >= maxAttempts;
   const nextAttemptAt = terminal ? null : now + retryDelaySeconds(current.attempts);
   const errorText = safeText(error?.message || error || 'Publication failed', 2000);
 
   if (!postgres.isConfigured()) {
-    const index = db.tables.publication_jobs.findIndex((job) => job.id === id && job.state === STATES.LEASED);
+    const index = db.tables.publication_jobs.findIndex((job) => job.id === id && job.state === STATES.LEASED && job.attempts === current.attempts);
     if (index < 0) return null;
     const next = normalizeJob({
       ...db.tables.publication_jobs[index],
@@ -311,16 +314,18 @@ async function failJob(id, error, options = {}) {
     UPDATE publication_jobs
        SET state = $2, lease_until = NULL, next_attempt_at = $3,
            last_error = $4, updated_at = $5
-     WHERE id = $1 AND state = 'leased'
-     RETURNING *`, [id, terminal ? STATES.FAILED : STATES.QUEUED, nextAttemptAt, errorText, now]);
+     WHERE id = $1 AND state = 'leased' AND attempts = $6
+     RETURNING *`, [id, terminal ? STATES.FAILED : STATES.QUEUED, nextAttemptAt, errorText, now, current.attempts]);
   return rowFromPg(result.rows[0]);
 }
 
 async function cancelJob(id, reason = 'No longer eligible', options = {}) {
   const now = asUnix(options.nowUnix, nowUnix());
   const errorText = safeText(reason, 2000);
+  const expectedAttempt = options.expectedAttempt ?? null;
   if (!postgres.isConfigured()) {
-    const index = db.tables.publication_jobs.findIndex((job) => job.id === id && [STATES.QUEUED, STATES.LEASED].includes(job.state));
+    const index = db.tables.publication_jobs.findIndex((job) => job.id === id && [STATES.QUEUED, STATES.LEASED].includes(job.state)
+      && (expectedAttempt === null || (job.state === STATES.LEASED && job.attempts === expectedAttempt)));
     if (index < 0) return null;
     const next = normalizeJob({
       ...db.tables.publication_jobs[index], state: STATES.CANCELLED, lease_until: null,
@@ -336,7 +341,8 @@ async function cancelJob(id, reason = 'No longer eligible', options = {}) {
        SET state = 'cancelled', lease_until = NULL, next_attempt_at = NULL,
            last_error = $2, cancelled_at = $3, updated_at = $3
      WHERE id = $1 AND state IN ('queued','leased')
-     RETURNING *`, [id, errorText, now]);
+       AND ($4::integer IS NULL OR (state = 'leased' AND attempts = $4))
+     RETURNING *`, [id, errorText, now, expectedAttempt]);
   return rowFromPg(result.rows[0]);
 }
 

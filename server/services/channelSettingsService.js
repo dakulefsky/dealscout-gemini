@@ -6,6 +6,7 @@ const DEFAULTS = Object.freeze({
 });
 
 const local = new Map();
+let schemaPromise = null;
 
 function cleanChannel(channel) {
   const value = String(channel || '').trim().toLowerCase();
@@ -15,13 +16,17 @@ function cleanChannel(channel) {
 
 async function ensureSchema() {
   if (!postgres.isConfigured()) return;
-  await postgres.query(`
+  if (!schemaPromise) schemaPromise = postgres.query(`
     CREATE TABLE IF NOT EXISTS channel_runtime_settings (
       channel TEXT PRIMARY KEY,
       enabled BOOLEAN NOT NULL DEFAULT TRUE,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
-  `);
+  `).catch(error => {
+    schemaPromise = null;
+    throw error;
+  });
+  await schemaPromise;
 }
 
 async function get(channel) {

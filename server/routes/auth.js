@@ -199,12 +199,9 @@ router.post('/reset-password', limiter('reset', 10, 15 * 60 * 1000), async (req,
     const tokenHash = hashSecret(String(resetToken));
     const user = await users.findByResetToken(tokenHash);
     if (!user || !user.reset_expires || Date.now() > Number(user.reset_expires)) return res.status(400).json({ error: 'Reset link is invalid or has expired' });
-    await users.updateFields(user.id, {
-      password: await bcrypt.hash(newPassword, 12),
-      reset_token: null,
-      reset_expires: null,
-      token_version: Number(user.token_version || 0) + 1,
-    });
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const updated = await users.consumePasswordReset(user.id, tokenHash, passwordHash);
+    if (!updated) return res.status(400).json({ error: 'Reset link is invalid or has expired' });
     res.json({ message: 'Password reset successfully' });
   } catch (err) {
     console.error('[auth] reset-password failed:', err.message);
