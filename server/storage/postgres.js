@@ -90,6 +90,7 @@ async function query(text, params) {
  * A dedicated pool client is required because advisory locks belong to a DB
  * session, not to an individual query. Local JSON development has only one
  * process, so it executes directly and reports the lock as acquired.
+ * The task receives the locked client so it can reuse the established session.
  */
 async function withAdvisoryLock(lockId, task) {
   if (typeof task !== 'function') throw new TypeError('withAdvisoryLock requires a task function');
@@ -104,7 +105,7 @@ async function withAdvisoryLock(lockId, task) {
     const lockResult = await client.query('SELECT pg_try_advisory_lock($1) AS acquired', [numericLockId]);
     acquired = lockResult.rows[0]?.acquired === true;
     if (!acquired) return { acquired: false, result: null };
-    return { acquired: true, result: await task() };
+    return { acquired: true, result: await task(client) };
   } finally {
     let releaseError;
     if (acquired) {
