@@ -24,7 +24,7 @@ function restore() {
 }
 
 function acquireLockImmediately() {
-  postgres.withAdvisoryLock = async (_lockId, task) => ({ acquired: true, result: await task() });
+  postgres.withAdvisoryLock = async (_lockId, task) => ({ acquired: true, result: await task({ query: (...args) => postgres.query(...args) }) });
 }
 
 test.afterEach(restore);

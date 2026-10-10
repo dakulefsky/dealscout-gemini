@@ -18,8 +18,10 @@ function validEmail(value) {
 async function bootstrapProductionAdmin() {
   if (process.env.NODE_ENV !== 'production' || !postgres.isConfigured()) return { created: false };
 
-  const lock = await postgres.withAdvisoryLock(ADMIN_BOOTSTRAP_LOCK_ID, async () => {
-    const existingAdmin = await postgres.query(`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
+  const lock = await postgres.withAdvisoryLock(ADMIN_BOOTSTRAP_LOCK_ID, async (client) => {
+    // Startup has already warmed this session. Opening another pooled connection
+    // while holding the lock can time out on a cold cross-cloud network route.
+    const existingAdmin = await client.query(`SELECT id FROM users WHERE role = 'admin' LIMIT 1`);
     if (existingAdmin.rowCount > 0) return { created: false };
 
     const email = normalizeEmail(process.env.ADMIN_EMAIL);
@@ -31,9 +33,9 @@ async function bootstrapProductionAdmin() {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const existingUser = await postgres.query('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
+    const existingUser = await client.query('SELECT id FROM users WHERE email = $1 LIMIT 1', [email]);
     if (existingUser.rowCount > 0) {
-      await postgres.query(
+      await client.query(
         `UPDATE users SET password = $1, role = 'admin', verified = 1,
           otp_code = NULL, otp_expires = NULL, reset_token = NULL, reset_expires = NULL,
           token_version = COALESCE(token_version, 0) + 1
@@ -43,7 +45,7 @@ async function bootstrapProductionAdmin() {
       return { created: true, promoted: true, email };
     }
 
-    await postgres.query(
+    await client.query(
       `INSERT INTO users (id, email, password, role, verified, otp_code, otp_expires, reset_token, reset_expires, token_version, created_at)
        VALUES ($1,$2,$3,'admin',1,NULL,NULL,NULL,NULL,0,$4)`,
       [uuidv4(), email, passwordHash, Math.floor(Date.now() / 1000)]
