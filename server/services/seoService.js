@@ -68,6 +68,7 @@ function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now()
     ...freshDeals.map((d) => ({ loc: `${baseUrl}/deal/${encodeURIComponent(d.id || d.asin)}`, lastmod: iso(d.price_check_at) })),
     ...collections.filter((c) => freshDeals.some((d) => collectionMatches(c, d))).map((c) => ({ loc: `${baseUrl}/deals/${c.slug}` })),
     { loc: `${baseUrl}/how-we-find-deals` },
+    { loc: `${baseUrl}/about` },
     { loc: `${baseUrl}/disclosure` },
     { loc: `${baseUrl}/privacy` },
     { loc: `${baseUrl}/support` },
@@ -79,7 +80,7 @@ function buildRobots(baseUrl) {
   return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nAllow: /api/v1/deals\nAllow: /api/v1/categories\nAllow: /api/v1/seasonal-promotion\nAllow: /api/editorial/\nSitemap: ${baseUrl}/sitemap.xml\n`;
 }
 
-function replaceMeta(html, { title, description, canonical, robots = 'index,follow', jsonLd, image, nonce }) {
+function replaceMeta(html, { title, description, canonical, robots = 'index,follow', jsonLd, image, nonce, verificationToken }) {
   let out = html;
   out = out.replace(/<title>.*?<\/title>/i, `<title>${htmlEscape(title)}</title>`);
   out = out.replace(/<meta name="description"[^>]*>/i, `<meta name="description" content="${htmlEscape(description)}" />`);
@@ -89,12 +90,14 @@ function replaceMeta(html, { title, description, canonical, robots = 'index,foll
   out = out
     .replace(/\s*<meta\s+name=["']robots["'][^>]*>/gi, '')
     .replace(/\s*<link\s+rel=["']canonical["'][^>]*>/gi, '')
-    .replace(/\s*<meta\s+property=["']og:(?:title|description|url|image)["'][^>]*>/gi, '')
+    .replace(/\s*<meta\s+property=["']og:(?:title|description|url|image|site_name)["'][^>]*>/gi, '')
     .replace(/\s*<meta\s+name=["']twitter:(?:card|title|description|image)["'][^>]*>/gi, '');
 
   const additions = [
+    verificationToken && /^[A-Za-z0-9_-]{1,256}$/.test(verificationToken) ? `<meta name="google-site-verification" content="${htmlEscape(verificationToken)}" />` : '',
     `<meta name="robots" content="${htmlEscape(robots)}" />`,
     canonical ? `<link rel="canonical" href="${htmlEscape(canonical)}" />` : '',
+    `<meta property="og:site_name" content="DealScout at Dealscouted.com" />`,
     `<meta property="og:title" content="${htmlEscape(title)}" />`,
     `<meta property="og:description" content="${htmlEscape(description)}" />`,
     canonical ? `<meta property="og:url" content="${htmlEscape(canonical)}" />` : '',
@@ -117,13 +120,14 @@ function homeMeta(baseUrl, categories = []) {
     url: `${baseUrl}/category/${encodeURIComponent(category.slug)}`,
   }));
   return {
-    title: 'DealScout — Amazon Deals by Category & Price Drops',
+    title: 'DealScout at Dealscouted.com — Amazon Deals by Department',
     description: 'Shop fresh Amazon deals by category, with recently verified prices, clear savings, and a small edit of standout discounts.',
     canonical,
     jsonLd: {
       '@context': 'https://schema.org',
       '@graph': [
-        { '@type': 'WebSite', name: 'DealScout', url: canonical },
+        { '@type': 'WebSite', '@id': `${baseUrl}/#website`, name: 'DealScout', alternateName: ['Dealscouted', 'Dealscouted.com'], url: canonical, publisher: { '@id': `${baseUrl}/#organization` } },
+        { '@type': 'Organization', '@id': `${baseUrl}/#organization`, name: 'DealScout', alternateName: 'Dealscouted', url: canonical },
         { '@type': 'CollectionPage', name: 'Amazon deals by category', url: canonical, mainEntity: { '@type': 'ItemList', itemListElement } },
       ],
     },

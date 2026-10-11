@@ -11,8 +11,8 @@ test('filter changes invalidate pagination before waiting for the search debounc
   assert.ok(start >= 0 && debounce > start);
   const reset = home.slice(start, debounce);
   assert.match(reset, /paginationRequest.current\?\.abort\(\)/);
-  assert.match(reset, /setNextCursor\(null\)/);
-  assert.match(reset, /setDeals\(\[\]\)/);
+  assert.match(reset, /setNextCursor\(seed\.nextCursor\)/);
+  assert.match(reset, /setDeals\(seed\.items\)/);
 });
 
 test('department page guards concurrent and stale pagination and distinguishes API errors from missing categories', () => {

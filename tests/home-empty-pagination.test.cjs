@@ -30,7 +30,7 @@ test('a dismissed first page still offers and observes the next remote page', as
 
 test('pagination failures expose retry without automatically observing another request', async () => {
   const html = await renderFeed({ error: 'temporary outage' });
-  assert.match(html, /Couldn’t load more deals/);
+  assert.match(html, /Couldn’t refresh these deals/);
   assert.match(html, /Try again/);
   assert.doesNotMatch(html, /data-feed-sentinel|Load more deals/);
 });

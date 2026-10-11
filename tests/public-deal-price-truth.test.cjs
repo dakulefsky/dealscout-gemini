@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'deals.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'publicDealDto.js'), 'utf8');
 
 test('shopper deal responses derive discount from the verified price pair', () => {
   const block = source.match(/function rowToDeal\([\s\S]*?\n\}/)?.[0] || '';

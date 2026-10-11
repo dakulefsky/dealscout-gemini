@@ -20,7 +20,7 @@ test('server-backed feed dimensions reset the cursor and are sent with each page
   assert.match(home, /minDiscount: minDiscount \|\| ''/);
   assert.match(home, /minPrice: selectedPriceTier\.min \?\? ''/);
   assert.match(home, /maxPrice: selectedPriceTier\.max \?\? ''/);
-  assert.match(home, /setNextCursor\(null\)/);
+  assert.match(home, /setNextCursor\(seed\.nextCursor\)/);
 });
 
 test('intersection paging reveals loaded deals before requesting the next remote cursor', () => {

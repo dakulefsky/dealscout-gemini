@@ -1,0 +1,10 @@
+{
+  "title": "About DealScout",
+  "intro": "DealScout at Dealscouted.com helps you compare current Amazon discounts by department and budget.",
+  "sections": [
+    {"title": "What we check", "text": "Offers pass automated pricing, availability and product-data checks. Public deals require a price check within the past 24 hours. Manual controls let us reject unsuitable listings and correct mistakes."},
+    {"title": "What a discount means", "text": "Savings compare the checked offer with the reference price supplied by the Amazon listing. That reference is not a historical average or proof of an all-time low. Compare the exact model, size, seller and quantity; confirm final pricing and terms on Amazon."},
+    {"title": "How recommendations work", "text": "Publication does not imply hands-on testing or a personal recommendation. DealScout Picks carry a separate editorial note when an editor has added one. Department buying notes help you check the details that affect value."},
+    {"title": "How we earn", "text": "As an Amazon Associate we earn from qualifying purchases. Affiliate links are marked for search engines. You can read our disclosure or report an incorrect listing through Support."}
+  ]
+}

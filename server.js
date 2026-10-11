@@ -65,7 +65,7 @@ function closureHtml(reason = 'Shabbat or Yom Tov') {
 </html>`;
 }
 
-function dealInitialContent(deal) {
+function dealInitialContent(deal, editorial = null) {
   const title = escapeHtml(deal.title || 'Amazon deal');
   const current = Number(deal.sale_price || 0);
   const original = Number(deal.original_price || 0);
@@ -73,7 +73,7 @@ function dealInitialContent(deal) {
   const category = escapeHtml(deal.category || 'Deals');
   const image = deal.image_url ? `<img src="${escapeHtml(deal.image_url)}" alt="${title}" width="320" height="320" />` : '';
   const productUrl = deal.product_url ? `<p><a href="/api/functions/amazon-redirect?url=${escapeHtml(encodeURIComponent(deal.product_url))}" rel="nofollow sponsored">View current deal on Amazon</a></p>` : '';
-  return `<main data-server-crawl-content="deal"><article>${image}<p>${category}</p><h1>${title}</h1><p><strong>$${current.toFixed(2)}</strong>${original > current ? ` <del>$${original.toFixed(2)}</del>` : ''}</p>${savings > 0 ? `<p>Save $${savings.toFixed(2)} while this verified price is current.</p>` : ''}${productUrl}<p><a href="/">Browse more current deals</a></p></article></main>`;
+  return `<main data-server-crawl-content="deal"><article>${image}<p>${category}</p><h1>${title}</h1><p><strong>$${current.toFixed(2)}</strong>${original > current ? ` <del>$${original.toFixed(2)}</del>` : ''}</p>${savings > 0 ? `<p>Save $${savings.toFixed(2)} while this verified price is current.</p>` : ''}<p>Prices checked within the past 24 hours. Savings use the listing’s reference price, not a historical average. Confirm the exact variant, quantity, seller and final delivered price on Amazon.</p>${editorial?.is_human_pick === true && editorial.editorial_note ? `<section><h2>Why this DealScout Pick stands out</h2><p>${escapeHtml(editorial.editorial_note)}</p></section>` : ''}${productUrl}<p><a href="/how-we-find-deals">How prices are checked</a></p><p><a href="/">Browse more current deals</a></p></article></main>`;
 }
 
 const categoryContent = require('./shared/categoryContent.json');
@@ -93,12 +93,12 @@ function categoryInitialContent(category, deals = []) {
     const current = Number(deal.sale_price ?? deal.salePrice ?? 0);
     return `<li><a href="/deal/${encodeURIComponent(deal.id || deal.asin)}">${title}</a>${current > 0 ? ` — ${current.toFixed(2)}` : ''}</li>`;
   }).join('');
-  return `<main data-server-crawl-content="category"><h1>${name} deals &amp; price drops</h1><p>${description}</p><p>${count} current ${count === 1 ? 'deal' : 'deals'} available.</p>${categoryContent[category.slug]?.guidance ? `<p>${escapeHtml(categoryContent[category.slug].guidance)}</p>` : ''}${dealLinks ? `<section><h2>Current ${name} deals</h2><ul>${dealLinks}</ul></section>` : ''}<p><a href="/">Browse all current deals</a></p></main>`;
+  return `<main data-server-crawl-content="category"><h1>${name} deals &amp; price drops</h1><p>${description}</p><p>${count} current ${count === 1 ? 'deal' : 'deals'} available.</p>${categoryContent[category.slug]?.guidance ? `<p>${escapeHtml(categoryContent[category.slug].guidance)}</p>` : ''}${categoryContent[category.slug]?.checklist ? `<h2>Before you buy</h2><ul>${categoryContent[category.slug].checklist.map(note => `<li>${escapeHtml(note)}</li>`).join('')}</ul>` : ''}${dealLinks ? `<section><h2>Current ${name} deals</h2><ul>${dealLinks}</ul></section>` : ''}<p><a href="/">Browse all current deals</a></p></main>`;
 }
 
-function homeInitialContent(categories = []) {
+function homeInitialContent(categories = [], deals = []) {
   const links = categories.map((category) => `<li><a href="/category/${encodeURIComponent(category.slug)}">${escapeHtml(category.name)}</a></li>`).join('');
-  return `<main data-server-crawl-content="home"><h1>Amazon deals &amp; price drops worth checking</h1><p>DealScout surfaces current Amazon discounts with recently verified prices and clear savings.</p>${links ? `<nav aria-label="Deal categories"><h2>Browse current deal categories</h2><ul>${links}</ul></nav>` : ''}<nav aria-label="Deal collections"><h2>Browse by budget and savings</h2><ul>${dealCollections.map((c) => `<li><a href="/deals/${c.slug}">${escapeHtml(c.shortName)}</a></li>`).join('')}</ul></nav><p><a href="/how-we-find-deals">How DealScout finds deals</a></p></main>`;
+  return `<main data-server-crawl-content="home"><h1>Amazon deals &amp; price drops worth checking</h1><p>DealScout surfaces current Amazon discounts with recently verified prices and clear savings.</p>${links ? `<nav aria-label="Deal categories"><h2>Browse current deal categories</h2><ul>${links}</ul></nav>` : ''}${deals.length ? `<section><h2>Recently checked deals</h2><ul>${deals.map(deal => `<li><a href="/deal/${encodeURIComponent(deal.id || deal.asin)}">${escapeHtml(deal.title)}</a> — $${Number(deal.sale_price).toFixed(2)} <span>${escapeHtml(deal.category)}</span></li>`).join('')}</ul></section>` : ''}<nav aria-label="Deal collections"><h2>Browse by budget and savings</h2><ul>${dealCollections.map((c) => `<li><a href="/deals/${c.slug}">${escapeHtml(c.shortName)}</a></li>`).join('')}</ul></nav><p><a href="/how-we-find-deals">How DealScout finds deals</a></p></main>`;
 }
 
 async function startServer() {
@@ -249,7 +249,12 @@ async function startServer() {
           const deal = await dealRepository.findByIdOrAsin(decodeURIComponent(dealMatch[1]));
           if (deal && isPublicDeal(deal)) {
             meta = seo.dealMeta(baseUrl, deal);
-            if (meta.robots !== 'noindex,follow') initialContent = dealInitialContent(deal);
+            if (meta.robots !== 'noindex,follow') {
+              let editorial = null;
+              try { editorial = await require('./server/repositories/editorialRepository').getByAsin(deal.asin); }
+              catch { console.warn('[DealScout] Editorial crawl note unavailable'); }
+              initialContent = dealInitialContent(deal, editorial);
+            }
           } else {
             status = 404;
             meta = { title: 'Deal not found — DealScout', description: 'This deal is no longer available.', canonical: null, robots: 'noindex,follow' };
@@ -264,6 +269,10 @@ async function startServer() {
             meta = seo.collectionMeta(baseUrl, collection, page.items);
             initialContent = collectionInitialContent(collection, page.items);
           }
+        } else if (req.path === '/about') {
+          const content = require('./shared/aboutContent.json');
+          meta = { title: 'About DealScout at Dealscouted.com', description: content.intro, canonical: `${baseUrl}/about` };
+          initialContent = `<main data-server-crawl-content="about"><h1>${escapeHtml(content.title)}</h1><p>${escapeHtml(content.intro)}</p>${content.sections.map(section => `<section><h2>${escapeHtml(section.title)}</h2><p>${escapeHtml(section.text)}</p></section>`).join('')}<p><a href="/how-we-find-deals">Our verification process</a> · <a href="/disclosure">Affiliate disclosure</a> · <a href="/support">Report a problem</a></p></main>`;
         } else if (req.path === '/how-we-find-deals') {
           meta = { title: 'How DealScout finds deals', description: 'How DealScout checks Amazon offers, calculates savings, and earns affiliate commissions.', canonical: `${baseUrl}/how-we-find-deals` };
           initialContent = '<main data-server-crawl-content="methodology"><h1>How DealScout finds deals</h1><p>Offers pass automated price, availability and product-data checks. Admin controls allow manual review and corrections; publication does not necessarily mean a personal editor recommendation.</p><h2>Prices and savings</h2><p>Savings compare the checked offer price with the reference price supplied by the Amazon listing. They do not guarantee the lowest historical price. Check the exact size, color, quantity and seller.</p><h2>Keeping offers current</h2><p>Public listings require a price check within the past 24 hours. Product pages show the check time. Amazon has the final price, shipping terms and availability.</p><h2>How we earn</h2><p>As an Amazon Associate we earn from qualifying purchases.</p><p><a href="/disclosure">Affiliate disclosure</a> · <a href="/support">Report a problem</a> · <a href="/">Browse departments</a></p></main>';
@@ -286,7 +295,13 @@ async function startServer() {
         } else if (req.path === '/') {
           const categories = await categoryRepository.list({ activeOnly: true });
           meta = seo.homeMeta(baseUrl, categories);
-          initialContent = homeInitialContent(categories);
+          let page = { items: [], nextCursor: null };
+          try { page = await dealFeedRepository.page({ sort: 'best', limit: 24 }); }
+          catch { console.warn('[DealScout] Homepage crawl deals unavailable'); }
+          initialContent = homeInitialContent(categories, page.items);
+          const { rowToDeal } = require('./server/services/publicDealDto');
+          const payload = JSON.stringify({ items: page.items.map(row => rowToDeal(row)), nextCursor: page.nextCursor }).replace(/</g, '\\u003c');
+          initialContent += `<script type="application/json" id="initial-deals" nonce="${escapeHtml(res.locals.cspNonce)}">${payload}</script>`;
         } else if (req.path === '/memberships') {
           meta = { title: 'Amazon Memberships — DealScout', description: 'Explore Prime, Prime Video, Audible, and Kindle Unlimited on Amazon.', canonical: `${baseUrl}/memberships` };
         } else if (req.path === '/disclosure') {
@@ -301,7 +316,10 @@ async function startServer() {
           status = 404;
           meta = { title: 'Page not found — DealScout', description: 'The page you requested could not be found.', canonical: null, robots: 'noindex,follow' };
         }
-        const rendered = seo.replaceMeta(indexTemplate, { ...meta, nonce: res.locals.cspNonce });
+        let verificationToken = '';
+        try { verificationToken = await require('./server/services/searchConsoleService').token(); }
+        catch { console.warn('[DealScout] Search verification settings unavailable'); }
+        const rendered = seo.replaceMeta(indexTemplate, { ...meta, verificationToken, nonce: res.locals.cspNonce });
         const nonceReady = applyScriptNonce(rendered, res.locals.cspNonce);
         res.status(status).type('html').send(injectInitialContent(nonceReady, initialContent));
       } catch (err) {
