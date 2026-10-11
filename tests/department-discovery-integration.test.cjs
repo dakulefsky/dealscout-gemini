@@ -31,7 +31,7 @@ test('actual discovery router learns taxonomy, targets thin departments and pres
     assert.deepEqual(new Set(requests[1].category_id.split(',')), new Set(['123', '456']), 'full Electronics is excluded from the targeted pull');
     assert.equal(requests[2].category_id, '999', 'manual targeting wins');
     assert.equal(requests[3].category_id, undefined, 'one in three pulls stays broad');
-    assert.ok(requests.every(params => !params.max_page && !params.page));
+    assert.ok(requests.every(params => !params.max_page && params.page === 1));
     const status = await budget.usageStatus('rainforest');
     assert.equal(status.monthCount, 4);
     assert.equal(status.limits.monthly, 500);

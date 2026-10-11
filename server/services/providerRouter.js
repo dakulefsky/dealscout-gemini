@@ -31,6 +31,9 @@ async function getProviderStatus() {
   const configuredProvider = getConfiguredProvider();
   const paapiConfig = getPaapiConfig();
   const rainforestConfigured = isRainforestConfigured();
+  let discovery = null;
+  try { discovery = JSON.parse((await require('./siteRuntimeSettingsService').get('rainforest_department_discovery')).value || '{}').lastDiscovery || null; }
+  catch { /* Diagnostics must not block provider status. */ }
   const rainforestBudget = await usageStatus('rainforest').catch((error) => ({ error: error.message }));
   let effectiveProvider = 'none';
 
@@ -58,6 +61,7 @@ async function getProviderStatus() {
       status: rainforestConfigured ? 'Ready' : 'Not configured',
       throttle: getProviderThrottleStatus('rainforest'),
       budget: rainforestBudget,
+      discovery,
     },
   };
 }
@@ -140,7 +144,9 @@ async function warmRainforestVerificationCache(options = {}) {
   const verified = (result || []).map((item) => normalizeVerifiedProduct(item, 'RAINFOREST')).filter(Boolean);
   cacheRainforestBulkResults(verified);
   const refreshedCount = await applyRainforestBulkRefreshes(existing, verified);
-  return { cachedCount: rainforestBulkCache.size, refreshedCount };
+  const intake = await require('./discoveryIntakeService').retainBulkDiscoveries(verified, existing);
+  console.info('[Rainforest bulk intake]', JSON.stringify(intake));
+  return { cachedCount: rainforestBulkCache.size, refreshedCount, ...intake };
 }
 
 async function paapiProduct(cleanAsin, options) {
@@ -229,8 +235,8 @@ async function fetchDealsList(options = {}) {
       const refreshExistingAsins = existing.map((deal) => deal.asin).filter(Boolean);
       const supply = require('./departmentSupplyService');
       const plan = await supply.prepareDiscovery(existing, options.amazonDomain || 'amazon.com');
-      if (options.categoryId) plan.targets = []; // Explicit manual category choices remain authoritative.
-      const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals({ ...options, categoryId: options.categoryId || plan.categoryId, departmentStock: plan.stock, onCategories: rows => supply.recordDiscovery(plan, rows), refreshExistingAsins }), { overrideDailyLimit: options.overrideDailyLimit === true });
+      if (options.categoryId) { plan.targets = []; plan.page = 1; plan.queryVisits = 0; plan.nextPage = 2; plan.queryKey = String(options.categoryId); plan.categoryId = String(options.categoryId); } // Explicit manual category choices remain authoritative.
+      const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals({ ...options, categoryId: options.categoryId || plan.categoryId, departmentStock: plan.stock, page: plan.page, onCategories: (rows, diagnostics) => supply.recordDiscovery(plan, rows, diagnostics), refreshExistingAsins }), { overrideDailyLimit: options.overrideDailyLimit === true });
       const verified = (result || []).map((item) => normalizeVerifiedProduct(item, 'RAINFOREST')).filter(Boolean);
       cacheRainforestBulkResults(verified);
       if (verified.length) return verified;
