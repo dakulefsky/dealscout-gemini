@@ -46,15 +46,15 @@ test('real router explores pages across calls, revisits page one and saves diagn
     deals.listAll = async () => [];
     axios.get = async (_url, { params }) => {
       requests.push(params);
-      return { data: { request_info: { credits_used_this_request: 1 }, pagination: { current_page: params.page, total_pages: 3 }, deals_results: [
+      return { data: { request_info: { credits_used_this_request: 1 }, pagination: { current_page: params.page, total_pages: 5 }, deals_results: [
         { asin: 'B000000001', title: 'Kitchen spatula', deal_price: { value: 50 }, list_price: { value: 100 }, image: 'https://m.media-amazon.com/images/I/item.jpg' },
         { asin: 'bad', title: 'Invalid' },
       ] } };
     };
-    for (let i = 0; i < 5; i++) await fetchDealsList();
-    assert.deepEqual(requests.map(row => row.page), [1, 2, 3, 1, 2]);
+    for (let i = 0; i < 8; i++) await fetchDealsList();
+    assert.deepEqual(requests.map(row => row.page), [1, 2, 3, 1, 4, 5, 1, 2]);
     assert.ok(requests.every(row => !row.max_page));
-    assert.equal((await budget.usageStatus('rainforest')).monthCount, 5);
+    assert.equal((await budget.usageStatus('rainforest')).monthCount, 8);
     const state = JSON.parse((await settings.get('rainforest_department_discovery')).value);
     assert.equal(state.lastDiscovery.raw, 2);
     assert.equal(state.lastDiscovery.invalidIdentityOrPrices, 1);

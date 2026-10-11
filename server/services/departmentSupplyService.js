@@ -56,7 +56,7 @@ function planDiscovery(deals, state = {}, now = Date.now(), domain = 'amazon.com
   const visits = Math.max(0, Number.parseInt(cursor.visits, 10) || 0);
   // Revisit the front page every third pull of this exact query for new arrivals.
   const page = visits % 3 === 0 ? 1 : Math.min(totalPages, Math.max(2, Number.parseInt(cursor.nextPage, 10) || 2));
-  return { stock, pulls, categories, targets, categoryId, domain, lastTargetAt, categoryOffsets, pageQueries, queryKey, page, observedAt: validCache ? Number(state.observedAt) : 0 };
+  return { stock, pulls, categories, targets, categoryId, domain, lastTargetAt, categoryOffsets, pageQueries, queryKey, page, queryVisits: visits, nextPage: Math.max(2, Number.parseInt(cursor.nextPage, 10) || 2), observedAt: validCache ? Number(state.observedAt) : 0 };
 }
 
 function boundedPages(value) {
@@ -86,7 +86,8 @@ async function recordDiscovery(plan, rows, diagnostics = {}) {
   const pageQueries = { ...plan.pageQueries };
   const totalPages = boundedPages(diagnostics.totalPages);
   const currentPage = boundedPages(diagnostics.currentPage || plan.page);
-  pageQueries[plan.queryKey] = { totalPages, nextPage: currentPage >= totalPages ? 2 : Math.max(2, currentPage + 1), visits: ((Number(pageQueries[plan.queryKey]?.visits) || 0) + 1) % 3000000, at: now };
+  const nextPage = currentPage === 1 ? Math.min(totalPages, plan.nextPage || 2) : currentPage >= totalPages ? 2 : currentPage + 1;
+  pageQueries[plan.queryKey] = { totalPages, nextPage, visits: ((Number(plan.queryVisits) || 0) + 1) % 3000000, at: now };
   const boundedQueries = Object.fromEntries(Object.entries(pageQueries).sort((a, b) => (Number(b[1]?.at) || 0) - (Number(a[1]?.at) || 0)).slice(0, 32));
   try {
     await settings.set(STATE_KEY, JSON.stringify({ domain: plan.domain, pulls: (plan.pulls + 1) % 3000000, observedAt: learned.length ? now : plan.observedAt, categories, lastTargetAt, categoryOffsets, pageQueries: boundedQueries, lastDiscovery: { ...diagnostics, at: now, categoryId: plan.categoryId || null, page: plan.page } }));

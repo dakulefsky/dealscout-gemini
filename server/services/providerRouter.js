@@ -235,7 +235,7 @@ async function fetchDealsList(options = {}) {
       const refreshExistingAsins = existing.map((deal) => deal.asin).filter(Boolean);
       const supply = require('./departmentSupplyService');
       const plan = await supply.prepareDiscovery(existing, options.amazonDomain || 'amazon.com');
-      if (options.categoryId) { plan.targets = []; plan.page = 1; plan.queryKey = String(options.categoryId); plan.categoryId = String(options.categoryId); } // Explicit manual category choices remain authoritative.
+      if (options.categoryId) { plan.targets = []; plan.page = 1; plan.queryVisits = 0; plan.nextPage = 2; plan.queryKey = String(options.categoryId); plan.categoryId = String(options.categoryId); } // Explicit manual category choices remain authoritative.
       const result = await runProviderCall('rainforest', () => fetchStrictRainforestDeals({ ...options, categoryId: options.categoryId || plan.categoryId, departmentStock: plan.stock, page: plan.page, onCategories: (rows, diagnostics) => supply.recordDiscovery(plan, rows, diagnostics), refreshExistingAsins }), { overrideDailyLimit: options.overrideDailyLimit === true });
       const verified = (result || []).map((item) => normalizeVerifiedProduct(item, 'RAINFOREST')).filter(Boolean);
       cacheRainforestBulkResults(verified);
