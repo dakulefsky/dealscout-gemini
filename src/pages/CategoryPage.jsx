@@ -1,3 +1,4 @@
+import dealCollections from '../../shared/dealCollections.json';
 import UnitPriceComparison from '@/components/UnitPriceComparison';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -186,6 +187,7 @@ export default function CategoryPage() {
             <p className="text-[11px] leading-relaxed text-slate-400 mt-5 max-w-2xl">Deal prices and availability can change after our most recent check. Confirm the final price, variant, shipping and availability on Amazon before purchase.</p>
           </div>
           <div className="lg:border-l lg:border-emerald-950/10 lg:pl-8">
+            <nav aria-label="Focused deal collections" className="mb-8">{dealCollections.filter(c => c.departmentSlug === category.slug).map(c => <Link key={c.slug} to={`/deals/${c.slug}`} className="block py-2 text-sm font-semibold underline underline-offset-4">{c.shortName}</Link>)}</nav>
             <div className="ds-kicker">Keep browsing</div>
             <h2 className="font-heading text-xl font-bold text-emerald-950 mt-2">Related deal categories</h2>
             <div className="mt-4 border-t border-emerald-950/10">{relatedCategories.map((item) => <Link key={item.slug} to={`/category/${item.slug}`} className="flex items-center justify-between gap-3 border-b border-emerald-950/10 py-3 text-sm font-bold text-slate-800 hover:text-emerald-800 transition"><span>{item.name} deals</span><ArrowRight className="w-4 h-4" /></Link>)}</div>

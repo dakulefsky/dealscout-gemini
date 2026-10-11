@@ -44,14 +44,14 @@ export default function DealCollection() {
   }
   if (!collection) return <div className="ds-shell py-12"><h1>Collection not found</h1><Link to="/">Browse current deals</Link></div>;
   return <div className="ds-shell py-8 sm:py-12">
-    <nav aria-label="Breadcrumb" className="text-xs text-slate-500"><Link to="/" className="underline">Home</Link> / {collection.shortName}</nav>
-    <header className="max-w-3xl mt-6 mb-8"><h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">{collection.name}</h1><p className="mt-3 text-sm text-slate-600 leading-relaxed">{collection.description}</p></header>
+    <nav aria-label="Breadcrumb" className="text-xs text-slate-500"><Link to="/" className="underline">Home</Link> / {collection.departmentSlug && <><Link to={`/category/${collection.departmentSlug}`} className="underline">{collection.filters.category}</Link> / </>}{collection.shortName}</nav>
+    <header className="max-w-3xl mt-6 mb-8"><h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">{collection.name}</h1><p className="mt-3 text-sm text-slate-600 leading-relaxed">{collection.description}</p><p className="mt-3 text-xs text-slate-500">Checked item prices apply to the listed variants, before shipping and taxes. Confirm the final price and terms on Amazon.</p></header>
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 auto-rows-fr">{items.map((deal) => <DealCard key={deal.id || deal.asin} deal={deal} />)}</div>
     {loading && <p role="status" className="py-8 text-sm text-slate-500">Loading deals…</p>}
     {error && <div role="status" className="py-8 text-sm">Couldn’t load deals. <button type="button" className="underline" onClick={() => items.length ? loadMore() : setRetry((v) => v + 1)}>Try again</button></div>}
     {!loading && !error && !items.length && <p className="py-8 text-sm text-slate-600">No current deals match this collection. <Link to="/" className="underline">Browse other departments</Link>.</p>}
     {cursor && !loading && <button type="button" onClick={loadMore} className="mt-8 border border-slate-300 rounded-md px-5 py-3 font-semibold text-sm">Show more deals</button>}
-    <section className="mt-10 border-t border-slate-200 pt-6"><h2 className="font-semibold">Before you buy</h2><p className="mt-2 text-sm text-slate-600 max-w-3xl">{collection.guidance}</p><Link to="/how-we-find-deals" className="mt-3 inline-block text-sm underline">How DealScout selects deals</Link></section>
+    <section className="mt-10 border-t border-slate-200 pt-6"><h2 className="font-semibold">Before you buy</h2><p className="mt-2 text-sm text-slate-600 max-w-3xl">{collection.guidance}</p><ul className="mt-4 list-disc pl-5 space-y-2 text-sm text-slate-600 max-w-3xl">{(collection.checklist || []).map(note => <li key={note}>{note}</li>)}</ul><Link to="/how-we-find-deals" className="mt-3 inline-block text-sm underline">How DealScout selects deals</Link></section>
     <nav aria-label="More deal collections" className="mt-8 flex flex-wrap gap-4 text-sm">{collections.filter((c) => c.slug !== slug).map((c) => <Link key={c.slug} to={`/deals/${c.slug}`} className="underline">{c.shortName}</Link>)}<Link to="/" className="underline">All departments</Link></nav>
   </div>;
 }

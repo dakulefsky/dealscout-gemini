@@ -1,5 +1,89 @@
 [
-  {"slug":"under-25","name":"Amazon deals under $25","shortName":"Under $25","description":"Browse current Amazon discounts priced at $25 or less, from household essentials to small gifts and everyday accessories.","guidance":"Compare pack quantity and shipping before buying. A low item price does not always mean a lower total cost.","filters":{"maxPrice":25}},
-  {"slug":"under-50","name":"Amazon deals under $50","shortName":"Under $50","description":"Find current Amazon deals priced at $50 or less across electronics, home, clothing and other departments.","guidance":"Compare the exact model, size and included accessories. These are current listed prices, before any shipping or taxes.","filters":{"maxPrice":50}},
-  {"slug":"half-price","name":"Amazon deals at least 50% off","shortName":"50% off or more","description":"Browse current Amazon offers with a checked price at least 50% below the listed reference price.","guidance":"The percentage compares the checked price with the listing’s reference price; it is not a guarantee of the lowest historical price. Confirm the selected variant on Amazon.","filters":{"minDiscount":50}}
+  {
+    "slug": "under-25",
+    "name": "Amazon deals under $25",
+    "shortName": "Under $25",
+    "description": "Browse current Amazon discounts priced at $25 or less, from household essentials to small gifts and everyday accessories.",
+    "guidance": "Compare pack quantity and shipping before buying. A low item price does not always mean a lower total cost.",
+    "filters": {
+      "maxPrice": 25
+    }
+  },
+  {
+    "slug": "under-50",
+    "name": "Amazon deals under $50",
+    "shortName": "Under $50",
+    "description": "Find current Amazon deals priced at $50 or less across electronics, home, clothing and other departments.",
+    "guidance": "Compare the exact model, size and included accessories. These are current listed prices, before any shipping or taxes.",
+    "filters": {
+      "maxPrice": 50
+    }
+  },
+  {
+    "slug": "half-price",
+    "name": "Amazon deals at least 50% off",
+    "shortName": "50% off or more",
+    "description": "Browse current Amazon offers with a checked price at least 50% below the listed reference price.",
+    "guidance": "The percentage compares the checked price with the listing’s reference price; it is not a guarantee of the lowest historical price. Confirm the selected variant on Amazon.",
+    "filters": {
+      "minDiscount": 50
+    }
+  },
+  {
+    "slug": "headphone-deals-under-200",
+    "name": "Amazon headphone deals under $200",
+    "shortName": "Headphones under $200",
+    "departmentSlug": "electronics",
+    "description": "Compare current Amazon headphone deals at $200 or less, with recently checked prices and clear reference-price savings.",
+    "guidance": "Compare the exact generation and color, comfort, connection options and included accessories. Check whether active noise cancellation and the features you need are listed for that model. These offers are selected by price and product-data checks, not hands-on testing.",
+    "checklist": [
+      "Choose over-ear or on-ear fit, and confirm the exact model generation.",
+      "Check wired listening, Bluetooth codec and microphone compatibility with your devices.",
+      "Compare battery claims and included accessories on the manufacturer’s listing.",
+      "Confirm the selected color, seller and final delivered price; a reference-price discount does not establish a historical low."
+    ],
+    "filters": {
+      "category": "Electronics",
+      "productType": "headphones",
+      "maxPrice": 200
+    }
+  },
+  {
+    "slug": "gaming-monitor-deals-under-200",
+    "name": "Amazon gaming monitor deals under $200",
+    "shortName": "Gaming monitors under $200",
+    "departmentSlug": "electronics",
+    "description": "Browse current Amazon gaming monitor deals at $200 or less. Compare resolution, refresh rate and connection requirements before buying.",
+    "guidance": "Match the monitor to your graphics card or console. A high refresh-rate label alone does not tell you which resolution, port or cable is required. Read the exact model’s specifications and return terms before choosing.",
+    "checklist": [
+      "Compare resolution and screen size together, rather than size alone.",
+      "Check which HDMI or DisplayPort input supports your intended resolution and refresh rate.",
+      "Confirm adaptive-sync compatibility and whether required cables are included.",
+      "Compare panel type, stand adjustment and mounting support with your setup."
+    ],
+    "filters": {
+      "category": "Electronics",
+      "productType": "gaming-monitors",
+      "maxPrice": 200
+    }
+  },
+  {
+    "slug": "coffee-maker-deals-under-150",
+    "name": "Amazon coffee maker deals under $150",
+    "shortName": "Coffee makers under $150",
+    "departmentSlug": "home-kitchen",
+    "description": "Find current Amazon coffee maker deals at $150 or less, with checked prices and buying notes on capsules, capacity and running costs.",
+    "guidance": "Compare the coffee system as well as the machine price. Capsule compatibility, ongoing coffee costs, water-tank capacity and cleaning needs can matter more than the headline discount. Confirm electrical compatibility for the place you will use it.",
+    "checklist": [
+      "Choose between drip coffee, capsules and espresso before comparing machines.",
+      "Check compatible capsules or filters and estimate the cost of your usual daily cups.",
+      "Compare brew sizes, water-tank capacity and counter dimensions.",
+      "Confirm voltage, warranty, included accessories and cleaning requirements on the exact listing."
+    ],
+    "filters": {
+      "category": "Home & Kitchen",
+      "productType": "coffee-makers",
+      "maxPrice": 150
+    }
+  }
 ]
