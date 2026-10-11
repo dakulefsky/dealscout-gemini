@@ -157,14 +157,14 @@ function selectDealsForIngestion(rankedDeals = [], maxNewResults = 15, refreshEx
   return [...refreshMatches, ...selectedNew];
 }
 
-async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealType = null, categoryId = null, maxResults = 15, minDiscount = 10, refreshExistingAsins = [], departmentStock = {}, onCategories = null } = {}) {
+async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealType = null, categoryId = null, maxResults = 15, minDiscount = 10, page = 1, refreshExistingAsins = [], departmentStock = {}, onCategories = null } = {}) {
   await primeDayPolicy.refresh();
   const primeDay = primeDayPolicy.isPrimeDay();
   const apiKey = process.env.RAINFOREST_API_KEY;
   if (!apiKey) throw new Error('RAINFOREST_API_KEY is not configured');
 
-  const params = { api_key: apiKey, amazon_domain: amazonDomain, type: 'deals' };
-  if (dealType) params.deal_type = dealType;
+  const params = { api_key: apiKey, amazon_domain: amazonDomain, type: 'deals', page: Math.min(1000, Math.max(1, Number.parseInt(page, 10) || 1)) };
+  if (dealType) params.deal_types = dealType;
   if (categoryId) params.category_id = categoryId;
 
   const response = await axios.get(ENDPOINT, {
@@ -175,17 +175,14 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
 
   const data = response.data || {};
   if (data.request_info?.success === false) throw new Error(data.request_info.message || 'Rainforest deals request failed');
-  if (onCategories) await onCategories(data.categories);
 
   // Keep this to one paid deals page. Broaden only what we retain from that already-paid response.
   const effectiveMaxResults = Math.max(primeDay ? 75 : SINGLE_PAGE_NEW_DEAL_FLOOR, Number(maxResults) || 0);
   const effectiveMinDiscount = Math.min(REVIEWABLE_DISCOUNT_FLOOR, Math.max(0, Number(minDiscount) || 0));
   const items = Array.isArray(data.deals_results) ? data.deals_results : (Array.isArray(data.deals) ? data.deals : []);
-  const normalized = items
-    .map(normalizeDeal)
-    .filter(Boolean)
-    .filter((deal) => !isUnavailableDeal(deal))
-    .filter((deal) => deal.discountPercent >= effectiveMinDiscount);
+  const valid = items.map(normalizeDeal).filter(Boolean);
+  const available = valid.filter(deal => !isUnavailableDeal(deal));
+  const normalized = available.filter(deal => deal.discountPercent >= effectiveMinDiscount);
   const ranked = dedupeDeals(normalized).sort((a, b) => b.discountPercent - a.discountPercent || b.savingsAmount - a.savingsAmount);
 
   // On ordinary days as well as Prime Day, use the paid page for good live
@@ -202,7 +199,23 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
   const review = scored.filter(row => distinctAsins.has(row.deal.asin) && row.quality.decision === 'PENDING_REVIEW');
   const first = selectBalancedDeals(publishable.sort(compare).map(row => row.deal), effectiveMaxResults, departmentStock);
   const remaining = effectiveMaxResults - first.length;
-  return [...refresh, ...first, ...(remaining > 0 ? selectBalancedDeals(review.sort(compare).map(row => row.deal), remaining, departmentStock) : [])];
+  const selectedReview = remaining > 0 ? selectBalancedDeals(review.sort(compare).map(row => row.deal), remaining, departmentStock) : [];
+  const diagnostics = {
+    currentPage: data.pagination?.current_page || params.page,
+    totalPages: data.pagination?.total_pages || 1,
+    creditsUsed: Number(data.request_info?.credits_used_this_request) || 1,
+    raw: items.length, invalidIdentityOrPrices: items.length - valid.length,
+    unavailable: valid.length - available.length, belowIntakeDiscount: available.length - normalized.length,
+    duplicateAsins: normalized.length - ranked.length, existingMatches: refresh.length,
+    quantityVariants: scored.length - distinctAsins.size,
+    qualityRejected: scored.filter(row => row.quality.decision === 'REJECT').length,
+    approvedCandidates: publishable.length, reviewCandidates: review.length,
+    retainedNew: first.length + selectedReview.length,
+    capacitySkipped: publishable.length + review.length - first.length - selectedReview.length,
+  };
+  console.info('[Rainforest discovery]', JSON.stringify({ ...diagnostics, page: params.page, categoryId: categoryId || null }));
+  if (onCategories) await onCategories(data.categories, diagnostics);
+  return [...refresh, ...first, ...selectedReview];
 }
 
 module.exports = {

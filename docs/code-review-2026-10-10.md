@@ -21,7 +21,9 @@ Scope: production startup and database access, automated discovery and refresh, 
 
 ## Validation
 
-Local full test suite, lint and production frontend build are run before publication. CI also validates the container build. Failure-path tests use isolated fakes or local HTTP servers; the review does not consume Rainforest requests or send publications/emails. Monthly provider capacity remains 500, with the existing ordinary and Prime Day daily limits unchanged. Public/private service isolation and bounded instance configuration remain intact.
+All 765 local tests passed. Lint completed with zero errors and 10 existing React refresh warnings; the production frontend and CI Docker builds passed. Full local server checks also passed for health/readiness, the best feed, HEAD categories, malformed JSON and the native affiliate redirect. Failure-path tests use isolated fakes or local HTTP servers; the review does not consume Rainforest requests or send publications/emails. Monthly provider capacity remains 500, with the existing ordinary and Prime Day daily limits unchanged. Public/private service isolation and bounded instance configuration remain intact.
+
+Production release 875bdae568d45fde0532e7c6fd58c86370150463 passed both service deployments and 100% image parity: public dealscout-web-00053-xh6 and private dealscout-00228-zhd. The deployment runner passed homepage crawl HTML, robots, sitemap, public admin isolation, readiness, affiliate redirect, feed and product detail checks; the maintenance job update passed. Direct smoke access from this workspace timed out, so live serving evidence comes from the deployment runner.
 
 ## Follow-up issues requiring a focused change
 
@@ -33,5 +35,11 @@ Local full test suite, lint and production frontend build are run before publica
 6. Optional identity paths can fall back to guest behavior during account lookup outages. Distinguish invalid credentials from temporary lookup failures consistently across saved deals and notifications.
 7. Publication database fencing does not make external delivery exactly once after an unknown transport outcome. Adapter idempotency requires provider support or reconciliation.
 8. Stored short Amazon URLs and publication content require a separate affiliate canonicalization audit. Adding a tag to a short URL cannot prove the resolved destination retains that tag.
+
+9. The automatic quality scorer has a maximum of 83, while WhatsApp Status requires 85. An offline run of the strongest automatically scored product confirms AUTO_APPROVE at 83 but status rejection for quality. Calibrate channel policy against the current scorer before enabling or expanding automatic status publishing; preserve its separate audience and cadence safeguards.
+10. Price-alert delivery claims are not fenced by ownership when marking/releasing them. A delayed sender can mutate a reclaimed claim. Apply ownership fencing and consider transport reconciliation.
+11. The image component resets failed-source position only when the primary URL changes. A newly supplied fallback gallery with the same failed primary URL may remain invisible. Reset or reconcile failed-source state when the source set changes.
+
+Additional reproduction evidence: two simultaneous local bookmark toggles both reported saved and created two rows; an edited canonical category description reported success but the next local read returned the built-in description. No production rows were modified by these isolated checks.
 
 Live infrastructure follow-up: independently verify RDS backups/restoration, runtime connection capacity and source-IP rules, current costs, IAM scope, and live Search Console crawl results when account access is available. Successful release checks establish current serving behavior; they do not establish all of these properties.

@@ -362,18 +362,8 @@ class DealCronService {
             continue;
           }
 
-          await deals.upsert({
-            id: item.asin, title: item.title, asin: item.asin, category: item.category || 'Other',
-            original_price: original, sale_price: sale, discount_percent: discount,
-            image_url: item.imageUrl || item.image_url || '',
-            product_url: item.productUrl || item.product_url || `https://www.amazon.com/dp/${item.asin}`,
-            rating: 0, ratings_total: 0, short_bio: '', full_summary: '', pros: '', cons: '', reviews: [],
-            source_sufficient: 1, source_verified: 1, source_provider: item.sourceProvider || 'VERIFIED_PROVIDER',
-            status, quality_score: quality.score, is_expired: 0, expired_at: null,
-            price_check_at: verifiedAt, last_verify_attempt_at: verifiedAt,
-            raw_source_data: `${item.sourceProvider || 'Verified provider'} | ASIN: ${item.asin} | publication=${publication.reason}`,
-            created_at: verifiedAt,
-          });
+          const inserted = await deals.upsert(require('./discoveryIntakeService').discoveredRecord(item, quality, publication, verifiedAt), { insertOnly: true });
+          if (!inserted) continue;
           await refreshStates.recordSuccess(item.asin, { provider: item.sourceProvider, at: verifiedAt });
           createdCount += 1;
           if (status === 'APPROVED') autoApprovedCount += 1; else pendingCount += 1;

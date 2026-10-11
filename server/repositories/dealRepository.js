@@ -155,6 +155,7 @@ async function upsert(input, options = {}) {
   if (!postgres.isConfigured()) {
     const record = toJsonFallback(d);
     const index = db.tables.deals.findIndex((x) => canonicalIdentity(x.asin || x.id) === d.asin);
+    if (index >= 0 && options.insertOnly) return null;
     if (index >= 0) db.tables.deals[index] = { ...db.tables.deals[index], ...record, id: d.asin, asin: d.asin };
     else db.tables.deals.unshift(record);
     db.saveDb();
@@ -170,7 +171,7 @@ async function upsert(input, options = {}) {
     ) VALUES (
       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::jsonb,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
     )
-    ON CONFLICT (asin) DO UPDATE SET
+    ${options.insertOnly ? "ON CONFLICT DO NOTHING" : `ON CONFLICT (asin) DO UPDATE SET
       id=EXCLUDED.id, title=EXCLUDED.title, category=EXCLUDED.category,
       original_price=EXCLUDED.original_price, sale_price=EXCLUDED.sale_price,
       discount_percent=EXCLUDED.discount_percent, image_url=EXCLUDED.image_url,
@@ -180,7 +181,7 @@ async function upsert(input, options = {}) {
       source_verified=EXCLUDED.source_verified, source_provider=EXCLUDED.source_provider,
       status=EXCLUDED.status, is_expired=EXCLUDED.is_expired, expired_at=EXCLUDED.expired_at,
       price_check_at=EXCLUDED.price_check_at, last_verify_attempt_at=EXCLUDED.last_verify_attempt_at,
-      raw_source_data=EXCLUDED.raw_source_data
+      raw_source_data=EXCLUDED.raw_source_data`}
     RETURNING *`,
     [
       d.id,d.asin,d.title,d.category||null,d.original_price,d.sale_price,d.discount_percent,

@@ -41,8 +41,26 @@ function planDiscovery(deals, state = {}, now = Date.now(), domain = 'amazon.com
     .filter(name => (stock[name] || 0) < TARGET_LIVE_DEALS)
     .sort((a, b) => (Number(lastTargetAt[a]) || 0) - (Number(lastTargetAt[b]) || 0) || (stock[a] || 0) - (stock[b] || 0) || a.localeCompare(b))
     .slice(0, 3);
-  const targetIds = targets.flatMap(name => categories.filter(row => row.category === name).slice(0, 2).map(row => row.id));
-  return { stock, pulls, categories, targets, categoryId: targetIds.join(','), domain, lastTargetAt, observedAt: validCache ? Number(state.observedAt) : 0 };
+  const categoryOffsets = validCache && state.categoryOffsets && typeof state.categoryOffsets === 'object' ? state.categoryOffsets : {};
+  const targetIds = targets.flatMap(name => {
+    const rows = categories.filter(row => row.category === name);
+    const offset = Math.max(0, Number.parseInt(categoryOffsets[name], 10) || 0) % rows.length;
+    return Array.from({ length: Math.min(2, rows.length) }, (_, i) => rows[(offset + i) % rows.length].id);
+  });
+  const categoryId = targetIds.join(',');
+  const pageQueries = state.domain === domain && state.pageQueries && typeof state.pageQueries === 'object' ? state.pageQueries : {};
+  const queryKey = categoryId ? targetIds.slice().sort().join(',') : 'broad';
+  const savedCursor = pageQueries[queryKey] || {};
+  const cursor = Number(savedCursor.at) <= now && now - Number(savedCursor.at) < CATEGORY_MAX_AGE_MS ? savedCursor : {};
+  const totalPages = boundedPages(cursor.totalPages);
+  const visits = Math.max(0, Number.parseInt(cursor.visits, 10) || 0);
+  // Revisit the front page every third pull of this exact query for new arrivals.
+  const page = visits % 3 === 0 ? 1 : Math.min(totalPages, Math.max(2, Number.parseInt(cursor.nextPage, 10) || 2));
+  return { stock, pulls, categories, targets, categoryId, domain, lastTargetAt, categoryOffsets, pageQueries, queryKey, page, observedAt: validCache ? Number(state.observedAt) : 0 };
+}
+
+function boundedPages(value) {
+  return Number.isSafeInteger(Number(value)) && Number(value) > 0 ? Math.min(1000, Number(value)) : 1;
 }
 
 async function prepareDiscovery(deals, domain = 'amazon.com') {
@@ -53,15 +71,25 @@ async function prepareDiscovery(deals, domain = 'amazon.com') {
   return planDiscovery(deals, state, Date.now(), domain);
 }
 
-async function recordDiscovery(plan, rows) {
+async function recordDiscovery(plan, rows, diagnostics = {}) {
   const now = Date.now();
   const learned = categoriesFromResponse(rows);
   const merged = new Map(plan.categories.map(row => [row.id, row]));
   learned.forEach(row => merged.set(row.id, row));
   const categories = [...merged.values()].slice(0, 200);
   const lastTargetAt = Object.fromEntries([...new Set(categories.map(row => row.category))].map(name => [name, plan.targets.includes(name) ? now : Number(plan.lastTargetAt[name]) || 0]));
+  const categoryOffsets = { ...plan.categoryOffsets };
+  for (const name of plan.targets) {
+    const count = categories.filter(row => row.category === name).length;
+    categoryOffsets[name] = count ? ((Number(categoryOffsets[name]) || 0) + 2) % count : 0;
+  }
+  const pageQueries = { ...plan.pageQueries };
+  const totalPages = boundedPages(diagnostics.totalPages);
+  const currentPage = boundedPages(diagnostics.currentPage || plan.page);
+  pageQueries[plan.queryKey] = { totalPages, nextPage: currentPage >= totalPages ? 2 : Math.max(2, currentPage + 1), visits: ((Number(pageQueries[plan.queryKey]?.visits) || 0) + 1) % 3000000, at: now };
+  const boundedQueries = Object.fromEntries(Object.entries(pageQueries).sort((a, b) => (Number(b[1]?.at) || 0) - (Number(a[1]?.at) || 0)).slice(0, 32));
   try {
-    await settings.set(STATE_KEY, JSON.stringify({ domain: plan.domain, pulls: (plan.pulls + 1) % 3000000, observedAt: learned.length ? now : plan.observedAt, categories, lastTargetAt }));
+    await settings.set(STATE_KEY, JSON.stringify({ domain: plan.domain, pulls: (plan.pulls + 1) % 3000000, observedAt: learned.length ? now : plan.observedAt, categories, lastTargetAt, categoryOffsets, pageQueries: boundedQueries, lastDiscovery: { ...diagnostics, at: now, categoryId: plan.categoryId || null, page: plan.page } }));
   } catch (error) { console.warn('[Department supply] Planning state could not be saved:', error.message); }
 }
 
