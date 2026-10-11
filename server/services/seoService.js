@@ -1,4 +1,5 @@
 const categoryContent = require('../../shared/categoryContent.json');
+const { matchesProductType } = require('./productTopicPolicy');
 const collections = require('../../shared/dealCollections.json');
 const { PUBLIC_PRICE_MAX_AGE_SECONDS, hasValidPricePair } = require('./publicDealPolicy');
 
@@ -41,7 +42,10 @@ function collectionMatches(collection, deal) {
   const sale = Number(deal.sale_price ?? deal.salePrice);
   const original = Number(deal.original_price ?? deal.originalPrice);
   if (!Number.isFinite(sale) || !Number.isFinite(original) || sale <= 0 || original <= sale) return false;
-  return (collection.filters.maxPrice === undefined || sale <= collection.filters.maxPrice)
+  return (!collection.filters.category || String(deal.category || '').toLowerCase() === collection.filters.category.toLowerCase())
+    && matchesProductType(collection.filters.productType, deal.title)
+    && (!collection.filters.q || [deal.title, deal.asin, deal.category].some(value => String(value || '').toLowerCase().includes(collection.filters.q.toLowerCase())))
+    && (collection.filters.maxPrice === undefined || sale <= collection.filters.maxPrice)
     && (collection.filters.minDiscount === undefined || (1 - sale / original) * 100 >= collection.filters.minDiscount);
 }
 
@@ -179,6 +183,12 @@ function collectionMeta(baseUrl, collection, deals = []) {
       '@context': 'https://schema.org',
       '@type': 'CollectionPage',
       name: collection.name, description: collection.description, url: canonical,
+      isPartOf: { '@id': `${baseUrl}/#website` },
+      breadcrumb: { '@type': 'BreadcrumbList', itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'DealScout', item: `${baseUrl}/` },
+        ...(collection.departmentSlug ? [{ '@type': 'ListItem', position: 2, name: collection.filters.category, item: `${baseUrl}/category/${collection.departmentSlug}` }] : []),
+        { '@type': 'ListItem', position: collection.departmentSlug ? 3 : 2, name: collection.shortName, item: canonical },
+      ] },
       mainEntity: { '@type': 'ItemList', itemListElement: deals.map((d, index) => ({
         '@type': 'ListItem', position: index + 1, name: d.title,
         url: `${baseUrl}/deal/${encodeURIComponent(d.id || d.asin)}`,

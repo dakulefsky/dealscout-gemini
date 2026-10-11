@@ -53,6 +53,7 @@ router.get('/feed', async (req, res) => {
     const result = await dealFeed.page(req.query);
     res.json({ items: result.items.map((deal) => rowToDeal(deal)), nextCursor: result.nextCursor });
   } catch (err) {
+    if (err.message === 'Invalid product type') return res.status(400).json({ error: 'Invalid product type' });
     if (err.message === 'Invalid cursor') return res.status(400).json({ error: 'Invalid feed cursor' });
     console.error('[deals] feed failed:', err.message);
     return res.status(503).json({ error: 'Deal feed is temporarily unavailable' });

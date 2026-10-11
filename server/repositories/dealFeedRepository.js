@@ -4,6 +4,8 @@ const { encodeCursor, decodeCursor } = require('../services/dealCursor');
 const { isPublicDeal, freshPriceThreshold, minimumDiscountPercent } = require('../services/publicDealPolicy');
 const { uniqueQuantityFamilies, QUANTITY_FAMILY_SQL } = require('../services/dealVariantPolicy');
 
+const { normalizeProductType, matchesProductType, productTypeSql } = require('../services/productTopicPolicy');
+
 const DISCOUNT_SQL = '(100.0 * (original_price - sale_price) / original_price)';
 const SAFE_QUALITY_SQL = "(CASE WHEN quality_score::text = 'NaN' THEN 0 ELSE COALESCE(quality_score, 0) END)";
 const BEST_SQL = `(
@@ -39,6 +41,7 @@ function numberOrNull(value) {
 
 function normalizeFilters(options = {}) {
   return {
+    ...(options.productType ? { productType: normalizeProductType(options.productType) } : {}),
     q: typeof options.q === 'string' ? options.q.trim() : '',
     category: typeof options.category === 'string' ? options.category.trim() : '',
     minDiscount: numberOrNull(options.minDiscount),
@@ -104,6 +107,7 @@ function addCursorPredicate(where, params, cursor, sort, balanced = false) {
 function filterFallback(rows, filters) {
   return rows.filter((deal) => {
     if (filters.category && String(deal.category || '').toLowerCase() !== filters.category.toLowerCase()) return false;
+    if (!matchesProductType(filters.productType, deal.title)) return false;
     if (filters.q) {
       const term = filters.q.toLowerCase();
       if (![deal.title, deal.asin, deal.category].some((value) => String(value || '').toLowerCase().includes(term))) return false;
@@ -141,7 +145,7 @@ async function page(options = {}) {
   const sort = normalizeSort(options.sort);
   const limit = normalizeLimit(options.limit);
   const filters = normalizeFilters(options);
-  const balanced = sort === 'best' && !filters.category && !filters.q;
+  const balanced = sort === 'best' && !filters.category && !filters.q && !filters.productType;
   const cursor = decodeCursor(options.cursor, sort);
   if (options.cursor && !cursor) throw new Error('Invalid cursor');
 
@@ -184,6 +188,8 @@ async function page(options = {}) {
     `${DISCOUNT_SQL} >= ${minimumDiscountPercent()}`,
     `price_check_at IS NOT NULL AND price_check_at >= ${freshness} AND price_check_at <= ${now}`,
   ];
+  const topicPredicate = productTypeSql(filters.productType, params);
+  if (topicPredicate) where.push(topicPredicate);
   if (filters.category) where.push(`LOWER(COALESCE(category, '')) = LOWER($${params.push(filters.category)})`);
   if (filters.q) {
     const pattern = `%${filters.q}%`;
