@@ -81,6 +81,15 @@ function providerErrorResponse(res, err, fallback = 'Provider request failed') {
   return res.status(500).json({ error: err?.message || fallback });
 }
 
+router.get('/seo-settings', requireAdmin, async (_req, res) => {
+  try { res.set('Cache-Control', 'no-store').json({ token: await require('../services/searchConsoleService').token() }); }
+  catch { res.status(503).json({ error: 'Verification settings are temporarily unavailable' }); }
+});
+router.post('/seo-settings', requireAdmin, async (req, res) => {
+  try { const result = await require('../services/searchConsoleService').save(req.body?.token); res.json({ token: result.value }); }
+  catch (error) { res.status(error.message === 'Use only the Google verification tag content value' ? 400 : 503).json({ error: error.message === 'Use only the Google verification tag content value' ? error.message : 'Could not save verification settings' }); }
+});
+
 router.get('/provider-status', requireAdmin, async (_req, res) => {
   try {
     res.json({

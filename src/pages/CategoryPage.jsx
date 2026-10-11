@@ -1,3 +1,4 @@
+import UnitPriceComparison from '@/components/UnitPriceComparison';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import DealCard from '@/components/DealCard';
@@ -180,6 +181,8 @@ export default function CategoryPage() {
             <div className="ds-kicker">Buying notes</div>
             <h2 className="font-heading text-2xl sm:text-3xl font-bold text-emerald-950 mt-2">Buying {category.name.toLowerCase()}</h2>
             <p className="text-sm leading-relaxed text-slate-600 mt-4 max-w-2xl">{seoContent.guidance}</p>
+            <ul className="mt-4 list-disc pl-5 text-sm text-slate-600 space-y-2">{(seoContent.checklist || []).map(note => <li key={note}>{note}</li>)}</ul>
+            {['grocery', 'pet-supplies', 'baby', 'health-beauty', 'office-school'].includes(slug) && <UnitPriceComparison />}
             <p className="text-[11px] leading-relaxed text-slate-400 mt-5 max-w-2xl">Deal prices and availability can change after our most recent check. Confirm the final price, variant, shipping and availability on Amazon before purchase.</p>
           </div>
           <div className="lg:border-l lg:border-emerald-950/10 lg:pl-8">

@@ -61,7 +61,7 @@ test('server-rendered JSON-LD receives the request CSP nonce', () => {
     nonce: 'abc123',
   });
   assert.match(rendered, /<script nonce="abc123" type="application\/ld\+json">/);
-  assert.match(server, /seo\.replaceMeta\(indexTemplate, \{ \.\.\.meta, nonce: res\.locals\.cspNonce \}\)/);
+  assert.match(server, /seo\.replaceMeta\(indexTemplate, \{ \.\.\.meta, verificationToken, nonce: res\.locals\.cspNonce \}\)/);
 });
 
 test('production HTML nonces both the app bundle and global AdSense script', () => {

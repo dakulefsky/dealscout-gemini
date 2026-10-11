@@ -11,7 +11,7 @@ test('homepage SEO exposes crawlable category hub structured data', () => {
     { name: 'Baby', slug: 'baby' },
   ]);
   assert.equal(meta.canonical, 'https://dealscouted.com/');
-  assert.match(meta.title, /by Category/);
+  assert.match(meta.title, /by Department/);
   const graph = meta.jsonLd['@graph'];
   const itemList = graph.find((node) => node['@type'] === 'CollectionPage').mainEntity.itemListElement;
   assert.equal(itemList.length, 2);
@@ -22,7 +22,7 @@ test('homepage SEO exposes crawlable category hub structured data', () => {
 test('server passes active categories into homepage SEO rendering', () => {
   const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
   assert.match(server, /meta = seo\.homeMeta\(baseUrl, categories\)/);
-  assert.match(server, /initialContent = homeInitialContent\(categories\)/);
+  assert.match(server, /initialContent = homeInitialContent\(categories, page\.items\)/);
 });
 
 

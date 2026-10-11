@@ -37,7 +37,9 @@ export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = g
   for (const url of urls) if (new URL(url).origin !== origin) throw new Error('Sitemap contains another origin');
   if (scheduled) return { scheduledClosure: true, checked: 3, sitemapUrls: urls.length };
   if (!home.text.includes('data-server-crawl-content="home"')) throw new Error('Homepage has no crawlable content');
+  if (!urls.includes(origin + '/about')) throw new Error('Sitemap is missing About');
   const sampled = [
+    origin + '/about',
     ...urls.filter((u) => new URL(u).pathname.startsWith('/category/')).slice(0, 2),
     ...urls.filter((u) => new URL(u).pathname.startsWith('/deal/')).slice(0, 3),
     ...urls.filter((u) => new URL(u).pathname.startsWith('/deals/')).slice(0, 1),

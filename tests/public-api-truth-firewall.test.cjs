@@ -4,13 +4,14 @@ const fs = require('fs');
 const path = require('path');
 
 const dealsRoute = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'deals.js'), 'utf8');
+const dto = fs.readFileSync(path.join(__dirname, '..', 'server', 'services', 'publicDealDto.js'), 'utf8');
 const dealQueries = fs.readFileSync(path.join(__dirname, '..', 'server', 'repositories', 'dealQueryRepository.js'), 'utf8');
 const dealFeed = fs.readFileSync(path.join(__dirname, '..', 'server', 'repositories', 'dealFeedRepository.js'), 'utf8');
 const functionsRoute = fs.readFileSync(path.join(__dirname, '..', 'server', 'routes', 'functions.js'), 'utf8');
 const home = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Home.jsx'), 'utf8');
 
 test('public deal serializer excludes legacy enrichment and raw source data', () => {
-  const publicBlock = dealsRoute.match(/const publicDeal = \{([\s\S]*?)\n  \};/);
+  const publicBlock = dto.match(/const publicDeal = \{([\s\S]*?)\n  \};/);
   assert.ok(publicBlock, 'public serializer should define an explicit publicDeal allowlist');
   const text = publicBlock[1];
   for (const forbidden of ['rating:', 'ratingsTotal:', 'shortBio:', 'fullSummary:', 'pros:', 'cons:', 'reviews:', 'sourceProvider:', 'rawSourceData:']) {
@@ -21,8 +22,8 @@ test('public deal serializer excludes legacy enrichment and raw source data', ()
 });
 
 test('internal fields are opt-in and only exposed to admin responses', () => {
-  assert.match(dealsRoute, /function rowToDeal\(r, \{ includeInternal = false \} = \{\}\)/);
-  assert.match(dealsRoute, /if \(!includeInternal\) return publicDeal;/);
+  assert.match(dto, /function rowToDeal\(r, \{ includeInternal = false \} = \{\}\)/);
+  assert.match(dto, /if \(!includeInternal\) return publicDeal;/);
   assert.match(dealsRoute, /includeInternal: req\.user\?\.role === 'admin'/);
   assert.match(dealsRoute, /includeInternal: isAdmin/);
 });

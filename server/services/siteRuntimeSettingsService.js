@@ -2,6 +2,7 @@ const postgres = require('../storage/postgres');
 
 const DEFAULTS = Object.freeze({
   closure_location: 'jerusalem',
+  google_site_verification: '',
   rainforest_department_discovery: '',
   deal_discovery_intake: '',
   amazon_prime_day_start: '',
@@ -18,6 +19,11 @@ function cleanKey(key) {
 }
 
 function normalizeValue(key, value) {
+  if (key === 'google_site_verification') {
+    const normalized = String(value ?? '').trim();
+    if (normalized.length > 256 || (normalized && !/^[A-Za-z0-9_-]+$/.test(normalized))) throw new Error('Use only the Google verification tag content value');
+    return normalized;
+  }
   if (key === 'closure_location') {
     const normalized = String(value || '').trim().toLowerCase();
     if (!['jerusalem', 'new_york'].includes(normalized)) throw new Error('closure_location must be jerusalem or new_york');

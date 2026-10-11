@@ -1,3 +1,4 @@
+import { freshInitialFeed } from '../../shared/shoppingTools.mjs';
 import dealCollections from '../../shared/dealCollections.json';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -56,7 +57,12 @@ function serverSort(sort) { if (sort === 'best') return 'best'; if (sort === 'di
 
 export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [deals, setDeals] = useState([]); const categories = useActiveCategories();
+  const initialPage = useRef(undefined);
+  if (initialPage.current === undefined) {
+    try { initialPage.current = JSON.parse(document.getElementById('initial-deals')?.textContent || 'null'); }
+    catch { initialPage.current = null; }
+  }
+  const [deals, setDeals] = useState(() => freshInitialFeed(initialPage.current, { sort: 'best', category: searchParams.get('category') && searchParams.get('category') !== 'all' ? searchParams.get('category') : '', q: searchParams.get('q') || '' }).items); const categories = useActiveCategories();
   const [loading, setLoading] = useState(true); const [loadingMore, setLoadingMore] = useState(false); const [error, setError] = useState(null); const [retryNonce, setRetryNonce] = useState(0);
   const [nextCursor, setNextCursor] = useState(null);
   const [activeCat, setActiveCat] = useState(searchParams.get('category') || 'all'); const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
@@ -81,9 +87,10 @@ export default function Home() {
     const generation = ++feedGeneration.current;
     paginationRequest.current?.abort();
     paginationRequest.current = null;
-    setLoading(true); setLoadingMore(false); setError(null); setDeals([]); setNextCursor(null); setVisibleCount(Math.min(INITIAL_FEED_SIZE, 12));
+    const seed = freshInitialFeed(initialPage.current, feedParams);
+    setLoading(true); setLoadingMore(false); setError(null); setDeals(seed.items); setNextCursor(seed.nextCursor); setVisibleCount(Math.min(INITIAL_FEED_SIZE, 12));
     const timer = window.setTimeout(() => {
-      dealsApi.page(feedParams, { signal: controller.signal }).then((page) => { if (controller.signal.aborted || generation !== feedGeneration.current) return; setDeals(page?.items || []); setNextCursor(page?.nextCursor || null); }).catch((e) => { if (!controller.signal.aborted && generation === feedGeneration.current && e.name !== 'AbortError') setError(e.message); }).finally(() => { if (!controller.signal.aborted && generation === feedGeneration.current) setLoading(false); });
+      dealsApi.page(feedParams, { signal: controller.signal }).then((page) => { if (controller.signal.aborted || generation !== feedGeneration.current) return; setDeals(page?.items || []); setNextCursor(page?.nextCursor || null); }).catch((e) => { if (!controller.signal.aborted && generation === feedGeneration.current && e.name !== 'AbortError') { const fresh = freshInitialFeed(initialPage.current, feedParams); setDeals(fresh.items); setNextCursor(fresh.nextCursor); setError(e.message); } }).finally(() => { if (!controller.signal.aborted && generation === feedGeneration.current) setLoading(false); });
     }, searchQuery.trim() ? 250 : 0);
     return () => { window.clearTimeout(timer); controller.abort(); paginationRequest.current?.abort(); };
   }, [feedParams, searchQuery, retryNonce]);
@@ -263,7 +270,7 @@ export default function Home() {
             {hasMore && !error && <div ref={feedSentinel} data-feed-sentinel className="h-10" aria-hidden="true" />}
             {loadingMore && <p role="status" className="text-center py-5 text-sm text-slate-500">Finding more deals…</p>}
             {hasMore && !loadingMore && !error && <div className="text-center py-3"><Button variant="outline" onClick={() => { if (hasLocalMore) setVisibleCount((current) => nextVisibleCount(current, exploreDeals.length)); else loadRemotePage(); }}>Load more deals</Button></div>}
-            {error && <div role="status" className="text-center text-sm text-amber-800 py-3">Couldn’t load more deals. <button onClick={loadRemotePage} className="underline font-semibold">Try again</button></div>}
+            {error && <div role="status" className="text-center text-sm text-amber-800 py-3">Couldn’t refresh these deals. <button onClick={() => setRetryNonce(value => value + 1)} className="underline font-semibold">Try again</button></div>}
             {visibleDeals.length > 0 && !hasMore && !error && <div role="status" className="text-center py-5 text-sm text-slate-600">You’ve reached the end of the current deals. <Link to="/?category=all" className="font-semibold underline underline-offset-4">Browse all departments</Link></div>}
           </>}
 

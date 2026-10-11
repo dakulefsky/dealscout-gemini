@@ -1,3 +1,4 @@
+import SearchVisibilitySettings from '@/components/admin/SearchVisibilitySettings';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock3, Eraser, Globe2, History, Image, Loader2, MessageCircle, PauseCircle, PlayCircle, RefreshCw, ShieldCheck, Smartphone, Sparkles, Trash2 } from 'lucide-react';
@@ -307,6 +308,7 @@ export default function AdminHome() {
       </section>
 
       <AmazonSeasonalPromotionSettings />
+      <SearchVisibilitySettings />
 
       <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6">
         <div className="flex items-center gap-2 mb-4"><History className="w-5 h-5 text-slate-600" /><h2 className="font-black text-slate-900">Recent activity</h2></div>
