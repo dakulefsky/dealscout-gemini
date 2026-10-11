@@ -377,10 +377,12 @@ class DealCronService {
         this.stats.dealsRejected += rejectedCount;
         this.lastRun = new Date();
         await recordJobSuccess('discover-deals');
-        console.info('[Deal discovery intake]', JSON.stringify({
+        const intake = {
           scheduled, created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount,
           pendingReview: pendingCount, editorialHoldback: holdbackCount, rejected: rejectedCount,
-        }));
+        };
+        console.info('[Deal discovery intake]', JSON.stringify(intake));
+        await require('./discoveryIntakeMetrics').record(intake);
 
         return {
           created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount,
