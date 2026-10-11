@@ -32,7 +32,12 @@ async function getProviderStatus() {
   const paapiConfig = getPaapiConfig();
   const rainforestConfigured = isRainforestConfigured();
   let discovery = null;
-  try { discovery = JSON.parse((await require('./siteRuntimeSettingsService').get('rainforest_department_discovery')).value || '{}').lastDiscovery || null; }
+  let discoveryHistory = [];
+  try {
+    const state = JSON.parse((await require('./siteRuntimeSettingsService').get('rainforest_department_discovery')).value || '{}');
+    discovery = state.lastDiscovery || null;
+    discoveryHistory = Array.isArray(state.discoveryHistory) ? state.discoveryHistory : [];
+  }
   catch { /* Diagnostics must not block provider status. */ }
   const rainforestBudget = await usageStatus('rainforest').catch((error) => ({ error: error.message }));
   let effectiveProvider = 'none';
@@ -62,6 +67,7 @@ async function getProviderStatus() {
       throttle: getProviderThrottleStatus('rainforest'),
       budget: rainforestBudget,
       discovery,
+      discoveryHistory,
     },
   };
 }

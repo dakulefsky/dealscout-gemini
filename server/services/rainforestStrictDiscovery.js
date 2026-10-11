@@ -35,22 +35,30 @@ function isUnavailableDeal(deal) {
   return /out of stock|unavailable|no featured offers/.test(availability);
 }
 
-function normalizeDeal(item) {
-  const asin = String(item?.asin || '').trim().toUpperCase();
-  const title = cleanText(item?.title);
-  if (!/^[A-Z0-9]{10}$/.test(asin) || !title) return null;
+function invalidDealReason(item) {
+  if (!/^[A-Z0-9]{10}$/.test(String(item?.asin || '').trim().toUpperCase())) return 'invalidAsin';
+  if (!cleanText(item?.title)) return 'missingTitle';
+  const sale = moneyValue(item.deal_price) ?? moneyValue(item.current_price) ?? moneyValue(item.price);
+  const original = moneyValue(item.list_price) ?? moneyValue(item.rrp);
+  if (!Number.isFinite(sale) || sale <= 0) return 'missingSalePrice';
+  if (!Number.isFinite(original) || original <= 0) return 'missingReferencePrice';
+  if (original <= sale) return 'notDiscounted';
+  return null;
+}
 
+function normalizeDeal(item) {
+  if (invalidDealReason(item)) return null;
+  const asin = String(item.asin).trim().toUpperCase();
+  const title = cleanText(item.title);
   const salePrice = moneyValue(item.deal_price) ?? moneyValue(item.current_price) ?? moneyValue(item.price);
   const originalPrice = moneyValue(item.list_price) ?? moneyValue(item.rrp);
-  if (!Number.isFinite(salePrice) || salePrice <= 0) return null;
-  if (!Number.isFinite(originalPrice) || originalPrice <= salePrice) return null;
 
   const discountPercent = Number((((originalPrice - salePrice) / originalPrice) * 100).toFixed(1));
   const gallery = imageCandidates(item.main_image, item.image, item.images, item.images_flat);
   const rawCategoryName = cleanText(item.category?.name) || cleanText(item.category) || '';
   const searchAlias = cleanText(item.search_alias) || '';
   const categoryName = classifyCategory({ rawCategory: rawCategoryName, searchAlias, title });
-  const availability = cleanText(item.availability?.raw || item.buybox_winner?.availability?.raw) || null;
+  const availability = cleanText(item.availability?.raw) || cleanText(item.availability) || cleanText(item.buybox_winner?.availability?.raw) || null;
 
   return {
     asin,
@@ -194,20 +202,31 @@ async function fetchStrictRainforestDeals({ amazonDomain = 'amazon.com', dealTyp
   const scored = ranked.filter(deal => !existing.has(deal.asin))
     .map(deal => ({ deal, quality: scoreVerifiedDeal(deal) }))
     .sort((a, b) => Number(b.quality.decision === 'AUTO_APPROVE') - Number(a.quality.decision === 'AUTO_APPROVE') || compare(a, b));
-  const distinctAsins = new Set(uniqueQuantityFamilies(scored.map(row => row.deal)).map(deal => deal.asin));
+  const eligible = scored.filter(row => row.quality.decision !== 'REJECT');
+  const distinctAsins = new Set(uniqueQuantityFamilies(eligible.map(row => row.deal)).map(deal => deal.asin));
   const publishable = scored.filter(row => distinctAsins.has(row.deal.asin) && row.quality.decision === 'AUTO_APPROVE');
   const review = scored.filter(row => distinctAsins.has(row.deal.asin) && row.quality.decision === 'PENDING_REVIEW');
   const first = selectBalancedDeals(publishable.sort(compare).map(row => row.deal), effectiveMaxResults, departmentStock);
   const remaining = effectiveMaxResults - first.length;
   const selectedReview = remaining > 0 ? selectBalancedDeals(review.sort(compare).map(row => row.deal), remaining, departmentStock) : [];
+  const rejectionReasons = {};
+  for (const item of items) {
+    const reason = invalidDealReason(item);
+    if (reason) rejectionReasons[reason] = (rejectionReasons[reason] || 0) + 1;
+  }
+  for (const row of scored.filter(row => row.quality.decision === 'REJECT')) {
+    const reason = row.quality.reasons.some(reason => reason.startsWith('discount below')) ? 'belowQualityDiscount' : 'otherQualityRule';
+    rejectionReasons[reason] = (rejectionReasons[reason] || 0) + 1;
+  }
   const diagnostics = {
+    rejectionReasons,
     currentPage: data.pagination?.current_page || params.page,
     totalPages: data.pagination?.total_pages || 1,
     creditsUsed: Number(data.request_info?.credits_used_this_request) || 1,
     raw: items.length, invalidIdentityOrPrices: items.length - valid.length,
     unavailable: valid.length - available.length, belowIntakeDiscount: available.length - normalized.length,
     duplicateAsins: normalized.length - ranked.length, existingMatches: refresh.length,
-    quantityVariants: scored.length - distinctAsins.size,
+    quantityVariants: eligible.length - distinctAsins.size,
     qualityRejected: scored.filter(row => row.quality.decision === 'REJECT').length,
     approvedCandidates: publishable.length, reviewCandidates: review.length,
     retainedNew: first.length + selectedReview.length,

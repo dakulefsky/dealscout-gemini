@@ -124,6 +124,12 @@ export default function AdminHome() {
   const publicationCounts = publication.counts || {};
   const publicationIssues = Number(publication.overdue || 0) + Number(publicationCounts.failed || 0);
   const cleanupCandidates = Number(legacyCleanup.candidates || 0);
+  const discoveryHistory = provider.rainforest?.discoveryHistory || [];
+  const discoveryTotals = discoveryHistory.reduce((total, pull) => ({
+    raw: total.raw + (Number(pull.raw) || 0),
+    retained: total.retained + (Number(pull.retainedNew) || 0),
+    credits: total.credits + (Number(pull.creditsUsed) || 0),
+  }), { raw: 0, retained: 0, credits: 0 });
   const effectiveProvider = provider.effectiveProvider || provider.configuredProvider || 'none';
   const actionInFlight = Boolean(busy);
   const cron = provider.cron || {};
@@ -236,7 +242,14 @@ export default function AdminHome() {
               <h3 className="font-bold text-slate-900">Last discovery pull</h3>
               <p className="text-xs text-slate-500">{new Date(provider.rainforest.discovery.at).toLocaleString()} · Page {provider.rainforest.discovery.page} of {provider.rainforest.discovery.totalPages}</p>
               <p className="text-sm text-slate-700">{provider.rainforest.discovery.raw} received · {provider.rainforest.discovery.retainedNew} new candidates · {provider.rainforest.discovery.existingMatches} existing matches</p>
+              <p className="text-xs text-slate-500">{provider.rainforest.discovery.unavailable} unavailable · {provider.rainforest.discovery.belowIntakeDiscount} below intake discount · {provider.rainforest.discovery.duplicateAsins} duplicate ASINs · {provider.rainforest.discovery.quantityVariants} quantity variants</p>
+              {Object.entries(provider.rainforest.discovery.rejectionReasons || {}).filter(([, count]) => count > 0).map(([reason, count]) => <p key={reason} className="text-xs text-slate-500">{({ invalidAsin: 'Invalid ASIN', missingTitle: 'Missing title', missingSalePrice: 'Missing sale price', missingReferencePrice: 'Missing reference price', notDiscounted: 'No price discount', belowQualityDiscount: 'Below publication discount', otherQualityRule: 'Other quality safeguard' })[reason] || reason}: {count}</p>)}
               <p className="text-xs text-slate-500">{provider.rainforest.discovery.invalidIdentityOrPrices} invalid records · {provider.rainforest.discovery.qualityRejected} rejected by quality rules · {provider.rainforest.discovery.capacitySkipped} beyond intake capacity</p>
+            </div>}
+            {discoveryHistory.length > 0 && <div className="border-t border-slate-200 pt-3 text-xs text-slate-500 space-y-1">
+              <h3 className="font-bold text-slate-900">Recent {discoveryHistory.length} discovery pulls</h3>
+              <p>{discoveryTotals.raw} received · {discoveryTotals.retained} new candidates · {discoveryTotals.credits} credits</p>
+              <p>{discoveryTotals.credits > 0 ? (discoveryTotals.retained / discoveryTotals.credits).toFixed(1) : '—'} candidates per credit. Candidates still pass intake and editorial checks before publication.</p>
             </div>}
             <div className="flex justify-between"><span className="text-slate-500">Requests blocked today</span><span className={Number(rainforestBudget.blockedToday || 0) > 0 ? 'font-bold text-amber-700' : 'font-bold text-slate-800'}>{budgetUnavailable ? '—' : rainforestBudget.blockedToday || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Missing images</span><span className={integrity.missingImages > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.missingImages || 0}</span></div>

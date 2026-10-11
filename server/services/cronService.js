@@ -342,7 +342,6 @@ class DealCronService {
           const publication = publishingDecision(item, quality);
           const status = publication.status;
           const verifiedAt = Math.floor(Date.now() / 1000);
-          if (publication.reason === 'EDITORIAL_HOLDBACK') holdbackCount += 1;
 
           await safeRecordObservation({ asin: item.asin, salePrice: sale, originalPrice: original, sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER' });
           const existing = await deals.findByIdOrAsin(item.asin);
@@ -366,6 +365,7 @@ class DealCronService {
           if (!inserted) continue;
           await refreshStates.recordSuccess(item.asin, { provider: item.sourceProvider, at: verifiedAt });
           createdCount += 1;
+          if (publication.reason === 'EDITORIAL_HOLDBACK') holdbackCount += 1;
           if (status === 'APPROVED') autoApprovedCount += 1; else pendingCount += 1;
         }
 
@@ -377,6 +377,10 @@ class DealCronService {
         this.stats.dealsRejected += rejectedCount;
         this.lastRun = new Date();
         await recordJobSuccess('discover-deals');
+        console.info('[Deal discovery intake]', JSON.stringify({
+          scheduled, created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount,
+          pendingReview: pendingCount, editorialHoldback: holdbackCount, rejected: rejectedCount,
+        }));
 
         return {
           created: createdCount, updated: updatedCount, autoApproved: autoApprovedCount,
