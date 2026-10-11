@@ -3,6 +3,7 @@ const postgres = require('../storage/postgres');
 const DEFAULTS = Object.freeze({
   closure_location: 'jerusalem',
   rainforest_department_discovery: '',
+  deal_discovery_intake: '',
   amazon_prime_day_start: '',
   amazon_prime_day_end: '',
 });
@@ -30,7 +31,7 @@ function normalizeValue(key, value) {
     return normalized;
   }
   const normalized = String(value ?? '');
-  if (key === 'rainforest_department_discovery' && normalized.length > 32768) throw new Error('Discovery state is too large');
+  if (['rainforest_department_discovery', 'deal_discovery_intake'].includes(key) && normalized.length > 32768) throw new Error('Discovery state is too large');
   return normalized;
 }
 

@@ -39,6 +39,7 @@ async function getProviderStatus() {
     discoveryHistory = Array.isArray(state.discoveryHistory) ? state.discoveryHistory : [];
   }
   catch { /* Diagnostics must not block provider status. */ }
+  const discoveryIntake = await require('./discoveryIntakeMetrics').read();
   const rainforestBudget = await usageStatus('rainforest').catch((error) => ({ error: error.message }));
   let effectiveProvider = 'none';
 
@@ -52,6 +53,7 @@ async function getProviderStatus() {
   return {
     configuredProvider,
     effectiveProvider,
+    discoveryIntake,
     paapi: {
       isConfigured: paapiConfig.isConfigured,
       maskedAccessKey: paapiConfig.maskedAccessKey,

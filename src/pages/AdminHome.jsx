@@ -251,6 +251,13 @@ export default function AdminHome() {
               <p>{discoveryTotals.raw} received · {discoveryTotals.retained} new candidates · {discoveryTotals.credits} credits</p>
               <p>{discoveryTotals.credits > 0 ? (discoveryTotals.retained / discoveryTotals.credits).toFixed(1) : '—'} candidates per credit. Candidates still pass intake and editorial checks before publication.</p>
             </div>}
+            {provider.discoveryIntake?.latest && <div className="border-t border-slate-200 pt-3 text-xs text-slate-500 space-y-1">
+              <h3 className="font-bold text-slate-900">Last completed intake</h3>
+              <p>{new Date(provider.discoveryIntake.latest.at).toLocaleString()} · {provider.discoveryIntake.latest.scheduled ? 'Scheduled' : 'Manual'}</p>
+              <p>{provider.discoveryIntake.latest.created} saved new · {provider.discoveryIntake.latest.autoApproved} approved · {provider.discoveryIntake.latest.pendingReview} awaiting review · {provider.discoveryIntake.latest.updated} existing updated</p>
+              <p>{provider.discoveryIntake.latest.editorialHoldback} editorial holdbacks among new deals. Approved deals still need fresh prices to appear publicly.</p>
+              <p>Recent {provider.discoveryIntake.history.length} completed intakes: {provider.discoveryIntake.history.reduce((sum, run) => sum + run.created, 0)} saved new.</p>
+            </div>}
             <div className="flex justify-between"><span className="text-slate-500">Requests blocked today</span><span className={Number(rainforestBudget.blockedToday || 0) > 0 ? 'font-bold text-amber-700' : 'font-bold text-slate-800'}>{budgetUnavailable ? '—' : rainforestBudget.blockedToday || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Missing images</span><span className={integrity.missingImages > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.missingImages || 0}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Stale prices</span><span className={integrity.stalePrices > 0 ? 'font-bold text-amber-700' : 'font-bold text-emerald-700'}>{loadFailures.includes('integrity health') ? '—' : integrity.stalePrices || 0}</span></div>
