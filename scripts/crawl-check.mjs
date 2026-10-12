@@ -1,5 +1,8 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+
+const collections = createRequire(import.meta.url)('../shared/dealCollections.json');
 
 // Only visit the public origin and a bounded sample; never call discovery APIs.
 export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = globalThis.fetch) {
@@ -42,9 +45,12 @@ export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = g
     origin + '/about',
     ...urls.filter((u) => new URL(u).pathname.startsWith('/category/')).slice(0, 2),
     ...urls.filter((u) => new URL(u).pathname.startsWith('/deal/')).slice(0, 3),
-    ...urls.filter((u) => new URL(u).pathname.startsWith('/deals/')).slice(0, 1),
+    // Check every configured collection, including empty pages omitted from the
+    // sitemap. This remains bounded by our curated collection configuration.
+    ...collections.map((collection) => `${origin}/deals/${collection.slug}`),
   ];
   let expired = 0;
+  let emptyCollections = 0;
   for (const url of sampled) {
     const page = await get(url);
     // Cached sitemap entries can expire before the next price check.
@@ -52,8 +58,18 @@ export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = g
     if (page.status !== 200) throw new Error(`${url} returned HTTP ${page.status}`);
     if (!page.text.includes('data-server-crawl-content=')) throw new Error(`${url} has no crawlable content`);
     if (!page.text.includes(`href="${url}"`)) throw new Error(`${url} has no matching canonical`);
+    if (new URL(url).pathname.startsWith('/deals/')) {
+      const robots = page.text.match(/<meta\b(?=[^>]*\bname=["']robots["'])(?=[^>]*\bcontent=["']([^"']*)["'])[^>]*>/i)?.[1];
+      if (!robots) throw new Error(`${url} has no robots directive`);
+      if (/\bnoindex\b/i.test(robots)) {
+        // A department can legitimately run out of freshly verified offers.
+        emptyCollections += 1;
+      } else if (!/href=["']\/deal\/[^"']+["']/i.test(page.text)) {
+        throw new Error(`${url} is indexable but has no server-rendered product links`);
+      }
+    }
   }
-  return { scheduledClosure: false, checked: sampled.length + 3, expiredProductLinks: expired, sitemapUrls: urls.length };
+  return { scheduledClosure: false, checked: sampled.length + 3, expiredProductLinks: expired, collectionsChecked: collections.length, emptyCollections, sitemapUrls: urls.length };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   checkCrawl().then((result) => console.log(JSON.stringify(result)))
