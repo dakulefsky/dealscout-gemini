@@ -31,7 +31,7 @@ function limitsFor(provider, now = new Date()) {
   const key = cleanProvider(provider);
   if (key === 'rainforest') {
     return {
-      daily: isPrimeDay(now) ? 20 : positiveLimit(process.env.RAINFOREST_DAILY_REQUEST_LIMIT, 16),
+      daily: isPrimeDay(now) ? 20 : Math.min(16, positiveLimit(process.env.RAINFOREST_DAILY_REQUEST_LIMIT, 16)),
       monthly: Math.min(500, positiveLimit(process.env.RAINFOREST_MONTHLY_REQUEST_LIMIT, 500)),
     };
   }

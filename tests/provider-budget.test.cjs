@@ -51,3 +51,22 @@ test('non-billed provider has no hard request budget', async () => {
   assert.equal(status.limits.daily, null);
   assert.equal(status.remainingToday, null);
 });
+
+test('overconfigured Rainforest limits cannot raise the ordinary or monthly ceilings', async () => withLimits(999, 999, async () => {
+  const now = new Date('2026-09-02T12:00:00Z');
+  assert.deepEqual(budget.limitsFor('rainforest', now), { daily: 16, monthly: 500 });
+  const attempts = await Promise.allSettled(Array.from({ length: 17 }, () => budget.reserveRequest('rainforest', now)));
+  assert.equal(attempts.filter(result => result.status === 'fulfilled').length, 16);
+  assert.equal(attempts.find(result => result.status === 'rejected').reason.scope, 'day');
+  const status = await budget.usageStatus('rainforest', now);
+  assert.equal(status.dayCount, 16);
+  assert.equal(status.monthCount, 16);
+  assert.equal(status.blockedToday, 1);
+}));
+
+test('manual override still stops at the 500-credit ceiling under excessive configuration', async () => withLimits(999, 999, async () => {
+  const now = new Date('2026-09-02T12:00:00Z');
+  for (let i = 0; i < 500; i++) await budget.reserveRequest('rainforest', now, { overrideDailyLimit: true });
+  await assert.rejects(() => budget.reserveRequest('rainforest', now, { overrideDailyLimit: true }), error => error.code === 'PROVIDER_BUDGET_EXCEEDED' && error.scope === 'month' && error.limit === 500);
+  assert.equal((await budget.usageStatus('rainforest', now)).monthCount, 500);
+}));
