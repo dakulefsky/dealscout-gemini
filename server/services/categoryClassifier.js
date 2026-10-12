@@ -90,9 +90,23 @@ function matchesAny(text, patterns) {
   return Boolean(text) && patterns.some((pattern) => pattern.test(text));
 }
 
+// Specific product nouns outrank incidental connection/port features. Keep
+// this narrow: conflicting product types still use the existing evidence.
+const SPECIFIC_PRODUCT_RULES = [
+  { category: 'Home & Kitchen', patterns: [/\b(?:robot vacuum|robotic vacuum|cordless stick vacuum|upright vacuum|carpet cleaner|air purifier|coffee maker|espresso machine|desk lamp|kitchen scale|food scale|baking scale)\b/i] },
+  { category: 'Health & Beauty', patterns: [/\b(?:blood pressure monitor|electric toothbrush|water flosser|heating pad)\b/i, /\b(?:bathroom scale|scale.{0,60}\b(?:body weight|body fat|bmi))\b/i] },
+  { category: 'Baby', patterns: [/\b(?:baby monitor|diaper bag|bottle warmer|breast pump)\b/i] },
+  { category: 'Pet Supplies', patterns: [/\b(?:pet fountain|automatic pet feeder|automatic cat feeder|automatic dog feeder)\b/i] },
+  { category: 'Automotive', patterns: [/\b(?:car vacuum|car charger|dash cam|jump starter|tire inflator)\b/i] },
+  { category: 'Tools & Home Improvement', patterns: [/\b(?:shop vac|wet[ -]dry vacuum|work light|pressure washer)\b/i] },
+];
+
 function strongTitleCategory(title) {
   // Treat chocolate as a color label only when it describes leather or suede.
   const text = clean(title).replace(/\bchocolate(?=\s+(?:(?:genuine|faux|real)\s+)?(?:suede|leather|brown|color|colour)\b)/gi, '');
+  const specific = SPECIFIC_PRODUCT_RULES.filter(rule => matchesAny(text, rule.patterns));
+  if (specific.length === 1) return specific[0].category;
+  if (specific.length > 1) return null;
   const matches = CATEGORY_RULES.filter((rule) => matchesAny(text, rule.strong));
   return matches.length === 1 ? matches[0].category : null;
 }

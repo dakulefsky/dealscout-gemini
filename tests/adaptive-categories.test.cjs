@@ -65,3 +65,18 @@ test('recovery corrects a canonical department when the title clearly identifies
     assert.equal(await categories.repairImportedCategories(), 0);
   } finally { db.tables.deals = previousDeals; db.tables.categories = previousCategories; db.saveDb = save; }
 });
+
+test('specific-product repairs preserve rejection status, verified prices and custom departments', async () => {
+  const previousDeals = db.tables.deals; const previousCategories = db.tables.categories; const save = db.saveDb;
+  db.saveDb = () => {};
+  db.tables.categories = [{ id: 'manual', name: 'Custom Department', slug: 'my-department' }];
+  const row = { title: 'Robot Vacuum with WiFi App Control', category: 'Electronics', original_price: 200, sale_price: 100, source_verified: 1, price_check_at: 1000, status: 'REJECTED' };
+  db.tables.deals = [{ ...row, id: 'rejected' }, { ...row, id: 'custom', category: 'Custom Department' }];
+  try {
+    assert.equal(await categories.repairImportedCategories(), 1);
+    assert.equal(db.tables.deals[0].category, 'Home & Kitchen');
+    for (const key of ['status', 'original_price', 'sale_price', 'price_check_at', 'source_verified']) assert.equal(db.tables.deals[0][key], row[key]);
+    assert.equal(db.tables.deals[1].category, 'Custom Department');
+    assert.equal(await categories.repairImportedCategories(), 0);
+  } finally { db.tables.deals = previousDeals; db.tables.categories = previousCategories; db.saveDb = save; }
+});
