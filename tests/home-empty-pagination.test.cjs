@@ -5,16 +5,17 @@ const path = require('node:path');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const { transform } = require('esbuild');
+const { freshVerifiedDeals } = require('../shared/shoppingTools.mjs');
 const source = fs.readFileSync(path.join(__dirname, '..', 'src/pages/Home.jsx'), 'utf8');
 
-async function renderFeed({ items = [{ id: 'hidden', title: 'Hidden deal' }], cursor = 'next', error = null, dismissals = { hidden: true }, loading = false } = {}) {
+async function renderFeed({ items = [{ id: 'hidden', title: 'Hidden deal', status: 'APPROVED', sourceVerified: true, priceCheckAt: Date.now() / 1000, salePrice: 10, originalPrice: 20 }], cursor = 'next', error = null, dismissals = { hidden: true }, loading = false } = {}) {
   // Render the actual component with deterministic state; no browser or live API requests.
-  const states = [items, loading, false, error, 0, cursor, 'all', '', 'best', 0, 'all', 'grid', false, {}, dismissals, 12, { canScrollLeft: false, canScrollRight: false }];
+  const states = [items, loading, false, error, 0, cursor, 'all', '', 'best', 0, 'all', 'grid', false, {}, dismissals, 12, { canScrollLeft: false, canScrollRight: false }, Date.now()];
   let stateIndex = 0;
   const component = source.replace(/^import .*;\n/gm, '').replace('export default function Home()', 'function Home()');
   const compiled = await transform(component, { loader: 'jsx', jsx: 'transform', format: 'cjs' });
   const element = ({ children }) => React.createElement('span', null, children);
-  const mocks = { React, useState: () => [states[stateIndex++], () => {}], useMemo: (fn) => fn(), useCallback: (fn) => fn, useEffect: () => {}, useRef: () => ({ current: null }), useSearchParams: () => [new URLSearchParams('category=all'), () => {}], useActiveCategories: () => [], personalizedRank: (items) => items, rankDeals: (items) => items, interleaveCategories: (items) => items, INITIAL_FEED_SIZE: 12, dealCollections: [], Link: element, Input: element, Button: element, DealCard: element, MembershipOffers: element, SeasonalPromotionBanner: element };
+  const mocks = { React, freshVerifiedDeals, useState: () => [states[stateIndex++], () => {}], useMemo: (fn) => fn(), useCallback: (fn) => fn, useEffect: () => {}, useRef: () => ({ current: null }), useSearchParams: () => [new URLSearchParams('category=all'), () => {}], useActiveCategories: () => [], personalizedRank: (items) => items, rankDeals: (items) => items, interleaveCategories: (items) => items, INITIAL_FEED_SIZE: 12, dealCollections: [], Link: element, Input: element, Button: element, DealCard: element, MembershipOffers: element, SeasonalPromotionBanner: element };
   for (const name of ['ArrowRight', 'ChevronLeft', 'ChevronRight', 'TrendingDown', 'Search', 'LayoutGrid', 'List', 'RotateCcw', 'SlidersHorizontal', 'ShoppingBag', 'Laptop', 'House', 'Shirt', 'HeartPulse', 'PawPrint', 'Blocks']) mocks[name] = element;
   const Home = new Function(...Object.keys(mocks), `${compiled.code}\nreturn Home;`)(...Object.values(mocks));
   return renderToStaticMarkup(React.createElement(Home));

@@ -265,9 +265,11 @@ async function startServer() {
             status = 404;
             meta = { title: 'Collection not found — DealScout', description: 'This collection does not exist.', robots: 'noindex,follow' };
           } else {
-            const page = await dealFeedRepository.page({ ...collection.filters, sort: 'best', limit: 50 });
+            const page = await dealFeedRepository.page({ ...collection.filters, sort: 'best', limit: 24 });
             meta = seo.collectionMeta(baseUrl, collection, page.items);
             initialContent = collectionInitialContent(collection, page.items);
+            const payload = JSON.stringify({ scope: `collection/${collection.slug}`, items: page.items.map(row => require('./server/services/publicDealDto').rowToDeal(row)), nextCursor: page.nextCursor }).replace(/</g, '\\u003c');
+            initialContent += `<script type="application/json" id="initial-scoped-deals" nonce="${escapeHtml(res.locals.cspNonce)}">${payload}</script>`;
           }
         } else if (req.path === `/guides/${require('./shared/buyingGuide.json').slug}`) {
           const guideService = require('./server/services/buyingGuideService');
@@ -288,15 +290,17 @@ async function startServer() {
         } else if (categoryMatch) {
           const rows = await categoryRepository.list({ slug: decodeURIComponent(categoryMatch[1]), activeOnly: false });
           if (rows[0]) {
-            let categoryDeals = [];
+            let page = { items: [], nextCursor: null };
             try {
-              const page = await dealFeedRepository.page({ category: rows[0].name, limit: 50, sort: 'discount_desc' });
-              categoryDeals = page.items || [];
+              page = await dealFeedRepository.page({ category: rows[0].name, limit: 24, sort: 'best' });
             } catch (error) {
               console.warn('[DealScout] Category crawl links unavailable:', error.message);
             }
-            meta = seo.categoryMeta(baseUrl, rows[0], categoryDeals);
-            initialContent = categoryInitialContent(rows[0], categoryDeals);
+            meta = seo.categoryMeta(baseUrl, rows[0], page.items);
+            initialContent = categoryInitialContent(rows[0], page.items);
+            const { slug, name, description } = rows[0];
+            const payload = JSON.stringify({ scope: `category/${slug}`, category: { slug, name, description }, items: page.items.map(row => require('./server/services/publicDealDto').rowToDeal(row)), nextCursor: page.nextCursor }).replace(/</g, '\\u003c');
+            initialContent += `<script type="application/json" id="initial-scoped-deals" nonce="${escapeHtml(res.locals.cspNonce)}">${payload}</script>`;
           } else {
             status = 404;
             meta = { title: 'Category not found — DealScout', description: 'This deal category is not currently available.', canonical: null, robots: 'noindex,follow' };

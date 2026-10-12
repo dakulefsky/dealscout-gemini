@@ -1,4 +1,4 @@
-import { freshInitialFeed } from '../../shared/shoppingTools.mjs';
+import { freshInitialFeed, freshVerifiedDeals } from '../../shared/shoppingTools.mjs';
 import dealCollections from '../../shared/dealCollections.json';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -74,6 +74,8 @@ export default function Home() {
   const spotlightTrackRef = useRef(null);
   const [spotlightScroll, setSpotlightScroll] = useState({ canScrollLeft: false, canScrollRight: false });
   const feedGeneration = useRef(0); const paginationRequest = useRef(null);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
 
   const selectedPriceTier = useMemo(() => PRICE_TIERS.find((p) => p.value === priceTier) || PRICE_TIERS[0], [priceTier]);
   const feedParams = useMemo(() => ({ limit: REMOTE_PAGE_SIZE, sort: serverSort(sort), category: activeCat === 'all' ? '' : activeCat, q: searchQuery.trim(), minDiscount: minDiscount || '', minPrice: selectedPriceTier.min ?? '', maxPrice: selectedPriceTier.max ?? '' }), [activeCat, searchQuery, minDiscount, selectedPriceTier, sort]);
@@ -98,7 +100,7 @@ export default function Home() {
   useEffect(() => { const refresh = () => setInterests(loadInterests()); window.addEventListener('focus', refresh); window.addEventListener('storage', refresh); window.addEventListener(INTERESTS_CHANGED_EVENT, refresh); return () => { window.removeEventListener('focus', refresh); window.removeEventListener('storage', refresh); window.removeEventListener(INTERESTS_CHANGED_EVENT, refresh); }; }, []);
   useEffect(() => { const refresh = () => setDismissals(loadDismissedDeals()); window.addEventListener('focus', refresh); window.addEventListener('storage', refresh); window.addEventListener(DISMISSALS_CHANGED_EVENT, refresh); return () => { window.removeEventListener('focus', refresh); window.removeEventListener('storage', refresh); window.removeEventListener(DISMISSALS_CHANGED_EVENT, refresh); }; }, []);
 
-  const availableDeals = useMemo(() => deals.filter((deal) => !dismissals[dealIdentity(deal)]), [deals, dismissals]);
+  const availableDeals = useMemo(() => freshVerifiedDeals(deals, now).filter((deal) => !dismissals[dealIdentity(deal)]), [deals, dismissals, now]);
   const visibleDeals = useMemo(() => { const list = [...availableDeals]; if (sort === 'best') { const ranked = personalizedRank(activeCat === 'all' && !searchQuery.trim() ? list : rankDeals(list), interests); return activeCat === 'all' && !searchQuery.trim() ? interleaveCategories(ranked) : ranked; } if (sort === 'discount') return list.sort((a, b) => (b.discountPercent || 0) - (a.discountPercent || 0)); if (sort === 'price-low') return list.sort((a, b) => (a.salePrice || 0) - (b.salePrice || 0)); if (sort === 'price-high') return list.sort((a, b) => (b.salePrice || 0) - (a.salePrice || 0)); return list.sort((a, b) => dealCreatedTimestampMs(b) - dealCreatedTimestampMs(a)); }, [availableDeals, sort, interests, activeCat, searchQuery]);
 
   const flatAllMode = activeCat === 'all' && searchParams.get('category') === 'all' && searchQuery.trim() === '' && minDiscount === 0 && priceTier === 'all' && sort === 'best';
