@@ -14,7 +14,7 @@ test('deal-card action buttons are siblings of the product link instead of neste
 });
 
 test('card actions and product links have explicit accessible names and focus treatment', () => {
-  assert.match(source, /aria-label=\{`View deal: \$\{deal\.title\}`\}/);
+  assert.equal((source.match(/aria-label=\{cardLabel\}/g) || []).length, 2);
   assert.match(source, /aria-label=\{`Not interested in \$\{deal\.title\}`\}/);
   assert.match(source, /aria-label=\{saved \? `Remove \$\{deal\.title\} from saved deals` : `Save \$\{deal\.title\}`\}/);
   assert.match(source, /focus-visible:ring-2/);

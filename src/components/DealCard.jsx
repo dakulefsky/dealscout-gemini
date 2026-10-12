@@ -10,7 +10,7 @@ import { dealSavings } from '@/lib/dealSavings';
 import { splitProductTitle } from '@/lib/productTitle';
 
 export function formatPrice(price) {
-  if (price == null || isNaN(price)) return '';
+  if (price == null || String(price).trim() === '' || !Number.isFinite(Number(price))) return '';
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price);
 }
 
@@ -24,6 +24,9 @@ export default function DealCard({ deal, viewMode = 'grid', imagePriority = fals
   const isExpired = Boolean(deal.isExpired || deal.status === 'EXPIRED');
   const hoursLeft = deal.expiresInHours ? Math.max(1, Math.ceil(deal.expiresInHours)) : null;
   const { amount: savings, percent: discountPercent } = dealSavings(deal);
+  const checkedPrice = formatPrice(deal.salePrice);
+  const referencePrice = deal.originalPrice > deal.salePrice ? formatPrice(deal.originalPrice) : '';
+  const cardLabel = `${isExpired ? 'Ended deal' : 'View deal'}: ${deal.title}.${checkedPrice ? ` ${isExpired ? 'Last checked price' : 'Checked price'} ${checkedPrice}.` : ''}${referencePrice ? ` Reference price ${referencePrice}.` : ''}${discountPercent > 0 ? ` ${discountPercent}% off the reference price.` : ''}`;
   const cardRef = useRef(null);
   const viewedAt = useRef(null);
   const dwellRecorded = useRef(false);
@@ -80,7 +83,7 @@ export default function DealCard({ deal, viewMode = 'grid', imagePriority = fals
   if (viewMode === 'list') {
     return (
       <div ref={cardRef} className={`group border-t border-emerald-950/10 py-4 flex gap-4 items-center min-w-0 ${isExpired ? 'opacity-65' : ''}`}>
-        <Link to={`/deal/${dealId}`} onClick={handleDealClick} aria-label={`View deal: ${deal.title}`} className="flex gap-4 items-center flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2">
+        <Link to={`/deal/${dealId}`} onClick={handleDealClick} aria-label={cardLabel} className="flex gap-4 items-center flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2">
           <div className={`relative w-28 h-24 sm:w-36 sm:h-28 shrink-0 p-2 bg-white ${isExpired ? 'grayscale-[0.8]' : ''}`}>
             <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" loading={imagePriority ? 'eager' : 'lazy'} fetchPriority={imagePriority ? 'high' : 'auto'} className="w-full h-full group-hover:scale-[1.03] transition-transform duration-200" />
             {isExpired ? <span className="absolute top-1 left-1 bg-slate-900 text-white text-[9px] font-bold px-1.5 py-0.5">Ended</span> : null}
@@ -98,7 +101,7 @@ export default function DealCard({ deal, viewMode = 'grid', imagePriority = fals
 
   return (
     <div ref={cardRef} className={`group relative h-full min-w-0 flex flex-col bg-white border border-slate-200 rounded-md overflow-hidden ${isExpired ? 'opacity-65' : ''}`}>
-      <Link to={`/deal/${dealId}`} onClick={handleDealClick} aria-label={`View deal: ${deal.title}`} className="flex flex-col flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700">
+      <Link to={`/deal/${dealId}`} onClick={handleDealClick} aria-label={cardLabel} className="flex flex-col flex-1 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-700">
         <div className={`relative aspect-[8/5] max-h-44 w-full shrink-0 overflow-hidden p-3 sm:p-4 bg-white border-b border-emerald-950/5 ${isExpired ? 'grayscale-[0.8]' : ''}`}>
           <Image src={deal.imageUrl} fallbackSrcs={deal.imageGallery || []} alt={deal.title} fittingType="contain" loading={imagePriority ? 'eager' : 'lazy'} fetchPriority={imagePriority ? 'high' : 'auto'} className="w-full h-full group-hover:scale-[1.015] transition-transform duration-200" />
           {isExpired ? <span className="absolute top-2 left-2 bg-slate-900 text-white text-[9px] font-bold px-2 py-1"><Clock className="w-2.5 h-2.5 inline mr-1" />Ended</span> : null}
