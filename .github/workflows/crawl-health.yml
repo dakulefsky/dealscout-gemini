@@ -1,15 +1,14 @@
 name: Public crawl health
 on:
-  push:
+  workflow_run:
+    workflows: [Deploy Web]
+    types: [completed]
     branches: [main]
-    paths:
-      - scripts/crawl-check.mjs
-      - shared/dealCollections.json
-      - .github/workflows/crawl-health.yml
   pull_request:
     paths:
       - scripts/crawl-check.mjs
       - shared/dealCollections.json
+      - shared/buyingGuide.json
       - .github/workflows/crawl-health.yml
   schedule:
     - cron: '17 */6 * * *'
@@ -25,8 +24,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 24
       - name: Check public crawl access
+        env:
+          CRAWL_CHECK_ALLOW_UNPUBLISHED_GUIDES: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
         run: node scripts/crawl-check.mjs

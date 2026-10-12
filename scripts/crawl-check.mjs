@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 const collections = createRequire(import.meta.url)('../shared/dealCollections.json');
 
 // Only visit the public origin and a bounded sample; never call discovery APIs.
-export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = globalThis.fetch) {
+export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = globalThis.fetch, { allowUnpublishedGuides = false } = {}) {
   const origin = new URL(base).origin;
   async function get(url, timeoutMs = 15000) {
     const controller = new AbortController();
@@ -41,8 +41,12 @@ export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = g
   if (scheduled) return { scheduledClosure: true, checked: 3, sitemapUrls: urls.length };
   if (!home.text.includes('data-server-crawl-content="home"')) throw new Error('Homepage has no crawlable content');
   if (!urls.includes(origin + '/about')) throw new Error('Sitemap is missing About');
+  const guideUrl = `${origin}/guides/${createRequire(import.meta.url)('../shared/buyingGuide.json').slug}`;
+  const guidePublished = urls.includes(guideUrl);
+  if (!guidePublished && !allowUnpublishedGuides) throw new Error('Sitemap is missing the buying guide');
   const sampled = [
     origin + '/about',
+    ...(guidePublished ? [guideUrl] : []),
     ...urls.filter((u) => new URL(u).pathname.startsWith('/category/')).slice(0, 2),
     ...urls.filter((u) => new URL(u).pathname.startsWith('/deal/')).slice(0, 3),
     // Check every configured collection, including empty pages omitted from the
@@ -69,9 +73,9 @@ export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = g
       }
     }
   }
-  return { scheduledClosure: false, checked: sampled.length + 3, expiredProductLinks: expired, collectionsChecked: collections.length, emptyCollections, sitemapUrls: urls.length };
+  return { scheduledClosure: false, checked: sampled.length + 3, expiredProductLinks: expired, collectionsChecked: collections.length, emptyCollections, guidesChecked: guidePublished ? 1 : 0, unpublishedGuides: guidePublished ? [] : [guideUrl], sitemapUrls: urls.length };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  checkCrawl().then((result) => console.log(JSON.stringify(result)))
+  checkCrawl(undefined, undefined, { allowUnpublishedGuides: process.env.CRAWL_CHECK_ALLOW_UNPUBLISHED_GUIDES === 'true' }).then((result) => console.log(JSON.stringify(result)))
     .catch((error) => { console.error(error.message); process.exitCode = 1; });
 }

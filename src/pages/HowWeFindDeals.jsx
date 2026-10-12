@@ -11,6 +11,6 @@ export default function HowWeFindDeals() {
     <p className="mt-3 text-sm text-slate-600 leading-relaxed">Public deal listings require a price check within the past 24 hours. Prices can change between checks. The product page shows when the price was checked, and Amazon has the final price, shipping terms and availability.</p>
     <h2 className="mt-8 text-xl font-semibold">How we earn</h2>
     <p className="mt-3 text-sm text-slate-600 leading-relaxed">As an Amazon Associate we earn from qualifying purchases. <Link to="/disclosure" className="underline">Read our affiliate disclosure</Link>.</p>
-    <p className="mt-8 text-sm"><Link to="/support" className="underline">Report an incorrect product or price</Link> · <Link to="/" className="underline">Browse departments</Link></p>
+    <p className="mt-8 text-sm"><Link to="/guides/amazon-deal-checklist" className="underline">How to judge a deal and compare delivered costs</Link></p><p className="mt-8 text-sm"><Link to="/support" className="underline">Report an incorrect product or price</Link> · <Link to="/" className="underline">Browse departments</Link></p>
   </div></article>;
 }

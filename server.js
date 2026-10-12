@@ -98,7 +98,7 @@ function categoryInitialContent(category, deals = []) {
 
 function homeInitialContent(categories = [], deals = []) {
   const links = categories.map((category) => `<li><a href="/category/${encodeURIComponent(category.slug)}">${escapeHtml(category.name)}</a></li>`).join('');
-  return `<main data-server-crawl-content="home"><h1>Amazon deals &amp; price drops worth checking</h1><p>DealScout surfaces current Amazon discounts with recently verified prices and clear savings.</p>${links ? `<nav aria-label="Deal categories"><h2>Browse current deal categories</h2><ul>${links}</ul></nav>` : ''}${deals.length ? `<section><h2>Recently checked deals</h2><ul>${deals.map(deal => `<li><a href="/deal/${encodeURIComponent(deal.id || deal.asin)}">${escapeHtml(deal.title)}</a> — $${Number(deal.sale_price).toFixed(2)} <span>${escapeHtml(deal.category)}</span></li>`).join('')}</ul></section>` : ''}<nav aria-label="Deal collections"><h2>Browse by product and budget</h2><ul>${dealCollections.map((c) => `<li><a href="/deals/${c.slug}">${escapeHtml(c.shortName)}</a></li>`).join('')}</ul></nav><p><a href="/how-we-find-deals">How DealScout finds deals</a></p></main>`;
+  return `<main data-server-crawl-content="home"><h1>Amazon deals &amp; price drops worth checking</h1><p>DealScout surfaces current Amazon discounts with recently verified prices and clear savings.</p>${links ? `<nav aria-label="Deal categories"><h2>Browse current deal categories</h2><ul>${links}</ul></nav>` : ''}${deals.length ? `<section><h2>Recently checked deals</h2><ul>${deals.map(deal => `<li><a href="/deal/${encodeURIComponent(deal.id || deal.asin)}">${escapeHtml(deal.title)}</a> — $${Number(deal.sale_price).toFixed(2)} <span>${escapeHtml(deal.category)}</span></li>`).join('')}</ul></section>` : ''}<nav aria-label="Deal collections"><h2>Browse by product and budget</h2><ul>${dealCollections.map((c) => `<li><a href="/deals/${c.slug}">${escapeHtml(c.shortName)}</a></li>`).join('')}</ul></nav><p><a href="/guides/amazon-deal-checklist">How to judge an Amazon deal</a> · <a href="/how-we-find-deals">How DealScout finds deals</a></p></main>`;
 }
 
 async function startServer() {
@@ -269,6 +269,15 @@ async function startServer() {
             meta = seo.collectionMeta(baseUrl, collection, page.items);
             initialContent = collectionInitialContent(collection, page.items);
           }
+        } else if (req.path === `/guides/${require('./shared/buyingGuide.json').slug}`) {
+          const guideService = require('./server/services/buyingGuideService');
+          meta = guideService.metadata(baseUrl);
+          let page = { items: [] };
+          try { page = await dealFeedRepository.page({ sort: 'best', limit: 6 }); }
+          catch { console.warn('[DealScout] Guide offers temporarily unavailable'); }
+          initialContent = guideService.initialContent(page.items);
+          const payload = JSON.stringify({ items: page.items.map(row => require('./server/services/publicDealDto').rowToDeal(row)) }).replace(/</g, '\\u003c');
+          initialContent += `<script type="application/json" id="initial-guide-deals" nonce="${escapeHtml(res.locals.cspNonce)}">${payload}</script>`;
         } else if (req.path === '/about') {
           const content = require('./shared/aboutContent.json');
           meta = { title: 'About DealScout at Dealscouted.com', description: content.intro, canonical: `${baseUrl}/about` };
