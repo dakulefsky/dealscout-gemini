@@ -6,6 +6,10 @@ const { runProviderCall, getProviderThrottleStatus } = require('./providerThrott
 const { usageStatus } = require('./providerBudgetService');
 const { minimumDiscountPercent } = require('./publicDealPolicy');
 const { classifyCategory } = require('./categoryClassifier');
+const { scoreVerifiedDeal } = require('./dealQualityService');
+const { publishingDecision } = require('./editorialCadenceService');
+const { rediscoveryLifecycleChanges } = require('./rediscoveryLifecycle');
+const { verifiedSourceChanges } = require('./verifiedDealRefresh');
 
 const VALID_PROVIDERS = ['auto', 'amazon_paapi', 'rainforest'];
 const PROVIDER_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN', 'PROVIDER_PAUSED']);
@@ -118,12 +122,14 @@ async function applyRainforestBulkRefreshes(existingDeals, verifiedItems, verifi
     const existing = normalized ? existingByAsin.get(normalized.asin) : null;
     // Manual rejection stays authoritative, including when a price expires.
     if (!existing || existing.status === 'REJECTED') continue;
-    if (normalized.discountPercent < minimumDiscountPercent()) {
-      await deals.expire(existing.id, `Verified discount fell below ${minimumDiscountPercent()}%`);
-      refreshedCount += 1;
+    const quality = scoreVerifiedDeal(normalized);
+    if (normalized.discountPercent < minimumDiscountPercent() || quality.decision === 'REJECT') {
+      const expired = await deals.expire(existing.id, `Verified source no longer qualifies: ${quality.reasons.join(', ')}`, { expectedStatus: existing.status });
+      if (expired) refreshedCount += 1;
       continue;
     }
-    await deals.update(existing.id, {
+    const publication = publishingDecision(normalized, quality);
+    const updated = await deals.update(existing.id, {
       sale_price: normalized.salePrice,
       original_price: normalized.originalPrice,
       discount_percent: normalized.discountPercent,
@@ -132,8 +138,11 @@ async function applyRainforestBulkRefreshes(existingDeals, verifiedItems, verifi
       source_verified: 1,
       source_sufficient: 1,
       source_provider: 'RAINFOREST',
-    });
-    refreshedCount += 1;
+      quality_score: quality.score,
+      ...verifiedSourceChanges(existing, normalized),
+      ...rediscoveryLifecycleChanges(existing, publication.status),
+    }, { expectedStatus: existing.status });
+    if (updated) refreshedCount += 1;
   }
 
   return refreshedCount;

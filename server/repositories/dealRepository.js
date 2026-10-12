@@ -193,9 +193,36 @@ async function upsert(input, options = {}) {
   return rowFromPg(result.rows[0]);
 }
 
-async function update(value, changes) {
+async function update(value, changes, options = {}) {
   const current = await findByIdOrAsin(value);
   if (!current) return null;
+  if (options.expectedStatus !== undefined) {
+    if (current.status !== options.expectedStatus) return null;
+    // Automatic refreshes must not overwrite a manual status change made after
+    // their inventory snapshot, or recreate a listing deleted during the pull.
+    const allowed = new Set(['title', 'category', 'original_price', 'sale_price', 'discount_percent',
+      'image_url', 'product_url', 'quality_score', 'source_sufficient', 'source_verified',
+      'source_provider', 'status', 'is_expired', 'expired_at', 'price_check_at',
+      'last_verify_attempt_at', 'raw_source_data']);
+    const keys = Object.keys(changes);
+    if (!keys.length) return current;
+    if (keys.some(key => !allowed.has(key))) throw new Error('Unsupported conditional deal update');
+    const record = normalizeRecord({ ...current, ...changes });
+    if (!(record.original_price > 0) || !(record.sale_price > 0) || record.sale_price > record.original_price) throw new Error('Invalid deal prices');
+    if (keys.includes('category')) record.category = await require('./categoryRepository').ensureForDeal(record.category || 'Other');
+    if (!postgres.isConfigured()) {
+      const index = db.tables.deals.findIndex(row => canonicalIdentity(row.asin || row.id) === current.asin);
+      if (index < 0 || db.tables.deals[index].status !== options.expectedStatus) return null;
+      db.tables.deals[index] = { ...db.tables.deals[index], ...Object.fromEntries(keys.map(key => [key, record[key]])) };
+      db.saveDb();
+      return normalizeRecord(db.tables.deals[index]);
+    }
+    const values = keys.map(key => record[key]);
+    const result = await postgres.query(`UPDATE deals SET ${keys.map((key, index) => `${key} = $${index + 1}`).join(', ')}
+      WHERE asin = $${keys.length + 1} AND status = $${keys.length + 2} RETURNING *`,
+    [...values, current.asin, options.expectedStatus]);
+    return rowFromPg(result.rows[0]);
+  }
   return upsert({ ...current, ...changes, id: changes.asin || current.asin, asin: changes.asin || current.asin, created_at: current.created_at });
 }
 
@@ -212,13 +239,13 @@ async function remove(value) {
   return result.rowCount > 0;
 }
 
-async function expire(value, reason = 'Deal ended') {
+async function expire(value, reason = 'Deal ended', options = {}) {
   const d = await findByIdOrAsin(value);
   if (!d) return null;
   return update(d.asin, {
     status: 'EXPIRED', is_expired: 1, expired_at: nowUnix(), price_check_at: nowUnix(),
     raw_source_data: `${d.raw_source_data || ''} | [EXPIRED: ${new Date().toISOString()} - ${reason}]`,
-  });
+  }, options);
 }
 
 async function restore(value) {
