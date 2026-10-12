@@ -17,6 +17,7 @@ import { INITIAL_FEED_SIZE, nextVisibleCount } from '@/lib/progressiveFeed';
 import { featuredDealCandidates } from '@/lib/heroDealQuality';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { readServerBootstrap } from '@/lib/serverBootstrap';
 
 const SORTS = [
   { key: 'best', label: 'Top deals' },
@@ -59,8 +60,7 @@ export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialPage = useRef(undefined);
   if (initialPage.current === undefined) {
-    try { initialPage.current = JSON.parse(document.getElementById('initial-deals')?.textContent || 'null'); }
-    catch { initialPage.current = null; }
+    initialPage.current = readServerBootstrap('initial-deals');
   }
   const [deals, setDeals] = useState(() => freshInitialFeed(initialPage.current, { sort: 'best', category: searchParams.get('category') && searchParams.get('category') !== 'all' ? searchParams.get('category') : '', q: searchParams.get('q') || '' }).items); const categories = useActiveCategories();
   const [loading, setLoading] = useState(true); const [loadingMore, setLoadingMore] = useState(false); const [error, setError] = useState(null); const [retryNonce, setRetryNonce] = useState(0);

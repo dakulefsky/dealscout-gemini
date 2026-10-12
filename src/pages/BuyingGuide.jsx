@@ -5,9 +5,9 @@ import { freshInitialFeed } from '../../shared/shoppingTools.mjs';
 import { deals as dealsApi } from '@/lib/api';
 import DealCard from '@/components/DealCard';
 import DeliveredCostComparison from '@/components/DeliveredCostComparison';
+import { readServerBootstrap } from '@/lib/serverBootstrap';
 function bootstrap() {
-  try { return freshInitialFeed(JSON.parse(document.getElementById('initial-guide-deals')?.textContent || 'null'), { sort: 'best' }).items; }
-  catch { return []; }
+  return freshInitialFeed(readServerBootstrap('initial-guide-deals'), { sort: 'best' }).items;
 }
 export default function BuyingGuide() {
   const [items, setItems] = useState(bootstrap);
