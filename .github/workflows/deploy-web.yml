@@ -117,12 +117,14 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v3
 
+      - name: Retire verified duplicate Cloud Build triggers
+        run: node scripts/consolidate-build-triggers.mjs
+
       - name: Build immutable production image
         shell: bash
         run: |
           set -euo pipefail
           IMAGE="${GCP_IMAGE_REPOSITORY}:${GITHUB_SHA}"
-          echo "GCP_IMAGE=${IMAGE}" >> "$GITHUB_ENV"
           # The deployer can submit and inspect builds, but cannot stream default-bucket logs.
           BUILD_ID="$(gcloud builds submit \
             --project "$GCP_PROJECT_ID" \
@@ -142,6 +144,10 @@ jobs:
               --format='value(status)')"
             case "$STATUS" in
               SUCCESS)
+                PINNED_IMAGE="$(gcloud builds describe "$BUILD_ID" \
+                  --project "$GCP_PROJECT_ID" \
+                  --format='json(results.images)' | node scripts/release-image.mjs "$IMAGE")"
+                echo "GCP_IMAGE=${PINNED_IMAGE}" >> "$GITHUB_ENV"
                 echo "Cloud Build completed successfully."
                 exit 0
                 ;;
@@ -226,29 +232,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for service in "$GCP_WEB_SERVICE" "$GCP_ADMIN_SERVICE"; do
-            gcloud run services describe "$service" \
-              --project "$GCP_PROJECT_ID" \
-              --region "$GCP_REGION" \
-              --format=json | SERVICE_NAME="$service" node -e '
-                let json = "";
-                process.stdin.on("data", chunk => { json += chunk; });
-                process.stdin.on("end", () => {
-                  const service = JSON.parse(json);
-                  const image = service.spec?.template?.spec?.containers?.[0]?.image;
-                  const revision = service.status?.latestReadyRevisionName;
-                  const traffic = service.status?.traffic || [];
-                  if (image !== process.env.GCP_IMAGE || !revision ||
-                      traffic.length !== 1 || Number(traffic[0].percent) !== 100 ||
-                      traffic[0].revisionName !== revision) {
-                    console.error(`${process.env.SERVICE_NAME} is not serving 100% of the expected image on its latest ready revision`);
-                    process.exitCode = 1;
-                    return;
-                  }
-                  console.log(`${process.env.SERVICE_NAME}: ${revision}, 100% traffic, ${image}`);
-                });
-              '
-          done
+          node scripts/verify-deployment-parity.mjs
 
       - name: Verify deployed revision
         if: ${{ github.event_name == 'push' || inputs.run_smoke }}
