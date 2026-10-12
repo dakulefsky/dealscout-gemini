@@ -1,12 +1,23 @@
 name: Public crawl health
 on:
+  push:
+    branches: [main]
+    paths:
+      - scripts/crawl-check.mjs
+      - shared/dealCollections.json
+      - .github/workflows/crawl-health.yml
+  pull_request:
+    paths:
+      - scripts/crawl-check.mjs
+      - shared/dealCollections.json
+      - .github/workflows/crawl-health.yml
   schedule:
     - cron: '17 */6 * * *'
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: public-crawl-health
+  group: public-crawl-health-${{ github.event.pull_request.number || 'production' }}
   cancel-in-progress: true
 jobs:
   crawl:
