@@ -7,6 +7,8 @@ import { ArrowLeft, ArrowRight, LayoutGrid, List, TrendingDown, ShieldCheck } fr
 import { deals as dealsApi, categories as categoriesApi } from '@/lib/api';
 import { rankDeals } from '@/lib/dealRanking';
 import { categorySeoContent } from '@/lib/categorySeoContent';
+import { readInitialScopedFeed } from '@/lib/initialScopedFeed';
+import { freshScopedFeed, freshVerifiedDeals } from '../../shared/shoppingTools.mjs';
 
 const SORTS = [
   { key: 'best', label: 'Best deals' },
@@ -37,13 +39,17 @@ function mergeDeals(current, incoming) {
 
 export default function CategoryPage() {
   const { slug } = useParams();
-  const [category, setCategory] = useState(null);
+  const initialPage = useRef(undefined);
+  if (initialPage.current === undefined) initialPage.current = readInitialScopedFeed();
+  const initialCategory = initialPage.current?.scope === `category/${slug}` ? initialPage.current.category : null;
+  const [category, setCategory] = useState(initialCategory);
   const [allCategories, setAllCategories] = useState([]);
-  const [deals, setDeals] = useState([]);
+  const [deals, setDeals] = useState(() => freshScopedFeed(initialPage.current, `category/${slug}`).items);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
   const [error, setError] = useState(null);
+  const [paginationError, setPaginationError] = useState(false);
   const [sort, setSort] = useState('best');
   const [viewMode, setViewMode] = useState('grid');
   const [retryPage, setRetryPage] = useState(0);
@@ -51,6 +57,8 @@ export default function CategoryPage() {
   const sentinelRef = useRef(null);
   const feedGeneration = useRef(0);
   const paginationRequest = useRef(null);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -60,9 +68,12 @@ export default function CategoryPage() {
     setLoading(true);
     setLoadingMore(false);
     setError(null);
-    setCategory(null);
-    setDeals([]);
-    setNextCursor(null);
+    setPaginationError(false);
+    const seed = freshScopedFeed(initialPage.current, `category/${slug}`, serverSort(sort));
+    const seedCategory = initialPage.current?.scope === `category/${slug}` ? initialPage.current.category : null;
+    setCategory(seedCategory);
+    setDeals(seed.items);
+    setNextCursor(seed.nextCursor);
 
     categoriesApi.list({ activeOnly: 0 })
       .then((cats) => {
@@ -79,7 +90,11 @@ export default function CategoryPage() {
         setNextCursor(page.nextCursor || null);
       })
       .catch((err) => {
-        if (!controller.signal.aborted && generation === feedGeneration.current && err.name !== 'AbortError') setError(err.message || 'Could not load category deals');
+        if (!controller.signal.aborted && generation === feedGeneration.current && err.name !== 'AbortError') {
+          const fresh = freshScopedFeed(initialPage.current, `category/${slug}`, serverSort(sort));
+          setDeals(fresh.items); setNextCursor(fresh.nextCursor);
+          setError(err.message || 'Could not load category deals');
+        }
       })
       .finally(() => { if (!controller.signal.aborted && generation === feedGeneration.current) setLoading(false); });
 
@@ -88,7 +103,7 @@ export default function CategoryPage() {
 
   useEffect(() => {
     const node = sentinelRef.current;
-    if (!node || !nextCursor || loading || loadingMore || typeof IntersectionObserver === 'undefined' || !category) return undefined;
+    if (!node || !nextCursor || loading || loadingMore || error || typeof IntersectionObserver === 'undefined' || !category) return undefined;
     const observer = new IntersectionObserver((entries) => {
       if (!entries.some((entry) => entry.isIntersecting) || paginationRequest.current) return;
       const generation = feedGeneration.current;
@@ -102,7 +117,7 @@ export default function CategoryPage() {
           setNextCursor(page.nextCursor || null);
           setError(null);
         })
-        .catch((err) => { if (!controller.signal.aborted && generation === feedGeneration.current) setError(err.message || 'Could not load more deals'); })
+        .catch((err) => { if (!controller.signal.aborted && generation === feedGeneration.current) { setPaginationError(true); setError(err.message || 'Could not load more deals'); } })
         .finally(() => {
           if (paginationRequest.current === controller) paginationRequest.current = null;
           if (generation === feedGeneration.current) setLoadingMore(false);
@@ -110,16 +125,16 @@ export default function CategoryPage() {
     }, { rootMargin: '700px 0px' });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [category, loading, loadingMore, nextCursor, retryPage, sort]);
+  }, [category, loading, loadingMore, nextCursor, retryPage, sort, error]);
 
   const visibleDeals = useMemo(() => {
-    const list = [...deals];
+    const list = freshVerifiedDeals(deals, now);
     if (sort === 'best') return rankDeals(list);
     if (sort === 'discount') return list.sort((a, b) => (b.discountPercent || 0) - (a.discountPercent || 0));
     if (sort === 'price-low') return list.sort((a, b) => (a.salePrice || 0) - (b.salePrice || 0));
     if (sort === 'price-high') return list.sort((a, b) => (b.salePrice || 0) - (a.salePrice || 0));
     return list;
-  }, [deals, sort]);
+  }, [deals, sort, now]);
 
   const seoContent = useMemo(() => categorySeoContent(category?.slug || slug, category?.description), [category, slug]);
   const relatedCategories = useMemo(() => {
@@ -151,7 +166,7 @@ export default function CategoryPage() {
       </header>
 
       <main className="pt-7 sm:pt-9">
-        {loading ? (
+        {loading && visibleDeals.length === 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="border border-emerald-950/10 bg-white animate-pulse"><div className="aspect-[4/3] bg-stone-100" /><div className="p-4 space-y-3"><div className="h-3 bg-stone-100" /><div className="h-6 w-24 bg-stone-100" /></div></div>)}</div>
         ) : error && visibleDeals.length === 0 ? (
           <div className="text-center py-20 border-y border-emerald-950/10"><TrendingDown className="h-9 w-9 text-slate-300 mx-auto mb-3" /><h3 className="font-heading text-xl font-bold text-emerald-950">Couldn’t load this department</h3><p className="text-sm text-slate-500 mt-1">{error}</p><button type="button" onClick={() => setRetryInitial((value) => value + 1)} className="mt-5 text-sm font-bold text-emerald-900 border-b border-emerald-900 pb-1">Try again</button></div>
@@ -171,7 +186,7 @@ export default function CategoryPage() {
             </div>}
             <div ref={sentinelRef} className="h-10" aria-hidden="true" />
             {nextCursor ? <div className="text-center py-5 text-xs font-semibold text-slate-400">{loadingMore ? 'Loading more verified deals…' : 'More deals load as you scroll'}</div> : <div className="text-center py-8 mt-4 border-t border-emerald-950/10"><ShieldCheck className="w-4 h-4 mx-auto text-emerald-700" /></div>}
-            {error && <div role="status" className="text-center text-xs text-amber-800 py-3"><div>Couldn’t load the next page.</div><button type="button" onClick={() => { setError(null); setRetryPage((value) => value + 1); }} className="mt-2 font-bold text-emerald-900 border-b border-emerald-900">Retry loading</button></div>}
+            {error && <div role="status" className="text-center text-xs text-amber-800 py-3"><div>{paginationError ? 'Couldn’t load the next page.' : 'Couldn’t refresh the deals. The offers shown still have recent price checks.'}</div><button type="button" onClick={() => { setError(null); if (paginationError) setRetryPage((value) => value + 1); else setRetryInitial((value) => value + 1); }} className="mt-2 font-bold text-emerald-900 border-b border-emerald-900">Try again</button></div>}
           </>
         )}
       </main>

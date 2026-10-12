@@ -8,9 +8,19 @@ export function compareUnitPrices(priceA, quantityA, priceB, quantityB) {
 }
 export function freshInitialFeed(page, params, nowMs = Date.now()) {
   if (params.sort !== 'best' || params.category || params.q || params.minDiscount || params.minPrice || params.maxPrice || !Array.isArray(page?.items)) return { items: [], nextCursor: null };
-  const items = page.items.filter(deal => {
+  const items = freshVerifiedDeals(page.items, nowMs);
+  return { items, nextCursor: items.length ? page.nextCursor || null : null };
+}
+export function freshVerifiedDeals(items, nowMs = Date.now()) {
+  return (Array.isArray(items) ? items : []).filter(deal => {
+    if (!deal || typeof deal !== 'object') return false;
     const checked = Number(deal.priceCheckAt) * 1000;
-    return deal.sourceVerified === true && deal.status === 'APPROVED' && !deal.isExpired && checked > 0 && checked <= nowMs && nowMs - checked <= 86400000 && Number(deal.salePrice) > 0 && Number(deal.originalPrice) > Number(deal.salePrice);
+    const sale = Number(deal.salePrice), original = Number(deal.originalPrice);
+    return deal.sourceVerified === true && deal.status === 'APPROVED' && !deal.isExpired && checked > 0 && checked <= nowMs && nowMs - checked <= 86400000 && Number.isFinite(sale) && Number.isFinite(original) && sale > 0 && original > sale;
   });
+}
+export function freshScopedFeed(page, scope, sort = 'best', nowMs = Date.now()) {
+  if (!scope || page?.scope !== scope || sort !== 'best') return { items: [], nextCursor: null };
+  const items = freshVerifiedDeals(page.items, nowMs);
   return { items, nextCursor: items.length ? page.nextCursor || null : null };
 }

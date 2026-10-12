@@ -13,8 +13,8 @@ test('category page uses the shared cursor feed instead of a fixed list query', 
 
 test('category sort changes restart the server cursor query', () => {
   assert.match(category, /\[slug, sort, retryInitial\]/);
-  assert.match(category, /setDeals\(\[\]\)/);
-  assert.match(category, /setNextCursor\(null\)/);
+  assert.match(category, /setDeals\(seed.items\)/);
+  assert.match(category, /setNextCursor\(seed.nextCursor\)/);
   assert.match(category, /discount_desc/);
   assert.match(category, /price_asc/);
   assert.match(category, /price_desc/);
