@@ -226,6 +226,7 @@ class DealCronService {
       let deferredCount = 0;
       let itemFailureCount = 0;
       let verifiedCount = 0;
+      let supersededCount = 0;
       let providerDeferred = false;
       let providerDeferredReason = null;
       let providerRetryAtUnix = null;
@@ -236,9 +237,10 @@ class DealCronService {
         const refreshState = await refreshStates.get(deal.asin);
         if (!canAttemptRefresh(refreshState, attemptAt)) { deferredCount += 1; continue; }
 
-        checkedCount += 1;
         try {
-          await deals.update(deal.id, { last_verify_attempt_at: attemptAt });
+          const attempted = await deals.update(deal.id, { last_verify_attempt_at: attemptAt }, { expectedStatus: deal.status });
+          if (!attempted) { deferredCount += 1; continue; }
+          checkedCount += 1;
           const liveInfo = await fetchProductByAsin(deal.asin, { allowNonDeal: true });
           if (!liveInfo?.sourceVerified) {
             const providerStatus = await getProviderStatus();
@@ -264,7 +266,8 @@ class DealCronService {
           }
 
           if (outOfStock || discountEnded) {
-            await deals.expire(deal.id, outOfStock ? 'Product unavailable at verified source' : 'Verified deal ended');
+            const expired = await deals.expire(deal.id, outOfStock ? 'Product unavailable at verified source' : 'Verified deal ended', { expectedStatus: deal.status });
+            if (!expired) { supersededCount += 1; continue; }
             verifiedCount += 1;
             expiredCount += 1;
             await refreshStates.recordSuccess(deal.asin, { at: attemptAt, provider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
@@ -275,7 +278,8 @@ class DealCronService {
           if (Number.isFinite(sale) && sale > 0) changes.sale_price = sale;
           if (Number.isFinite(original) && Number.isFinite(sale) && original >= sale) changes.original_price = original;
           if (Number.isFinite(discount) && discount >= 0) changes.discount_percent = discount;
-          await deals.update(deal.id, changes);
+          const updated = await deals.update(deal.id, changes, { expectedStatus: deal.status });
+          if (!updated) { supersededCount += 1; continue; }
           verifiedCount += 1;
           await refreshStates.recordSuccess(deal.asin, { at: attemptAt, provider: liveInfo.sourceProvider || deal.source_provider || 'VERIFIED_PROVIDER' });
         } catch (err) {
@@ -298,10 +302,11 @@ class DealCronService {
       }
 
       this.stats.dealsExpired += expiredCount;
-      const totalFailure = checkedCount > 0 && verifiedCount === 0 && !providerDeferred;
+      const totalFailure = verifiedCount === 0 && !providerDeferred
+        && (checkedCount > supersededCount || itemFailureCount > 0);
       if (!totalFailure) await recordJobSuccess('verify-prices');
       return {
-        checkedCount, verifiedCount, expiredCount, deferredCount, itemFailureCount, eligibleCount: activeDeals.length, batchSize,
+        checkedCount, verifiedCount, expiredCount, deferredCount, supersededCount, itemFailureCount, eligibleCount: activeDeals.length, batchSize,
         providerDeferred, providerDeferredReason, providerRetryAt: providerRetryAtUnix,
         ...(totalFailure ? { status: 'NOTICE', error: 'No product prices could be verified in this batch' } : {}),
       };
@@ -346,6 +351,7 @@ class DealCronService {
           await safeRecordObservation({ asin: item.asin, salePrice: sale, originalPrice: original, sourceProvider: item.sourceProvider || 'VERIFIED_PROVIDER' });
           const existing = await deals.findByIdOrAsin(item.asin);
           if (existing) {
+            if (existing.status === 'REJECTED') { rejectedCount += 1; continue; }
             const changes = {
               sale_price: sale, original_price: original, discount_percent: discount,
               price_check_at: verifiedAt, last_verify_attempt_at: verifiedAt,
@@ -355,7 +361,8 @@ class DealCronService {
               ...rediscoveryLifecycleChanges(existing, status),
               ...verifiedSourceChanges(existing, item),
             };
-            await deals.update(existing.id, changes);
+            const updated = await deals.update(existing.id, changes, { expectedStatus: existing.status });
+            if (!updated) continue;
             await refreshStates.recordSuccess(item.asin, { provider: item.sourceProvider, at: verifiedAt });
             updatedCount += 1;
             continue;

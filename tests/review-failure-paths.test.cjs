@@ -151,7 +151,7 @@ test('price verification does not report success when the verified price could n
     '../storage/postgres': { withAdvisoryLock: async (_id, task) => ({ acquired: true, result: await task() }) },
     '../repositories/dealRepository': {
       listAll: async () => [deal],
-      update: async (_id, changes) => { if (changes.price_check_at) throw new Error('database write failed'); },
+      update: async (_id, changes) => { if (changes.price_check_at) throw new Error('database write failed'); return { ...deal, ...changes }; },
     },
     '../repositories/refreshStateRepository': { get: async () => null, recordSuccess: async () => { successes += 1; }, recordFailure: async () => { failedItems += 1; } },
     '../repositories/maintenanceCadenceRepository': { markSucceeded: async () => { successfulJobs += 1; } },

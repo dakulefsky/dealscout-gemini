@@ -12,7 +12,7 @@ function loadCron(product) {
     '../storage/postgres': { async withAdvisoryLock(_id, task) { return { acquired: true, result: await task() }; } },
     '../repositories/maintenanceCadenceRepository': { async claim() { return { acquired: true }; }, async markSucceeded() { successes += 1; } },
     '../repositories/refreshStateRepository': { async get() { return null; }, async recordFailure() {}, async recordSuccess() {} },
-    '../repositories/dealRepository': { async listAll() { return [{ id: 'B000000001', asin: 'B000000001', title: 'Example', status: 'APPROVED', source_verified: 1, is_expired: 0, price_check_at: 1 }]; }, async update() {} },
+    '../repositories/dealRepository': { async listAll() { return [{ id: 'B000000001', asin: 'B000000001', title: 'Example', status: 'APPROVED', source_verified: 1, is_expired: 0, price_check_at: 1 }]; }, async update() { return { status: 'APPROVED' }; } },
     './providerRouter': { async fetchProductByAsin() { return product; }, async getProviderStatus() { return {}; } },
     './priceHistoryService': { async recordObservation() {} },
   };
