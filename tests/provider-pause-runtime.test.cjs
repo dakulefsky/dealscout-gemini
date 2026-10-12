@@ -81,7 +81,7 @@ test('a paused verification batch stops immediately without quarantining items o
   assert.equal(counters.attempts, 1);
   assert.equal(counters.failures, 0);
   assert.equal(counters.successfulJobs, 0);
-  assert.ok(counters.retry >= before + 1800 && counters.retry <= before + 1801);
+  assert.ok(counters.retry >= before + 1800 && counters.retry <= Math.floor(Date.now() / 1000) + 1800);
   assert.equal(result.status, undefined);
 });
 
