@@ -118,7 +118,12 @@ async function runProviderCall(provider, task, options = {}) {
   if (remaining > 0) throw new ProviderCooldownError(key, remaining);
 
   const pacingDelay = recommendedDelayMs(key, options);
-  if (pacingDelay > 0) await delay(pacingDelay);
+  if (pacingDelay > 0) {
+    await delay(pacingDelay);
+    // A pause made while this request was waiting must win before credit is
+    // reserved or the outbound task starts.
+    if ((await channelSettings.get('provider_api')).enabled === false) throw new ProviderPausedError(key);
+  }
 
   // Reserve immediately before the outbound task. Failed network attempts still
   // consume the provider allowance, while paused/cooldown-blocked calls do not.
