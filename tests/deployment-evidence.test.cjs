@@ -24,3 +24,16 @@ test('deployment evidence only describes the two services and their ready revisi
   assert.ok(commands.every(row => !row.includes('deploy') && !row.includes('execute') && !row.includes('get-iam-policy')));
   assert.throws(() => collectDeploymentEvidence({}, () => ({ status: 1, stderr: 'PRIVATE_FAILURE' })), /unavailable/);
 });
+
+test('trigger evidence excludes arbitrary substitutions, secrets and build steps', async () => {
+  const { collectTriggerEvidence } = await import('../scripts/deployment-evidence.mjs');
+  const calls = [];
+  const result = collectTriggerEvidence({}, (_command, args) => {
+    calls.push(args);
+    return { status: 0, stdout: JSON.stringify([{ id: 'trigger-id', name: 'dealscout', github: { owner: 'dakulefsky', name: 'dealscout-gemini', push: { branch: '^main$' } }, substitutions: { _SERVICE_NAME: 'dealscout', PRIVATE: 'PRIVATE_SUBSTITUTION' }, build: { steps: [{ args: ['PRIVATE_STEP'] }] }, secrets: ['PRIVATE_SECRET'] }]) };
+  });
+  assert.equal(calls.length, 2); assert.ok(calls.every(args => args.slice(0, 3).join(' ') === 'builds triggers list'));
+  assert.equal(result[0].triggers[0].service, 'dealscout');
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_/);
+  assert.ok(collectTriggerEvidence({}, () => ({ status: 1, stderr: 'PRIVATE_DENIAL' })).every(row => row.unavailable === true));
+});

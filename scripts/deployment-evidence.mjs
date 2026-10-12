@@ -39,7 +39,27 @@ export function collectDeploymentEvidence(env = process.env, spawn = spawnSync) 
   });
 }
 
+export function collectTriggerEvidence(env = process.env, spawn = spawnSync) {
+  const project = env.GCP_PROJECT_ID || 'project-1c568b10-6e24-4dc2-b2b';
+  return [...new Set(['global', env.GCP_REGION || 'us-central1'])].map(region => {
+    const result = spawn('gcloud', ['builds', 'triggers', 'list', '--project', project, '--region', region, '--format=json'], { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+    if (result.error || result.status !== 0) return { region, unavailable: true };
+    try {
+      const triggers = JSON.parse(result.stdout);
+      if (!Array.isArray(triggers)) return { region, unavailable: true };
+      return { region, triggers: triggers.map(trigger => ({
+        id: trigger.id, name: trigger.name, disabled: trigger.disabled === true,
+        github: trigger.github ? { owner: trigger.github.owner, name: trigger.github.name, branch: trigger.github.push?.branch } : null,
+        repository: trigger.repositoryEventConfig?.repository || null,
+        branch: trigger.repositoryEventConfig?.push?.branch || null,
+        filename: trigger.filename || null,
+        service: ['dealscout', 'dealscout-web'].includes(trigger.substitutions?._SERVICE_NAME) ? trigger.substitutions._SERVICE_NAME : null,
+      })) };
+    } catch { return { region, unavailable: true }; }
+  });
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { console.log(JSON.stringify(collectDeploymentEvidence(), null, 2)); }
+  try { console.log(JSON.stringify({ services: collectDeploymentEvidence(), buildTriggers: collectTriggerEvidence() }, null, 2)); }
   catch { console.error('Runtime deployment evidence unavailable; no settings or permissions were changed.'); process.exitCode = 1; }
 }
