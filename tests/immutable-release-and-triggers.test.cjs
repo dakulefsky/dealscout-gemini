@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { spawnSync } = require('node:child_process');
 const { immutableBuiltImage, assertPinnedParity } = require('../scripts/release-image.mjs');
 const { consolidateBuildTriggers } = require('../scripts/consolidate-build-triggers.mjs');
 const sha = 'a'.repeat(40), digest = 'sha256:' + 'b'.repeat(64);
@@ -15,11 +16,19 @@ test('release uses the completed build digest instead of a mutable commit tag', 
   assert.ok(workflow.indexOf('Retire verified duplicate Cloud Build triggers') < workflow.indexOf('Build immutable production image'));
 });
 
+test('the build-pinning CLI emits only the verified digest and fails on missing build results', () => {
+  const good = spawnSync(process.execPath, ['scripts/release-image.mjs', tag], { input: JSON.stringify({ results: { images: [{ name: tag, digest }] } }), encoding: 'utf8' });
+  assert.equal(good.status, 0); assert.equal(good.stdout.trim(), pinned);
+  const bad = spawnSync(process.execPath, ['scripts/release-image.mjs', tag], { input: '{}', encoding: 'utf8' });
+  assert.equal(bad.status, 1); assert.equal(bad.stdout, ''); assert.match(bad.stderr, /Unable to pin/);
+});
+
 test('parity checks actual ready digests, latest revisions and 100% traffic', () => {
   const services = ['dealscout-web', 'dealscout'].map(service => ({ service, desiredImage: pinned, readyImageDigest: pinned, latestCreatedRevision: service + '-ready', latestReadyRevision: service + '-ready', traffic: [{ revision: service + '-ready', percent: 100 }] }));
   assert.equal(assertPinnedParity(services, pinned).length, 2);
   for (const extra of [{ desiredImage: tag }, { readyImageDigest: 'gcr.io/project/dealscout@sha256:' + 'c'.repeat(64) }, { latestCreatedRevision: 'pending' }, { traffic: [{ revision: 'old', percent: 100 }] }, { traffic: [{ revision: 'dealscout-ready', percent: 99 }] }]) assert.throws(() => assertPinnedParity([services[0], { ...services[1], ...extra }], pinned), /not serving 100%/);
   assert.throws(() => assertPinnedParity(services, tag), /immutable image digest/);
+  assert.throws(() => assertPinnedParity([services[0], services[0]], pinned), /Both production services/);
 });
 
 const ids = ['c097dcdf-c21e-46c4-b05a-c7aa114afbc0', '49867c90-ece8-4c76-be8b-749e1be8d1f3', '157f3cab-9ed6-4876-879d-bf3933c0ba39'];

@@ -9,7 +9,7 @@ export function immutableBuiltImage(build, tag) {
 
 export function assertPinnedParity(services, expected) {
   if (!/^[a-z0-9][a-z0-9._/:+-]*@sha256:[a-f0-9]{64}$/.test(expected || '')) throw new Error('An immutable image digest is required');
-  if (services.length !== 2) throw new Error('Both production services must be checked');
+  if (services.length !== 2 || new Set(services.map(service => service.service)).size !== 2) throw new Error('Both production services must be checked');
   for (const service of services) {
     if (service.desiredImage !== expected || service.readyImageDigest !== expected || !service.latestReadyRevision || service.latestCreatedRevision !== service.latestReadyRevision || service.traffic.length !== 1 || Number(service.traffic[0].percent) !== 100 || service.traffic[0].revision !== service.latestReadyRevision) {
       throw new Error(`${service.service} is not serving 100% of the expected immutable image on its latest ready revision`);
