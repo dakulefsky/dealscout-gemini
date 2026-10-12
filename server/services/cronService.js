@@ -24,7 +24,7 @@ const JOB_LOCKS = Object.freeze({ purgeExpired: 44001, verifyPrices: 44002, disc
 // and a manual action while using one larger, price-only batch each day.
 const DAILY_PRICE_VERIFY_MAX_BATCH = 12;
 const JOB_INTERVALS = Object.freeze({ purgeExpired: THIRTY_MINUTES_SECONDS, verifyPrices: ONE_DAY_SECONDS, discoverDeals: TWELVE_HOURS_SECONDS });
-const PROVIDER_BATCH_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
+const PROVIDER_BATCH_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN', 'PROVIDER_PAUSED']);
 
 function dailyPriceVerificationBatchSize(activeCount) {
   return verificationBatchSize(activeCount, {
@@ -52,6 +52,9 @@ function shouldStopProviderBatch(error) {
 function providerRetryAt(error, nowMs = Date.now()) {
   const code = String(error?.code || '');
   const nowSeconds = Math.floor(Number(nowMs) / 1000);
+  // The full cycle checks the administrator's pause before claiming work.
+  // Keep paused work due soon after resume without lifting the pause itself.
+  if (code === 'PROVIDER_PAUSED') return nowSeconds + JOB_ERROR_RETRY_SECONDS;
   if (code === 'PROVIDER_COOLDOWN') {
     const retrySeconds = Math.max(PROVIDER_RETRY_SAFETY_SECONDS, Math.ceil(Number(error?.retryAfterMs || 0) / 1000));
     return nowSeconds + retrySeconds;
@@ -304,7 +307,7 @@ class DealCronService {
       this.stats.dealsExpired += expiredCount;
       const totalFailure = verifiedCount === 0 && !providerDeferred
         && (checkedCount > supersededCount || itemFailureCount > 0);
-      if (!totalFailure) await recordJobSuccess('verify-prices');
+      if (!totalFailure && (!providerDeferred || verifiedCount > 0)) await recordJobSuccess('verify-prices');
       return {
         checkedCount, verifiedCount, expiredCount, deferredCount, supersededCount, itemFailureCount, eligibleCount: activeDeals.length, batchSize,
         providerDeferred, providerDeferredReason, providerRetryAt: providerRetryAtUnix,
