@@ -48,9 +48,11 @@ test('only verified duplicates are disabled and only the disabled field is patch
   const result = await consolidateBuildTriggers({}, commands(rows, calls), async (url, options) => {
     assert.equal(calls.filter(args => args[0] === 'builds').length >= 3, true, 'all sources are read before mutations');
     assert.match(url, /cloudbuild.googleapis.com\/v1\/projects\/project-1c568b10-6e24-4dc2-b2b\/triggers\/[^?]+\?updateMask=disabled$/);
-    assert.equal(options.method, 'PATCH'); assert.deepEqual(JSON.parse(options.body), { disabled: true });
+    assert.equal(options.method, 'PATCH');
     assert.equal(options.headers.Authorization, 'Bearer TEST_TOKEN');
-    const id = url.split('/triggers/')[1].split('?')[0]; writes.push(id); rows.get(id).disabled = true;
+    const id = url.split('/triggers/')[1].split('?')[0];
+    assert.deepEqual(JSON.parse(options.body), { ...rows.get(id), disabled: true }, 'preserve the source/build configuration while masking the update to disabled');
+    writes.push(id); rows.get(id).disabled = true;
     return { ok: true, json: async () => ({ disabled: true }) };
   });
   assert.deepEqual(writes, ids); assert.ok(result.every(row => row.state === 'disabled'));
@@ -71,6 +73,7 @@ test('changed trigger sources stop every write; absent or disabled triggers are 
 test('denied consolidation fails without leaking credentials or widening permissions', async () => {
   await assert.rejects(() => consolidateBuildTriggers({}, commands(fixtures(), []), async () => ({ ok: false, status: 403 })), /HTTP 403/);
   await assert.rejects(() => consolidateBuildTriggers({ GCP_PROJECT_ID: 'different-project' }, () => { throw new Error('must not execute'); }), /verified DealScout project/);
+  await assert.rejects(() => consolidateBuildTriggers({}, commands(fixtures(), []), async () => ({ ok: false, status: 400, json: async () => ({ error: { message: 'Invalid configuration PRIVATE_VALUE TEST_TOKEN' } }) })), error => /HTTP 400/.test(error.message) && !/PRIVATE_VALUE|TEST_TOKEN/.test(error.message));
   const source = fs.readFileSync('scripts/consolidate-build-triggers.mjs', 'utf8');
   assert.doesNotMatch(source, /set-iam-policy|add-iam-policy-binding|delete|--impersonate/);
 });

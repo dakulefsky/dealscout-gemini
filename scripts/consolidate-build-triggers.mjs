@@ -27,7 +27,7 @@ export async function consolidateBuildTriggers(env = process.env, spawn = spawnS
     const trigger = read(expected.id);
     if (!trigger) return { ...expected, absent: true };
     if (trigger.id !== expected.id || trigger.github?.owner !== 'dakulefsky' || trigger.github?.name !== 'dealscout-gemini' || trigger.github?.push?.branch !== '^main$' || (expected.service && trigger.substitutions?._SERVICE_NAME !== expected.service) || (expected.filename && trigger.filename !== expected.filename)) throw new Error('A duplicate trigger source changed; consolidation stopped before any writes');
-    return { ...expected, disabled: trigger.disabled === true };
+    return { ...expected, disabled: trigger.disabled === true, trigger };
   });
   if (planned.every(row => row.absent || row.disabled)) return planned.map(row => ({ id: row.id, state: row.absent ? 'absent' : 'alreadyDisabled' }));
   const auth = spawn('gcloud', ['auth', 'print-access-token'], { encoding: 'utf8' });
@@ -40,10 +40,22 @@ export async function consolidateBuildTriggers(env = process.env, spawn = spawnS
     let response;
     try {
       response = await fetchImpl(`https://cloudbuild.googleapis.com/v1/projects/${project}/triggers/${row.id}?updateMask=disabled`, {
-        method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ disabled: true }), signal: AbortSignal.timeout(15000),
+        // Cloud Build validates the trigger's source/build configuration even
+        // for a masked patch. Echo its current resource unchanged; the mask
+        // still permits only disabled to change.
+        method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ...row.trigger, disabled: true }), signal: AbortSignal.timeout(15000),
       });
     } catch { throw new Error('Duplicate trigger update unavailable; no permissions were changed'); }
-    if (!response.ok) throw new Error(`The verified duplicate trigger could not be disabled (HTTP ${response.status}); no permissions were changed`);
+    if (!response.ok) {
+      let detail = '';
+      try {
+        const body = await response.json();
+        detail = String(body.error?.message || '').replaceAll(token, '[redacted]');
+        for (const value of Object.values(row.trigger.substitutions || {})) if (typeof value === 'string' && value) detail = detail.replaceAll(value, '[redacted]');
+        detail = detail.replace(/[\r\n]/g, ' ').slice(0, 400);
+      } catch { /* HTTP status remains sufficient evidence. */ }
+      throw new Error(`The verified duplicate trigger could not be disabled (HTTP ${response.status})${detail ? ': ' + detail : ''}; no permissions were changed`);
+    }
     if ((await response.json()).disabled !== true || read(row.id)?.disabled !== true) throw new Error('Duplicate trigger disablement could not be confirmed');
     results.push({ id: row.id, state: 'disabled' });
   }
