@@ -33,7 +33,8 @@ test('guide remains crawlable without offers and escapes product content', () =>
   assert.ok(empty.includes(guide.title));
   for (const section of guide.sections) assert.ok(empty.includes(section.title.replace(/&/g, '&amp;')));
   assert.match(empty, /Delivered total =/);
-  assert.match(empty, /prepared with AI assistance/);
+  assert.match(empty, /follows DealScout/);
+  assert.doesNotMatch(empty, /AI assistance/);
   assert.match(empty, /Sources and pricing policy/);
   const html = guideService.initialContent([{ asin: 'B000000001', title: '<script>unsafe</script>', sale_price: 12 }]);
   assert.match(html, /&lt;script&gt;unsafe/);
