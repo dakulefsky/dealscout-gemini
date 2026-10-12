@@ -73,3 +73,27 @@ test('log report emits allowlisted counts, distinguishes scheduled intake and ma
   assert.doesNotMatch(JSON.stringify(report), /DO_NOT_EMIT|private|secret/);
   assert.throws(() => collect({}, () => ({ status: 1 })), /unavailable/);
 });
+
+test('unavailable reporting writes a visible warning and never claims zero yield', async () => {
+  const { runReport } = await import('../scripts/discovery-report.mjs');
+  const messages = [], summaries = [];
+  const output = { log: value => messages.push(value), error: value => messages.push(value) };
+  const ok = runReport({ GITHUB_ACTIONS: 'true', GITHUB_STEP_SUMMARY: '/mock-summary' }, () => ({ status: 1, stderr: 'private credential detail' }), output, (file, text) => { assert.equal(file, '/mock-summary'); summaries.push(text); });
+  assert.equal(ok, false);
+  assert.match(messages.join('\n'), /::warning title=Discovery yield unavailable/);
+  assert.match(summaries.join('\n'), /Maintenance success is separate/);
+  assert.doesNotMatch(JSON.stringify([messages, summaries]), /private credential detail|retainedNew.*0/);
+});
+
+test('successful reporting preserves separate funnels and flags truncated evidence', async () => {
+  const { runReport, reportSummary } = await import('../scripts/discovery-report.mjs');
+  const summaries = [], messages = [];
+  const entries = [{ textPayload: '[Rainforest discovery] {"raw":20,"retainedNew":4,"creditsUsed":1,"rejectionReasons":{"missingReferencePrice":8}}' }, { textPayload: '[Deal discovery intake] {"scheduled":true,"created":4,"autoApproved":2,"pendingReview":2}' }];
+  assert.equal(runReport({ GITHUB_STEP_SUMMARY: '/mock-summary' }, () => ({ status: 0, stdout: JSON.stringify(entries) }), { log: x => messages.push(x), error: x => messages.push(x) }, (_file, text) => summaries.push(text)), true);
+  const summary = summaries.join('\n');
+  assert.match(summary, /Rainforest discovery/); assert.match(summary, /Deal discovery intake \(scheduled\)/);
+  assert.match(summary, /\| retainedNew \| 4 \|/); assert.match(summary, /\| missingReferencePrice \| 8 \|/);
+  assert.match(summary, /not a joined per-call conversion rate/);
+  assert.match(reportSummary({ groups: {}, possiblyTruncated: true }), /log limit was reached/);
+  assert.match(reportSummary({ groups: {} }), /does not prove that scheduled pulls ran/);
+});
