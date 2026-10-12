@@ -44,6 +44,25 @@ test('keeps genuinely unclassified inventory in Other instead of guessing', () =
   assert.equal(classifyCategory({ rawCategory: 'Deals', title: 'Special Limited Edition Item' }), 'Other');
 });
 
+test('specific product types outrank incidental Bluetooth, Wi-Fi and USB features', () => {
+  const examples = [
+    ['Lefant Robot Vacuum and Mop, Smart Mapping, 2.4G/5G WiFi App Control', 'Home & Kitchen'],
+    ['roborock Robot Vacuum and Mop, Wi-Fi and Alexa Control', 'Home & Kitchen'],
+    ['iHealth Upper Arm Blood Pressure Monitor Bluetooth for iOS and Android', 'Health & Beauty'],
+    ['Etekcity Smart Scale for Body Weight, Body Fat and BMI, Bluetooth App Sync', 'Health & Beauty'],
+    ['Baby Monitor with Wi-Fi Camera and USB Charging', 'Baby'],
+    ['Automatic Pet Feeder with WiFi App Control', 'Pet Supplies'],
+    ['USB C Car Charger and Bluetooth Adapter', 'Automotive'],
+    ['USB Rechargeable Work Light', 'Tools & Home Improvement'],
+    ['Bluetooth Headphones with USB-C Charging', 'Electronics'],
+    ['Gaming Monitor with USB Hub', 'Electronics'],
+  ];
+  for (const [title, expected] of examples) assert.equal(classifyCategory({ rawCategory: 'Electronics', title }), expected, title);
+  assert.equal(classifyCategory({ rawCategory: 'Home & Kitchen', title: 'Kitchen Scale with Bluetooth' }), 'Home & Kitchen');
+  const { strongTitleCategory } = require('../server/services/categoryClassifier');
+  assert.equal(strongTitleCategory('Robot Vacuum and Bluetooth Headphones Bundle with Baby Monitor'), null);
+});
+
 test('recognizes live apparel, security, and household imports that previously fell into Other', () => {
   for (const title of ['Trendy Queen Women Pajamas Set Sleepwear Fall 2 Piece Soft Lounge Pjs', 'Trendy Queen Womens Hoodies Oversized Sweatshirt']) {
     assert.equal(classifyCategory({ rawCategory: 'Other', title }), 'Clothing & Accessories');
