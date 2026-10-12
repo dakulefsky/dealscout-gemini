@@ -41,8 +41,11 @@ export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = g
   if (scheduled) return { scheduledClosure: true, checked: 3, sitemapUrls: urls.length };
   if (!home.text.includes('data-server-crawl-content="home"')) throw new Error('Homepage has no crawlable content');
   if (!urls.includes(origin + '/about')) throw new Error('Sitemap is missing About');
+  const guideUrl = `${origin}/guides/${createRequire(import.meta.url)('../shared/buyingGuide.json').slug}`;
+  if (!urls.includes(guideUrl)) throw new Error('Sitemap is missing the buying guide');
   const sampled = [
     origin + '/about',
+    guideUrl,
     ...urls.filter((u) => new URL(u).pathname.startsWith('/category/')).slice(0, 2),
     ...urls.filter((u) => new URL(u).pathname.startsWith('/deal/')).slice(0, 3),
     // Check every configured collection, including empty pages omitted from the

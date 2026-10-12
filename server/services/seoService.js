@@ -73,6 +73,7 @@ function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now()
     ...collections.filter((c) => freshDeals.some((d) => collectionMatches(c, d))).map((c) => ({ loc: `${baseUrl}/deals/${c.slug}` })),
     { loc: `${baseUrl}/how-we-find-deals` },
     { loc: `${baseUrl}/about` },
+    { loc: `${baseUrl}/guides/${require('../../shared/buyingGuide.json').slug}` },
     { loc: `${baseUrl}/disclosure` },
     { loc: `${baseUrl}/privacy` },
     { loc: `${baseUrl}/support` },

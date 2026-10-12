@@ -197,6 +197,7 @@ export default function Home() {
       <header className="mb-5">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">{flatAllMode ? 'All deals' : hasActiveFilters ? 'Find a deal' : 'Shop by department'}</h1>
         {!showCuratedHome && <p className="mt-2 text-sm text-slate-500">Browse current Amazon deals.</p>}
+        <Link to="/guides/amazon-deal-checklist" className="inline-block mt-2 text-xs text-slate-500 underline hover:text-emerald-900">How to judge a deal</Link>
       </header>
 
       {showCuratedHome && <nav aria-label="Shop by department" className="mb-8">
