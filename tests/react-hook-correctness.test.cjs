@@ -14,7 +14,7 @@ test('DealCard stabilizes dwell completion before using it from IntersectionObse
 });
 
 test('EditorialReview stabilizes its async loader and includes it in effect dependencies', () => {
-  assert.match(editorial, /const load = useCallback\(async \(\) =>/);
-  assert.match(editorial, /\}, \[search, toast\]\);/);
+  assert.match(editorial, /const load = useCallback\(async \(append = false\) =>/);
+  assert.match(editorial, /\}, \[search, filter, toast\]\);/);
   assert.match(editorial, /window\.setTimeout\(\(\) => load\(\)/);
 });

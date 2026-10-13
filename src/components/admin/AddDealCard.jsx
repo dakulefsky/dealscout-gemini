@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link2, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { functions } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 
 export default function AddDealCard({ disabled = false, onImported }) {
+  const submittingRef = useRef(false);
   const [input, setInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
@@ -12,7 +13,8 @@ export default function AddDealCard({ disabled = false, onImported }) {
   async function submit(event) {
     event.preventDefault();
     const value = input.trim();
-    if (!value || submitting || disabled) return;
+    if (!value || submittingRef.current || disabled) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const result = await functions.siteStripeImport(value, false);
@@ -26,6 +28,7 @@ export default function AddDealCard({ disabled = false, onImported }) {
     } catch (error) {
       toast({ title: 'Could not add deal', description: error.message, variant: 'destructive' });
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Loader2, ShieldCheck, Star, Save, ArrowLeft, CheckCircle2, Clock, Send, XCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,45 +23,74 @@ export default function EditorialReview() {
   const [editorialByAsin, setEditorialByAsin] = useState({});
   const [loading, setLoading] = useState(true);
   const [busyAsin, setBusyAsin] = useState(null);
-  const [filter, setFilter] = useState('needs-review');
+  const location = useLocation();
+  const [filter, setFilter] = useState(() => location.pathname === '/admin/deals' ? 'all' : 'needs-review');
+  const [loadError, setLoadError] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const offsetRef = useRef(0);
+  const requestRef = useRef(0);
+  const mutationRef = useRef(false);
   const [search, setSearch] = useState('');
   const { toast } = useToast();
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (append = false) => {
+    const request = ++requestRef.current;
+    if (append) setLoadingMore(true); else setLoading(true);
+    setLoadError(null);
+    const offset = append ? offsetRef.current : 0;
+    const params = { limit: 100, offset, q: search.trim() || undefined };
+    if (filter === 'needs-review') params.status = 'PENDING_REVIEW';
+    if (filter === 'rejected') params.status = 'REJECTED';
+    if (filter === 'ended') params.ended = '1';
+    if (filter === 'picks') params.humanPick = '1';
     try {
-      const allDeals = await dealsApi.list({ limit: 100, q: search.trim() || undefined });
-      const catalog = Array.isArray(allDeals) ? allDeals : [];
-      setDeals(catalog);
-      const batch = await editorialApi.batch(catalog.map((deal) => deal.asin));
-      setEditorialByAsin(batch?.byAsin || {});
+      const allDeals = await dealsApi.list(params);
+      if (request !== requestRef.current) return;
+      if (!Array.isArray(allDeals)) throw new Error('Invalid catalog response');
+      const batch = await editorialApi.batch(allDeals.map((deal) => deal.asin));
+      if (request !== requestRef.current) return;
+      setDeals((previous) => append ? [...previous, ...allDeals.filter((deal) => !previous.some((row) => row.asin === deal.asin))] : allDeals);
+      setEditorialByAsin((previous) => append ? { ...previous, ...batch?.byAsin } : batch?.byAsin || {});
+      offsetRef.current = offset + allDeals.length;
+      setHasMore(allDeals.length === 100);
     } catch (error) {
+      if (request !== requestRef.current) return;
+      setLoadError(error.message);
+      if (!append) { setDeals([]); setEditorialByAsin({}); }
       toast({ title: 'Could not load review queue', description: error.message, variant: 'destructive' });
     } finally {
-      setLoading(false);
+      if (request === requestRef.current) { setLoading(false); setLoadingMore(false); }
     }
-  }, [search, toast]);
+  }, [search, filter, toast]);
 
+  const invalidateRequests = useCallback(() => { requestRef.current += 1; }, []);
   useEffect(() => {
+    invalidateRequests();
+    setLoading(true);
+    setLoadingMore(false);
     const timer = window.setTimeout(() => load(), search.trim() ? 250 : 0);
-    return () => window.clearTimeout(timer);
-  }, [load, search]);
+    return () => { window.clearTimeout(timer); invalidateRequests(); };
+  }, [load, search, invalidateRequests]);
+
+  useEffect(() => { setFilter(location.pathname === '/admin/deals' ? 'all' : 'needs-review'); }, [location.pathname]);
 
   const visibleDeals = useMemo(() => deals.filter((deal) => {
     const e = editorialByAsin[deal.asin] || emptyEditorial;
-    if (search.trim()) return true;
     if (filter === 'needs-review') return deal.status === 'PENDING_REVIEW';
     if (filter === 'picks') return e.isHumanPick;
     if (filter === 'ended') return deal.isExpired || deal.status === 'EXPIRED';
     if (filter === 'rejected') return deal.status === 'REJECTED';
     return true;
-  }), [deals, editorialByAsin, filter, search]);
+  }), [deals, editorialByAsin, filter]);
 
   function updateDraft(asin, patch) {
     setEditorialByAsin((prev) => ({ ...prev, [asin]: { ...(prev[asin] || emptyEditorial), ...patch } }));
   }
 
   async function save(deal, override = {}, publish = false) {
+    if (mutationRef.current) return;
+    mutationRef.current = true;
     const current = { ...(editorialByAsin[deal.asin] || emptyEditorial), ...override };
     setBusyAsin(deal.asin);
     try {
@@ -70,6 +99,7 @@ export default function EditorialReview() {
         isHumanPick: Boolean(current.isHumanPick),
       });
       if (publish && deal.status !== 'APPROVED') await dealsApi.update(deal.id || deal.asin, { status: 'APPROVED' });
+      if ((publish && filter === 'needs-review' && deal.status === 'PENDING_REVIEW') || (filter === 'picks' && !saved.isHumanPick)) offsetRef.current = Math.max(0, offsetRef.current - 1);
       setEditorialByAsin((prev) => ({ ...prev, [deal.asin]: saved }));
       setDeals((prev) => prev.map((d) => d.asin === deal.asin ? { ...d, status: publish ? 'APPROVED' : d.status } : d));
       toast({
@@ -78,16 +108,20 @@ export default function EditorialReview() {
     } catch (error) {
       toast({ title: 'Review save failed', description: error.message, variant: 'destructive' });
     } finally {
+      mutationRef.current = false;
       setBusyAsin(null);
     }
   }
 
   async function removeDeal(deal) {
+    if (mutationRef.current) return;
     const label = deal?.title || deal?.asin || 'this deal';
     if (!window.confirm(`Permanently remove "${label}" from DealScout? This cannot be undone.`)) return;
+    mutationRef.current = true;
     setBusyAsin(deal.asin);
     try {
       await dealsApi.delete(deal.id || deal.asin);
+      offsetRef.current = Math.max(0, offsetRef.current - 1);
       setDeals((prev) => prev.filter((d) => d.asin !== deal.asin));
       setEditorialByAsin((prev) => {
         const next = { ...prev };
@@ -98,23 +132,29 @@ export default function EditorialReview() {
     } catch (error) {
       toast({ title: 'Could not remove deal', description: error.message, variant: 'destructive' });
     } finally {
+      mutationRef.current = false;
       setBusyAsin(null);
     }
   }
 
   async function reject(deal) {
+    if (mutationRef.current) return;
+    mutationRef.current = true;
     setBusyAsin(deal.asin);
     try {
-      await editorialApi.save(deal.asin, {
+      if (deal.sourceVerified) await editorialApi.save(deal.asin, {
         editorialNote: editorialByAsin[deal.asin]?.editorialNote || '',
         isHumanPick: false,
       });
       await dealsApi.update(deal.id || deal.asin, { status: 'REJECTED' });
-      setDeals((prev) => prev.filter((d) => d.asin !== deal.asin));
+      if (filter === 'needs-review' || filter === 'picks') offsetRef.current = Math.max(0, offsetRef.current - 1);
+      setDeals((prev) => prev.map((d) => d.asin === deal.asin ? { ...d, status: 'REJECTED' } : d));
+      setEditorialByAsin((prev) => ({ ...prev, [deal.asin]: { ...(prev[deal.asin] || emptyEditorial), isHumanPick: false } }));
       toast({ title: 'Deal rejected', description: 'Removed from the review queue and public feed.' });
     } catch (error) {
       toast({ title: 'Could not reject deal', description: error.message, variant: 'destructive' });
     } finally {
+      mutationRef.current = false;
       setBusyAsin(null);
     }
   }
@@ -128,7 +168,7 @@ export default function EditorialReview() {
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">Search the catalog by title or ASIN. You can review exceptions, manage picks, or permanently remove a deal.</p>
         </div>
         <div className="flex flex-col sm:items-end gap-2">
-          <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title or ASIN" className="w-full sm:w-64 rounded-xl" aria-label="Search admin deals" />
+          <Input value={search} disabled={Boolean(busyAsin) || loadingMore} onChange={(event) => setSearch(event.target.value)} placeholder="Search title or ASIN" className="w-full sm:w-64 rounded-xl" aria-label="Search admin deals" />
           <div className="flex gap-2 flex-wrap">
             {[
               ['needs-review', 'Needs review'],
@@ -137,7 +177,7 @@ export default function EditorialReview() {
               ['rejected', 'Rejected'],
               ['all', 'All catalog'],
             ].map(([key, label]) => (
-              <button key={key} onClick={() => setFilter(key)} className={`px-3 py-2 rounded-xl text-xs font-bold border ${filter === key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200'}`}>{label}</button>
+              <button key={key} disabled={Boolean(busyAsin) || loadingMore} aria-pressed={filter === key} onClick={() => setFilter(key)} className={`px-3 py-2 rounded-xl text-xs font-bold border ${filter === key ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200'}`}>{label}</button>
             ))}
           </div>
         </div>
@@ -148,9 +188,10 @@ export default function EditorialReview() {
         <div><strong>Automatic publishing stays on:</strong> this page is only for manual intervention when you want it.</div>
       </div>
 
+      {loadError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{loadError}<Button variant="outline" onClick={() => load(deals.length > 0)} disabled={loading || loadingMore} className="ml-3">Retry catalog</Button></div>}
       {loading ? (
         <div className="py-24 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-emerald-600" /></div>
-      ) : visibleDeals.length === 0 ? (
+      ) : loadError && visibleDeals.length === 0 ? null : visibleDeals.length === 0 ? (
         <div className="py-20 text-center rounded-3xl border border-slate-200 bg-white"><CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500 mb-3" /><h2 className="font-bold text-slate-900">No matching deals</h2><p className="text-sm text-slate-500 mt-1">Try another search or filter.</p></div>
       ) : (
         <div className="space-y-4">
@@ -182,17 +223,18 @@ export default function EditorialReview() {
                 </div>
 
                 <div className="flex lg:flex-col gap-2 justify-center">
-                  {held && canEditorial && <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, true)} className="rounded-xl font-bold gap-1.5 bg-slate-900 hover:bg-slate-800">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Publish Normally</Button>}
-                  {canEditorial && <Button disabled={busy} onClick={() => save(deal, { isHumanPick: true }, held)} className="rounded-xl font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}{held ? 'Publish as Pick' : e.isHumanPick ? 'Update Pick' : 'Make DealScout Pick'}</Button>}
-                  {held && <Button disabled={busy} onClick={() => reject(deal)} variant="outline" className="rounded-xl font-bold gap-1.5 text-red-700 border-red-200 hover:bg-red-50"><XCircle className="w-4 h-4" /> Reject</Button>}
-                  {canEditorial && <Button disabled={busy} onClick={() => save(deal, { isHumanPick: false }, false)} variant="outline" className="rounded-xl font-bold gap-1.5"><Save className="w-4 h-4" /> Save for Later</Button>}
-                  <Button disabled={busy} onClick={() => removeDeal(deal)} variant="outline" className="rounded-xl font-bold gap-1.5 text-red-800 border-red-300 hover:bg-red-50"><Trash2 className="w-4 h-4" /> Remove Permanently</Button>
+                  {held && canEditorial && <Button disabled={Boolean(busyAsin) || loadingMore} onClick={() => save(deal, { isHumanPick: false }, true)} className="rounded-xl font-bold gap-1.5 bg-slate-900 hover:bg-slate-800">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Publish Normally</Button>}
+                  {canEditorial && <Button disabled={Boolean(busyAsin) || loadingMore} onClick={() => save(deal, { isHumanPick: true }, held)} className="rounded-xl font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700">{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star className="w-4 h-4" />}{held ? 'Publish as Pick' : e.isHumanPick ? 'Update Pick' : 'Make DealScout Pick'}</Button>}
+                  {held && <Button disabled={Boolean(busyAsin) || loadingMore} onClick={() => reject(deal)} variant="outline" className="rounded-xl font-bold gap-1.5 text-red-700 border-red-200 hover:bg-red-50"><XCircle className="w-4 h-4" /> Reject</Button>}
+                  {canEditorial && <Button disabled={Boolean(busyAsin) || loadingMore} onClick={() => save(deal, { isHumanPick: false }, false)} variant="outline" className="rounded-xl font-bold gap-1.5"><Save className="w-4 h-4" /> {held ? 'Save for Later' : e.isHumanPick ? 'Remove Pick' : 'Save Note'}</Button>}
+                  <Button disabled={Boolean(busyAsin) || loadingMore} onClick={() => removeDeal(deal)} variant="outline" className="rounded-xl font-bold gap-1.5 text-red-800 border-red-300 hover:bg-red-50"><Trash2 className="w-4 h-4" /> Remove Permanently</Button>
                 </div>
               </div>
             );
           })}
         </div>
       )}
+      {!loading && hasMore && <Button onClick={() => load(true)} disabled={loadingMore || Boolean(busyAsin)} variant="outline">{loadingMore ? 'Loading…' : 'Load more deals'}</Button>}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 const deals = require('./dealRepository');
 const postgres = require('../storage/postgres');
+const editorial = require('./editorialRepository');
 const { isPublicDeal, freshPriceThreshold, minimumDiscountPercent } = require('../services/publicDealPolicy');
 
 const DISCOUNT_SQL = '(100.0 * (original_price - sale_price) / original_price)';
@@ -30,6 +31,9 @@ function normalizeOptions(options = {}) {
     minRating: numberOrNull(options.minRating),
     sort: options.sort || '-created_date',
     limit,
+    offset: Math.min(1000000, Math.max(0, Number.parseInt(options.offset, 10) || 0)),
+    ended: options.ended === true || options.ended === '1',
+    humanPick: options.humanPick === true || options.humanPick === '1',
   };
 }
 
@@ -41,6 +45,7 @@ function filterFallback(rows, options, isAdmin) {
   const opts = normalizeOptions(options);
   let list = rows.filter((deal) => fallbackVisible(deal, isAdmin));
 
+  if (isAdmin && opts.ended) list = list.filter((deal) => deal.is_expired === 1 || deal.status === 'EXPIRED');
   if (isAdmin && opts.status) list = list.filter((deal) => deal.status === opts.status);
   if (opts.category && opts.category !== 'All' && opts.category !== 'All Deals') {
     const category = opts.category.toLowerCase();
@@ -65,9 +70,10 @@ function filterFallback(rows, options, isAdmin) {
   } else if (opts.sort === 'price_asc') list.sort((a, b) => Number(a.sale_price) - Number(b.sale_price));
   else if (opts.sort === 'price_desc') list.sort((a, b) => Number(b.sale_price) - Number(a.sale_price));
   else if (isAdmin && opts.sort === 'rating_desc') list.sort((a, b) => Number(b.rating) - Number(a.rating));
-  else list.sort((a, b) => Number(b.created_at) - Number(a.created_at));
+  else list.sort((a, b) => Number(b.created_at) - Number(a.created_at) || (isAdmin ? String(a.id).localeCompare(String(b.id)) : 0));
 
-  return list.slice(0, opts.limit);
+  const offset = isAdmin ? opts.offset : 0;
+  return list.slice(offset, offset + opts.limit);
 }
 
 function addParam(params, value) {
@@ -85,7 +91,14 @@ function postgresOrder(sort, isAdmin) {
 
 async function list(options = {}, { isAdmin = false } = {}) {
   const opts = normalizeOptions(options);
-  if (!postgres.isConfigured()) return filterFallback(await deals.listAll(), opts, isAdmin);
+  if (!postgres.isConfigured()) {
+    let rows = await deals.listAll();
+    if (isAdmin && opts.humanPick) {
+      const picked = new Set((await editorial.listForAsins(rows.map((row) => row.asin))).filter((row) => row.is_human_pick).map((row) => row.asin));
+      rows = rows.filter((row) => picked.has(row.asin));
+    }
+    return filterFallback(rows, opts, isAdmin);
+  }
 
   await deals.ensureSchema();
   const where = [];
@@ -93,6 +106,11 @@ async function list(options = {}, { isAdmin = false } = {}) {
 
   if (isAdmin) {
     if (opts.status) where.push(`status = ${addParam(params, opts.status)}`);
+    if (opts.ended) where.push("(is_expired = 1 OR status = 'EXPIRED')");
+    if (opts.humanPick) {
+      await editorial.ensureSchema();
+      where.push('EXISTS (SELECT 1 FROM deal_editorial e WHERE e.asin = deals.asin AND e.is_human_pick = TRUE)');
+    }
   } else {
     const nowSeconds = Math.floor(Date.now() / 1000);
     where.push("status = 'APPROVED'");
@@ -125,11 +143,12 @@ async function list(options = {}, { isAdmin = false } = {}) {
   if (isAdmin && opts.minRating !== null) where.push(`rating >= ${addParam(params, opts.minRating)}`);
 
   const limitPlaceholder = addParam(params, opts.limit);
+  const offsetSql = isAdmin && opts.offset ? ` OFFSET ${addParam(params, opts.offset)}` : '';
   const result = await postgres.query(
     `SELECT * FROM deals
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-      ORDER BY ${postgresOrder(opts.sort, isAdmin)}
-      LIMIT ${limitPlaceholder}`,
+      ORDER BY ${postgresOrder(opts.sort, isAdmin)}${isAdmin ? ', id ASC' : ''}
+      LIMIT ${limitPlaceholder}${offsetSql}`,
     params,
   );
   return result.rows.map(deals.normalizeRecord);

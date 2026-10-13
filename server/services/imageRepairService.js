@@ -3,7 +3,7 @@ const postgres = require('../storage/postgres');
 const { fetchProductByAsin } = require('./providerRouter');
 
 const IMAGE_REPAIR_LOCK_ID = 44004;
-const PROVIDER_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN']);
+const PROVIDER_STOP_CODES = new Set(['PROVIDER_BUDGET_EXCEEDED', 'PROVIDER_COOLDOWN', 'PROVIDER_PAUSED']);
 
 let lastRun = null;
 let lastResult = null;
