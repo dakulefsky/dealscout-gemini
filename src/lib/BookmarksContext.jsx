@@ -8,6 +8,7 @@ export function BookmarksProvider({ children }) {
   const [savedDealIds, setSavedDealIds] = useState([]);
   const [savedDealsList, setSavedDealsList] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const requestVersion = useRef(0);
   const pendingIds = useRef(new Set());
   const { toast } = useToast();
@@ -16,12 +17,14 @@ export function BookmarksProvider({ children }) {
     const version = ++requestVersion.current;
     try {
       setIsLoading(true);
+      setLoadError(null);
       const res = await bookmarksApi.list();
       if (version !== requestVersion.current || pendingIds.current.size) return;
       setSavedDealIds((res.bookmarkIds || []).map(String));
       setSavedDealsList(res.deals || []);
     } catch (err) {
       console.error('Failed to load bookmarks:', err);
+      if (version === requestVersion.current && !pendingIds.current.size) setLoadError('Your saved deals could not be loaded. Please try again.');
     } finally {
       if (version === requestVersion.current) setIsLoading(false);
     }
@@ -87,6 +90,7 @@ export function BookmarksProvider({ children }) {
         savedDealIds,
         savedDealsList,
         isLoading,
+        loadError,
         toggleBookmark,
         isSaved,
         refreshBookmarks: fetchBookmarks,

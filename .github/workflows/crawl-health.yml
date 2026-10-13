@@ -9,6 +9,9 @@ on:
       - scripts/crawl-check.mjs
       - shared/dealCollections.json
       - shared/buyingGuide.json
+      - shared/articles.json
+      - shared/followContent.json
+      - server/services/dealRssService.js
       - .github/workflows/crawl-health.yml
   schedule:
     - cron: '17 */6 * * *'

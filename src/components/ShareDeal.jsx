@@ -1,19 +1,24 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Share2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { shareDeal } from '@/lib/shareDeal';
 
 export default function ShareDeal({ deal }) {
+  const messageRef = useRef(null);
+  const linkRef = useRef(null);
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   const share = shareDeal(deal);
-  async function copy() {
+  async function copy(value = share.message, linkOnly = false) {
     try {
-      await navigator.clipboard.writeText(share.message);
-      toast({ title: 'Deal copied', description: 'Product details and link are ready to paste.' });
+      await navigator.clipboard.writeText(value);
+      toast({ title: linkOnly ? 'Link copied' : 'Deal copied', description: linkOnly ? 'The deal link is ready to paste.' : 'Product details and link are ready to paste.' });
     } catch {
-      toast({ title: 'Select and copy the message below', variant: 'destructive' });
+      const input = linkOnly ? linkRef.current : messageRef.current;
+      input?.focus();
+      input?.select();
+      toast({ title: linkOnly ? 'Link selected — copy it' : 'Message selected — copy it' });
     }
   }
   async function nativeShare() {
@@ -34,10 +39,12 @@ export default function ShareDeal({ deal }) {
       </div>
       <div className="flex flex-wrap gap-2">
         <a href={`https://wa.me/?text=${encodeURIComponent(share.message)}`} target="_blank" rel="noopener noreferrer" className="rounded-md bg-emerald-950 text-white px-4 py-2 text-sm font-semibold">WhatsApp</a>
-        <button type="button" onClick={copy} className="rounded-md border px-4 py-2 text-sm font-semibold">Copy deal</button>
+        <button type="button" onClick={() => copy()} className="rounded-md border px-4 py-2 text-sm font-semibold">Copy deal</button>
+        <button type="button" onClick={() => copy(share.url, true)} className="rounded-md border px-4 py-2 text-sm font-semibold">Copy link</button>
         {typeof navigator.share === 'function' && <button type="button" onClick={nativeShare} className="rounded-md border px-4 py-2 text-sm font-semibold">More options</button>}
       </div>
-      <label className="text-xs text-slate-500">Message<textarea readOnly value={share.message} className="mt-1 w-full rounded border p-2 text-sm text-slate-700" rows={5} /></label>
+      <label className="text-xs text-slate-500">Message<textarea ref={messageRef} readOnly value={share.message} className="mt-1 w-full rounded border p-2 text-sm text-slate-700" rows={5} /></label>
+      <label className="text-xs text-slate-500">Deal link<input ref={linkRef} readOnly value={share.url} className="mt-1 w-full rounded border p-2 text-xs text-slate-700" /></label>
       <p className="text-xs text-slate-500">The receiving app decides how the link preview appears.</p>
     </DialogContent>
   </Dialog>;

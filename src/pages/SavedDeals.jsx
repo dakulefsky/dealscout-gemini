@@ -4,7 +4,7 @@ import { useBookmarks } from '@/lib/BookmarksContext';
 import DealCard from '@/components/DealCard';
 
 export default function SavedDeals() {
-  const { savedDealsList, isLoading } = useBookmarks();
+  const { savedDealsList, isLoading, loadError, refreshBookmarks } = useBookmarks();
 
   return (
     <div className="ds-shell py-8 sm:py-12 pb-20">
@@ -19,9 +19,10 @@ export default function SavedDeals() {
       </header>
 
       <main className="pt-8 sm:pt-10">
+        {loadError && <div role="alert" className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{loadError}<button type="button" onClick={refreshBookmarks} disabled={isLoading} className="ml-3 font-semibold underline">Retry saved deals</button></div>}
         {isLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">{[1, 2, 3, 4].map((n) => <div key={n} className="border border-emerald-950/10 bg-white animate-pulse"><div className="aspect-[4/3] bg-stone-100" /><div className="p-4 space-y-3"><div className="h-3 bg-stone-100" /><div className="h-5 w-24 bg-stone-100" /></div></div>)}</div>
-        ) : savedDealsList.length === 0 ? (
+        ) : loadError && savedDealsList.length === 0 ? null : savedDealsList.length === 0 ? (
           <section className="max-w-3xl mx-auto py-16 sm:py-24 text-center border-y border-emerald-950/10">
             <Bookmark className="w-9 h-9 mx-auto text-emerald-800" />
             <div className="ds-kicker mt-5">Nothing here yet</div>
