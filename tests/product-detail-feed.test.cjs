@@ -57,9 +57,9 @@ test('product sharing keeps native sharing and honest clipboard feedback', () =>
   assert.match(source, /<ShareDeal/);
   assert.match(share, /await navigator\.share/);
   assert.match(share, /AbortError/);
-  assert.match(share, /await navigator\.clipboard\.writeText\(share\.message\)/);
-  assert.ok(share.indexOf('await navigator.clipboard.writeText') < share.indexOf("title: 'Deal copied'"));
-  assert.match(share, /Select and copy the message below/);
+  assert.match(share, /await navigator\.clipboard\.writeText\(value\)/);
+  assert.ok(share.indexOf('await navigator.clipboard.writeText') < share.indexOf("'Deal copied'"));
+  assert.match(share, /Message selected — copy it/);
 });
 
 

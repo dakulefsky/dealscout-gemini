@@ -11,6 +11,7 @@ import DealDetail from '@/pages/DealDetail';
 
 const DealCollection = lazy(() => import('@/pages/DealCollection'));
 const About = lazy(() => import('@/pages/About'));
+const FollowDeals = lazy(() => import('@/pages/FollowDeals'));
 const Articles = lazy(() => import('@/pages/Articles'));
 const BuyingGuide = lazy(() => import('@/pages/BuyingGuide'));
 const HowWeFindDeals = lazy(() => import('@/pages/HowWeFindDeals'));
@@ -79,6 +80,7 @@ export default function App() {
                   <Route path="/deal/:id" element={<ProductRoute />} />
                   <Route path="/deals/:slug" element={<DealCollection />} />
                   <Route path="/about" element={<About />} />
+                  <Route path="/follow" element={<FollowDeals />} />
                   <Route path="/articles" element={<Articles />} />
                   <Route path="/articles/:slug" element={<Articles />} />
                   <Route path="/guides/amazon-deal-checklist" element={<BuyingGuide />} />

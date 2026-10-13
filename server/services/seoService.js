@@ -75,6 +75,7 @@ function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now()
     { loc: `${baseUrl}/about` },
     { loc: `${baseUrl}/guides/${require('../../shared/buyingGuide.json').slug}` },
     { loc: `${baseUrl}/articles` },
+    { loc: `${baseUrl}/follow` },
     ...require('../../shared/articles.json').map(article => ({ loc: `${baseUrl}/articles/${article.slug}` })),
     { loc: `${baseUrl}/disclosure` },
     { loc: `${baseUrl}/privacy` },
@@ -87,7 +88,7 @@ function buildRobots(baseUrl) {
   return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nAllow: /api/v1/deals\nAllow: /api/v1/categories\nAllow: /api/v1/seasonal-promotion\nAllow: /api/editorial/\nSitemap: ${baseUrl}/sitemap.xml\n`;
 }
 
-function replaceMeta(html, { title, description, canonical, robots = 'index,follow', jsonLd, image, nonce, verificationToken }) {
+function replaceMeta(html, { title, description, canonical, robots = 'index,follow', jsonLd, image, nonce, verificationToken, feedUrl }) {
   let out = html;
   out = out.replace(/<title>.*?<\/title>/i, `<title>${htmlEscape(title)}</title>`);
   out = out.replace(/<meta name="description"[^>]*>/i, `<meta name="description" content="${htmlEscape(description)}" />`);
@@ -97,10 +98,12 @@ function replaceMeta(html, { title, description, canonical, robots = 'index,foll
   out = out
     .replace(/\s*<meta\s+name=["']robots["'][^>]*>/gi, '')
     .replace(/\s*<link\s+rel=["']canonical["'][^>]*>/gi, '')
+    .replace(/\s*<link\b(?=[^>]*\brel=["']alternate["'])(?=[^>]*\btype=["']application\/rss\+xml["'])[^>]*>/gi, '')
     .replace(/\s*<meta\s+property=["']og:(?:title|description|url|image|site_name)["'][^>]*>/gi, '')
     .replace(/\s*<meta\s+name=["']twitter:(?:card|title|description|image)["'][^>]*>/gi, '');
 
   const additions = [
+    feedUrl ? `<link rel="alternate" type="application/rss+xml" title="DealScout deal feed" href="${htmlEscape(feedUrl)}" />` : '',
     verificationToken && /^[A-Za-z0-9_-]{1,256}$/.test(verificationToken) ? `<meta name="google-site-verification" content="${htmlEscape(verificationToken)}" />` : '',
     `<meta name="robots" content="${htmlEscape(robots)}" />`,
     canonical ? `<link rel="canonical" href="${htmlEscape(canonical)}" />` : '',

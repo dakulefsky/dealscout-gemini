@@ -1,0 +1,9 @@
+{
+  "title": "Follow new deals",
+  "intro": "Keep up with DealScout in your feed reader, or save individual deals to revisit on this device.",
+  "feedTitle": "Add DealScout to your RSS reader",
+  "feedDescription": "Copy a feed URL into your reader’s add-feed field. The feed uses the same approved, recently checked catalog as the website. No DealScout account is required.",
+  "priceNote": "Feed readers can keep older entries. Each entry states when its price was checked; open the deal and confirm the current offer on Amazon before buying.",
+  "savedTitle": "Keep your own shortlist",
+  "savedDescription": "Tap the heart on a deal to save it, then return to Saved Deals on this device. This is a shortlist to check again, not an email subscription or a promise that a price will stay the same."
+}

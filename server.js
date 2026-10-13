@@ -98,7 +98,7 @@ function categoryInitialContent(category, deals = []) {
 
 function homeInitialContent(categories = [], deals = []) {
   const links = categories.map((category) => `<li><a href="/category/${encodeURIComponent(category.slug)}">${escapeHtml(category.name)}</a></li>`).join('');
-  return `<main data-server-crawl-content="home"><h1>Amazon deals &amp; price drops worth checking</h1><p>DealScout surfaces current Amazon discounts with recently verified prices and clear savings.</p>${links ? `<nav aria-label="Deal categories"><h2>Browse current deal categories</h2><ul>${links}</ul></nav>` : ''}${deals.length ? `<section><h2>Recently checked deals</h2><ul>${deals.map(deal => `<li><a href="/deal/${encodeURIComponent(deal.id || deal.asin)}">${escapeHtml(deal.title)}</a> — $${Number(deal.sale_price).toFixed(2)} <span>${escapeHtml(deal.category)}</span></li>`).join('')}</ul></section>` : ''}<nav aria-label="Deal collections"><h2>Browse by product and budget</h2><ul>${dealCollections.map((c) => `<li><a href="/deals/${c.slug}">${escapeHtml(c.shortName)}</a></li>`).join('')}</ul></nav><footer><a href="/articles">Articles</a> · <a href="/how-we-find-deals">How DealScout finds deals</a></footer></main>`;
+  return `<main data-server-crawl-content="home"><h1>Amazon deals &amp; price drops worth checking</h1><p>DealScout surfaces current Amazon discounts with recently verified prices and clear savings.</p>${links ? `<nav aria-label="Deal categories"><h2>Browse current deal categories</h2><ul>${links}</ul></nav>` : ''}${deals.length ? `<section><h2>Recently checked deals</h2><ul>${deals.map(deal => `<li><a href="/deal/${encodeURIComponent(deal.id || deal.asin)}">${escapeHtml(deal.title)}</a> — $${Number(deal.sale_price).toFixed(2)} <span>${escapeHtml(deal.category)}</span></li>`).join('')}</ul></section>` : ''}<nav aria-label="Deal collections"><h2>Browse by product and budget</h2><ul>${dealCollections.map((c) => `<li><a href="/deals/${c.slug}">${escapeHtml(c.shortName)}</a></li>`).join('')}</ul></nav><footer><a href="/articles">Articles</a> · <a href="/follow">Follow deals</a> · <a href="/how-we-find-deals">How DealScout finds deals</a></footer></main>`;
 }
 
 async function startServer() {
@@ -200,6 +200,25 @@ async function startServer() {
     }
   });
 
+  app.get('/feed.xml', async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Robots-Tag', 'noindex, follow');
+    try {
+      let category = null;
+      if (req.query.category !== undefined) {
+        if (typeof req.query.category !== 'string' || !/^[a-z0-9-]{1,60}$/.test(req.query.category)) return res.status(400).type('text/plain').send('Invalid department');
+        const rows = await categoryRepository.list({ slug: req.query.category, activeOnly: false });
+        if (!rows[0]) return res.status(404).type('text/plain').send('Department not found');
+        category = rows[0];
+      }
+      const page = await dealFeedRepository.page({ limit: 24, sort: '-created_date', ...(category ? { category: category.name } : {}) });
+      return res.type('application/rss+xml').send(require('./server/services/dealRssService').buildDealRss({ baseUrl: seo.siteBase(req, publicWebUrl), deals: page.items, category }));
+    } catch (error) {
+      console.warn('[DealScout] RSS feed unavailable:', error.message);
+      return res.status(503).set('Retry-After', '60').type('text/plain').send('Deal feed temporarily unavailable');
+    }
+  });
+
   app.use('/api/v1', buildShopperApi({ version: 1 }));
   app.use('/api', buildShopperApi());
   app.use('/api/editorial', require('./server/routes/editorial.js'));
@@ -271,6 +290,11 @@ async function startServer() {
             const payload = JSON.stringify({ scope: `collection/${collection.slug}`, items: page.items.map(row => require('./server/services/publicDealDto').rowToDeal(row)), nextCursor: page.nextCursor }).replace(/</g, '\\u003c');
             initialContent += `<script type="application/json" id="initial-scoped-deals" nonce="${escapeHtml(res.locals.cspNonce)}">${payload}</script>`;
           }
+        } else if (req.path === '/follow') {
+          const content = require('./shared/followContent.json');
+          const categories = await categoryRepository.list({ activeOnly: true });
+          meta = { title: `${content.title} — DealScout`, description: content.intro, canonical: `${baseUrl}/follow` };
+          initialContent = `<main data-server-crawl-content="follow"><h1>${escapeHtml(content.title)}</h1><p>${escapeHtml(content.intro)}</p><h2>${escapeHtml(content.feedTitle)}</h2><p>${escapeHtml(content.feedDescription)}</p><ul><li><a href="${baseUrl}/feed.xml">All departments RSS feed</a></li>${categories.map(category => `<li><a href="${escapeHtml(`${baseUrl}/feed.xml?category=${encodeURIComponent(category.slug)}`)}">${escapeHtml(category.name)} RSS feed</a></li>`).join('')}</ul><p>${escapeHtml(content.priceNote)}</p><h2>${escapeHtml(content.savedTitle)}</h2><p>${escapeHtml(content.savedDescription)}</p><p><a href="/saved">Open Saved Deals</a></p></main>`;
         } else if (req.path === '/articles' || /^\/articles\/[^/]+$/.test(req.path)) {
           const page = require('./server/services/articlesService').page(baseUrl, req.path === '/articles' ? null : decodeURIComponent(req.path.slice('/articles/'.length)));
           meta = page.meta;
@@ -337,6 +361,7 @@ async function startServer() {
         let verificationToken = '';
         try { verificationToken = await require('./server/services/searchConsoleService').token(); }
         catch { console.warn('[DealScout] Search verification settings unavailable'); }
+        meta = { ...meta, feedUrl: req.path.startsWith('/admin') ? null : `${baseUrl}/feed.xml` };
         const rendered = seo.replaceMeta(indexTemplate, { ...meta, verificationToken, nonce: res.locals.cspNonce });
         const nonceReady = applyScriptNonce(rendered, res.locals.cspNonce);
         res.status(status).type('html').send(injectInitialContent(nonceReady, initialContent));

@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
+const evergreenPaths = ['/articles', ...createRequire(import.meta.url)('../shared/articles.json').map(article => `/articles/${article.slug}`), '/follow'];
 const collections = createRequire(import.meta.url)('../shared/dealCollections.json');
 
 // Only visit the public origin and a bounded sample; never call discovery APIs.
@@ -44,7 +45,16 @@ export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = g
   const guideUrl = `${origin}/guides/${createRequire(import.meta.url)('../shared/buyingGuide.json').slug}`;
   const guidePublished = urls.includes(guideUrl);
   if (!guidePublished && !allowUnpublishedGuides) throw new Error('Sitemap is missing the buying guide');
+  const publishedContent = evergreenPaths.map(path => origin + path).filter(url => urls.includes(url));
+  const unpublishedContent = evergreenPaths.map(path => origin + path).filter(url => !urls.includes(url));
+  if (unpublishedContent.length && !allowUnpublishedGuides) throw new Error(`Sitemap is missing content pages: ${unpublishedContent.join(', ')}`);
+  const feedPublished = urls.includes(origin + '/follow');
+  if (feedPublished) {
+    const feed = await get(origin + '/feed.xml');
+    if (feed.status !== 200 || !feed.text.includes('<rss version="2.0"') || !feed.text.includes('<channel>') || !feed.text.includes(`href="${origin}/feed.xml"`)) throw new Error('Deal RSS feed is unavailable or malformed');
+  }
   const sampled = [
+    ...publishedContent,
     origin + '/about',
     ...(guidePublished ? [guideUrl] : []),
     ...urls.filter((u) => new URL(u).pathname.startsWith('/category/')).slice(0, 2),
@@ -62,6 +72,7 @@ export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = g
     if (page.status !== 200) throw new Error(`${url} returned HTTP ${page.status}`);
     if (!page.text.includes('data-server-crawl-content=')) throw new Error(`${url} has no crawlable content`);
     if (!page.text.includes(`href="${url}"`)) throw new Error(`${url} has no matching canonical`);
+    if (publishedContent.includes(url) && (!/<h1>[^<]+<\/h1>/.test(page.text) || !/<p>[^<]+<\/p>/.test(page.text))) throw new Error(`${url} is missing server-rendered article text`);
     if (new URL(url).pathname.startsWith('/deals/')) {
       const robots = page.text.match(/<meta\b(?=[^>]*\bname=["']robots["'])(?=[^>]*\bcontent=["']([^"']*)["'])[^>]*>/i)?.[1];
       if (!robots) throw new Error(`${url} has no robots directive`);
@@ -73,7 +84,7 @@ export async function checkCrawl(base = 'https://dealscouted.com', fetchImpl = g
       }
     }
   }
-  return { scheduledClosure: false, checked: sampled.length + 3, expiredProductLinks: expired, collectionsChecked: collections.length, emptyCollections, guidesChecked: guidePublished ? 1 : 0, unpublishedGuides: guidePublished ? [] : [guideUrl], sitemapUrls: urls.length };
+  return { scheduledClosure: false, checked: sampled.length + 3 + (feedPublished ? 1 : 0), contentPagesChecked: publishedContent.length, unpublishedContentPages: unpublishedContent, feedChecked: feedPublished, expiredProductLinks: expired, collectionsChecked: collections.length, emptyCollections, guidesChecked: guidePublished ? 1 : 0, unpublishedGuides: guidePublished ? [] : [guideUrl], sitemapUrls: urls.length };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   checkCrawl(undefined, undefined, { allowUnpublishedGuides: process.env.CRAWL_CHECK_ALLOW_UNPUBLISHED_GUIDES === 'true' }).then((result) => console.log(JSON.stringify(result)))

@@ -1,12 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const base = 'https://dealscouted.com';
-function fixture({ scheduled = false, broken = false, outage = false, collectionError, missingProductLinks = false, emptyCollections = false, unpublishedGuide = false } = {}) {
+function fixture({ scheduled = false, broken = false, outage = false, collectionError, missingProductLinks = false, emptyCollections = false, unpublishedGuide = false, unpublishedContent = false, brokenFeed = false, emptyArticle = false } = {}) {
   return async (url) => {
     const pathname = new URL(url).pathname;
     if (pathname === '/') return new Response('data-server-crawl-content="home"', { status: outage || scheduled ? 503 : 200, headers: scheduled ? { 'x-dealscout-closure': 'scheduled' } : {} });
     if (pathname === '/robots.txt') return new Response(`Sitemap: ${base}/sitemap.xml`);
-    if (pathname === '/sitemap.xml') return new Response(`<urlset><loc>${base}/</loc><loc>${base}/deal/ABC</loc><loc>${base}/about</loc>${unpublishedGuide ? '' : `<loc>${base}/guides/amazon-deal-checklist</loc>`}</urlset>`);
+    if (pathname === '/feed.xml') return new Response(brokenFeed ? 'unavailable' : `<rss version="2.0"><channel><atom:link href="${base}/feed.xml" /></channel></rss>`, { status: brokenFeed ? 503 : 200 });
+    if (pathname === '/sitemap.xml') return new Response(`<urlset><loc>${base}/</loc><loc>${base}/deal/ABC</loc><loc>${base}/about</loc>${unpublishedContent ? '' : ['/articles', '/follow', ...require('../shared/articles.json').map(article => `/articles/${article.slug}`)].map(path => `<loc>${base}${path}</loc>`).join('')}${unpublishedGuide ? '' : `<loc>${base}/guides/amazon-deal-checklist</loc>`}</urlset>`);
+    if (pathname.startsWith('/articles') || pathname === '/follow') return new Response(`<main data-server-crawl-content="article">${emptyArticle ? '' : '<h1>Comparison guide</h1><p>Useful comparison content.</p>'}</main><link rel="canonical" href="${url}">`);
     if (pathname.startsWith('/deals/')) return new Response(`<main data-server-crawl-content="collection">${missingProductLinks || emptyCollections ? '' : '<a href="/deal/ABC">Current deal</a>'}</main><link rel="canonical" href="${url}"><meta name="robots" content="${emptyCollections ? 'noindex' : 'index'},follow">`, { status: pathname === collectionError ? 503 : 200 });
     return new Response(`<main data-server-crawl-content="deal"></main><link rel="canonical" href="${url}">`, { status: broken && pathname.startsWith('/deal/') ? 503 : 200 });
   };
@@ -14,7 +16,7 @@ function fixture({ scheduled = false, broken = false, outage = false, collection
 test('crawl monitor fails on unexpected outages and product errors', async () => {
   const { checkCrawl } = await import('../scripts/crawl-check.mjs');
   const collections = require('../shared/dealCollections.json');
-  assert.equal((await checkCrawl(base, fixture())).checked, 6 + collections.length);
+  assert.equal((await checkCrawl(base, fixture())).checked, 11 + collections.length);
   await assert.rejects(checkCrawl(base, fixture({ broken: true })), /ABC returned HTTP 503/);
   await assert.rejects(checkCrawl(base, fixture({ outage: true })), /Homepage returned HTTP 503/);
 });
@@ -38,4 +40,14 @@ test('pre-deployment checks report unpublished guides while production requires 
   const result = await checkCrawl(base, fixture({ unpublishedGuide: true }), { allowUnpublishedGuides: true });
   assert.equal(result.guidesChecked, 0);
   assert.deepEqual(result.unpublishedGuides, [`${base}/guides/amazon-deal-checklist`]);
+});
+
+test('crawl monitor protects published articles and feeds while allowing a new feature before deployment', async () => {
+  const { checkCrawl } = await import('../scripts/crawl-check.mjs');
+  await assert.rejects(checkCrawl(base, fixture({ unpublishedContent: true })), /Sitemap is missing content pages/);
+  await assert.rejects(checkCrawl(base, fixture({ brokenFeed: true })), /RSS feed is unavailable/);
+  await assert.rejects(checkCrawl(base, fixture({ emptyArticle: true })), /missing server-rendered article text/);
+  const result = await checkCrawl(base, fixture({ unpublishedContent: true }), { allowUnpublishedGuides: true });
+  assert.equal(result.feedChecked, false);
+  assert.equal(result.unpublishedContentPages.length, 4);
 });

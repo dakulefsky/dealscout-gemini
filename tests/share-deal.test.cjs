@@ -7,7 +7,8 @@ test('shared message includes product and fresh savings, but never stale prices'
   const fresh = shareDeal(deal, now);
   assert.match(fresh.message, /Coffee maker\n\$40.00 · 50% off/);
   assert.equal(fresh.url, 'https://dealscouted.com/deal/B123');
-  for (const change of [{ priceCheckAt: now / 1000 - 86401 }, { isExpired: true }, { sourceVerified: false }, { priceCheckAt: now / 1000 + 100 }]) {
+  assert.equal(shareDeal(null, now).url, 'https://dealscouted.com/');
+  for (const change of [{ status: 'REJECTED' }, { status: 'EXPIRED' }, { priceCheckAt: now / 1000 - 86401 }, { isExpired: true }, { sourceVerified: false }, { priceCheckAt: now / 1000 + 100 }]) {
     assert.doesNotMatch(shareDeal({ ...deal, ...change }, now).message, /\$|% off/);
   }
 });
