@@ -14,6 +14,7 @@ test('only active verified deals with missing or invalid images need repair', ()
 test('manual image repair stops after provider-wide budget or cooldown deferral', () => {
   assert.equal(shouldStopImageRepair({ code: 'PROVIDER_BUDGET_EXCEEDED' }), true);
   assert.equal(shouldStopImageRepair({ code: 'PROVIDER_COOLDOWN' }), true);
+  assert.equal(shouldStopImageRepair({ code: 'PROVIDER_PAUSED' }), true);
   assert.equal(shouldStopImageRepair({ code: 'ITEM_NOT_FOUND' }), false);
   assert.equal(shouldStopImageRepair(new Error('ordinary failure')), false);
 });

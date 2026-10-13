@@ -9,7 +9,9 @@ function imageRepairEndpoint(req, res, next) {
   return requireAdmin(req, res, async () => {
     try {
       if (isHealth) return res.json({ success: true, ...(await imageHealth()) });
-      const result = await repairMissingImages(req.body?.limit || 20);
+      const limit = Math.min(3, Math.max(1, Number(req.body?.limit) || 3));
+      const result = await repairMissingImages(limit);
+      if (result?.skipped) return res.status(409).json({ error: 'Image repair is already running. Wait a moment, then try again.', code: 'IMAGE_REPAIR_IN_PROGRESS' });
       res.json({ success: true, ...result });
     } catch (error) {
       res.status(500).json({ error: error.message || 'Image maintenance failed' });

@@ -72,6 +72,9 @@ function providerDealRecord(item, status = 'PENDING_REVIEW', productUrl, quality
 }
 
 function providerErrorResponse(res, err, fallback = 'Provider request failed') {
+  if (err?.code === 'PROVIDER_PAUSED') {
+    return res.status(409).json({ error: 'Provider API is paused. Resume it in Site settings before trying again.', code: err.code });
+  }
   if (err?.code === 'PROVIDER_BUDGET_EXCEEDED') {
     return res.status(429).json({ error: 'Provider request budget reached.', code: err.code, scope: err.scope, limit: err.limit });
   }
@@ -265,6 +268,9 @@ router.post('/fetch-deals', requireAdmin, async (req, res) => {
   try {
     const maxResults = Math.min(50, Math.max(1, Number(req.body?.maxDeals) || 15));
     const result = await dealCron.syncDailyDeals({ maxResults, overrideDailyLimit: req.body?.overrideDailyLimit === true });
+    if (result?.skipped) {
+      return res.status(409).json({ error: ['LOCK_HELD', 'ALREADY_RUNNING'].includes(result.reason) ? 'A deal pull is already running. Wait a moment, then try again.' : 'Deal discovery did not run. Refresh the dashboard before trying again.', code: 'DISCOVERY_NOT_RUN', reason: result.reason });
+    }
     if (result?.status === 'NOTICE' && result.error) return res.status(502).json({ error: result.error });
     if (result?.status === 'DEFERRED') return providerErrorResponse(res, result, 'Provider deferred the pull');
     res.json({

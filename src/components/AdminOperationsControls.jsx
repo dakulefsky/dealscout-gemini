@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Loader2, MapPin, PauseCircle, PlayCircle, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { functions } from '@/lib/api';
@@ -13,6 +13,10 @@ function localTime(iso, timeZone) {
 }
 
 export default function AdminOperationsControls() {
+  const apiBusyRef = useRef(false);
+  const locationBusyRef = useRef(false);
+  const [loadErrors, setLoadErrors] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState(null);
   const [calendar, setCalendar] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -20,18 +24,22 @@ export default function AdminOperationsControls() {
   const { toast } = useToast();
 
   async function load() {
+    setLoading(true);
     const [settingsResult, calendarResult] = await Promise.allSettled([
       functions.channelSettings(), functions.jewishCalendar(),
     ]);
     if (settingsResult.status === 'fulfilled') setSettings(settingsResult.value);
     if (calendarResult.status === 'fulfilled') setCalendar(calendarResult.value);
+    setLoadErrors([settingsResult.status === 'rejected' ? 'provider API' : null, calendarResult.status === 'rejected' ? 'closure calendar' : null].filter(Boolean));
+    setLoading(false);
   }
 
   useEffect(() => { load(); }, []);
 
   const apiEnabled = settings?.providerApi?.enabled !== false;
   async function toggleApi() {
-    if (!settings || busy) return;
+    if (!settings || apiBusyRef.current) return;
+    apiBusyRef.current = true;
     setBusy(true);
     try {
       const next = !apiEnabled;
@@ -41,12 +49,14 @@ export default function AdminOperationsControls() {
     } catch (error) {
       toast({ title: 'Could not change API state', description: error.message, variant: 'destructive' });
     } finally {
+      apiBusyRef.current = false;
       setBusy(false);
     }
   }
 
   async function switchLocation(location) {
-    if (locationBusy || calendar?.location === location) return;
+    if (!calendar || locationBusyRef.current || calendar.location === location) return;
+    locationBusyRef.current = true;
     setLocationBusy(true);
     try {
       const result = await functions.setJewishCalendarLocation(location);
@@ -55,14 +65,16 @@ export default function AdminOperationsControls() {
     } catch (error) {
       toast({ title: 'Could not change closure location', description: error.message, variant: 'destructive' });
     } finally {
+      locationBusyRef.current = false;
       setLocationBusy(false);
     }
   }
 
-  const selectedLocation = calendar?.location || 'jerusalem';
+  const selectedLocation = calendar?.location;
 
   return (
     <section className="grid lg:grid-cols-2 gap-4">
+      {loadErrors.length > 0 && <div role="alert" className="lg:col-span-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Could not load {loadErrors.join(' and ')} settings.<Button onClick={load} disabled={loading || busy || locationBusy} variant="outline" className="ml-3">Retry operational settings</Button></div>}
       <div className="bg-white border border-slate-200 rounded-3xl p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -70,11 +82,11 @@ export default function AdminOperationsControls() {
             <h2 className="text-xl font-black text-slate-900 mt-2">Deal-provider API</h2>
             <p className="text-sm text-slate-500 mt-2">Pausing blocks outbound Amazon/Rainforest provider calls before budget reservation. The existing catalog stays online.</p>
           </div>
-          <span className={`text-xs font-black ${apiEnabled ? 'text-emerald-700' : 'text-amber-700'}`}>{settings ? (apiEnabled ? 'RUNNING' : 'PAUSED') : 'LOADING'}</span>
+          <span className={`text-xs font-black ${apiEnabled ? 'text-emerald-700' : 'text-amber-700'}`}>{settings ? (apiEnabled ? 'RUNNING' : 'PAUSED') : loading ? 'LOADING' : 'UNAVAILABLE'}</span>
         </div>
         <Button onClick={toggleApi} disabled={!settings || busy} variant="outline" className="mt-4 w-full rounded-xl gap-2 font-bold">
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : apiEnabled ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
-          {apiEnabled ? 'Pause provider API' : 'Resume provider API'}
+          {!settings ? 'Provider API unavailable' : apiEnabled ? 'Pause provider API' : 'Resume provider API'}
         </Button>
       </div>
 
@@ -85,7 +97,7 @@ export default function AdminOperationsControls() {
             <h2 className="text-xl font-black text-slate-900 mt-2">Shabbat &amp; Yom Tov</h2>
             <p className="text-sm text-slate-500 mt-2">Choose which local Jewish calendar controls the shopper-site shutdown.</p>
           </div>
-          <span className={`text-xs font-black ${calendar?.status?.closed ? 'text-amber-700' : 'text-emerald-700'}`}>{calendar ? (calendar.status?.closed ? 'CLOSED NOW' : 'OPEN NOW') : 'LOADING'}</span>
+          <span className={`text-xs font-black ${calendar?.status?.closed ? 'text-amber-700' : 'text-emerald-700'}`}>{calendar ? (calendar.status?.closed ? 'CLOSED NOW' : 'OPEN NOW') : loading ? 'LOADING' : 'UNAVAILABLE'}</span>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2" aria-label="Closure validation location">

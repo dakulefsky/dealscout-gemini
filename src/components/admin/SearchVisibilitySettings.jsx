@@ -1,10 +1,48 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { functions } from '@/lib/api';
+
 export default function SearchVisibilitySettings() {
   const [token, setToken] = useState('');
   const [message, setMessage] = useState('Loading verification settings…');
+  const [loaded, setLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  useEffect(() => { let active = true; functions.seoSettings().then(result => { if (active) { setToken(result.token || ''); setMessage(result.token ? 'Verification tag is configured.' : 'Verification tag is not configured.'); } }).catch(() => { if (active) setMessage('Could not load verification settings.'); }); return () => { active = false; }; }, []);
-  async function save(event) { event.preventDefault(); setSaving(true); try { await functions.setSeoVerificationToken(token); setMessage('Saved. The public HTML verification tag updates within one minute. Complete verification in Search Console.'); } catch (error) { setMessage(error.message || 'Could not save verification settings.'); } finally { setSaving(false); } }
-  return <section className="rounded-2xl border border-slate-200 bg-white p-5"><h2 className="font-bold text-slate-900">Search visibility</h2><p className="mt-2 text-sm text-slate-600">In Google Search Console, add the URL-prefix property https://dealscouted.com/ and choose HTML tag verification. Paste only the tag’s content value here, then save and verify in Google. For a domain property, use Google’s DNS verification instructions instead.</p><form onSubmit={save} className="mt-4"><label className="text-sm font-semibold">Google verification content value<input value={token} onChange={event => setToken(event.target.value)} maxLength={256} pattern="[A-Za-z0-9_-]*" className="block w-full border border-slate-300 rounded-lg p-2 mt-2" /></label><button disabled={saving} className="mt-3 rounded-lg bg-emerald-900 text-white px-4 py-2 text-sm disabled:opacity-50">{saving ? 'Saving…' : 'Save verification tag'}</button><p role="status" className="mt-2 text-sm text-slate-600">{message}</p></form><p className="mt-4 text-sm"><a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="underline">Open Search Console</a> · <a href="https://dealscouted.com/sitemap.xml" target="_blank" rel="noopener noreferrer" className="underline">Public sitemap</a></p><p className="mt-3 text-sm text-slate-600">After verification, submit sitemap.xml and inspect the homepage, an active department and a fresh deal. Track indexed pages, impressions, clicks and queries weekly. Start with branded searches and stocked departments; expand only where Search Console shows demand. This panel does not report Google’s indexing status.</p></section>;
+  const savingRef = useRef(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoaded(false);
+    try {
+      const result = await functions.seoSettings();
+      setToken(result.token || '');
+      setLoaded(true);
+      setMessage(result.token ? 'Verification tag is configured.' : 'Verification tag is not configured.');
+    } catch { setMessage('Could not load verification settings. Retry before editing.'); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function save(event) {
+    event.preventDefault();
+    if (!loaded || savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const result = await functions.setSeoVerificationToken(token);
+      setToken(result.token || '');
+      setMessage('Saved. The public HTML verification tag updates within one minute. Complete verification in Search Console.');
+    } catch (error) { setMessage(error.message || 'Could not save verification settings.'); }
+    finally { savingRef.current = false; setSaving(false); }
+  }
+  return <section className="rounded-2xl border border-slate-200 bg-white p-5">
+    <h2 className="font-bold text-slate-900">Search visibility</h2>
+    <p className="mt-2 text-sm text-slate-600">In Google Search Console, add the URL-prefix property https://dealscouted.com/ and choose HTML tag verification. Paste only the tag’s content value here, then save and verify in Google. For a domain property, use Google’s DNS verification instructions instead.</p>
+    {!loaded && !loading && <button type="button" onClick={load} className="mt-3 underline text-sm">Retry verification settings</button>}
+    <form onSubmit={save} className="mt-4">
+      <label className="text-sm font-semibold">Google verification content value<input value={token} onChange={event => setToken(event.target.value)} disabled={!loaded || saving} maxLength={256} pattern="[A-Za-z0-9_-]*" className="block w-full border border-slate-300 rounded-lg p-2 mt-2 disabled:opacity-50" /></label>
+      <button type="submit" disabled={!loaded || saving} className="mt-3 rounded-lg bg-emerald-900 text-white px-4 py-2 text-sm disabled:opacity-50">{saving ? 'Saving…' : 'Save verification tag'}</button>
+      <p role="status" className="mt-2 text-sm text-slate-600">{message}</p>
+    </form>
+    <p className="mt-4 text-sm"><a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="underline">Open Search Console</a> · <a href="https://dealscouted.com/sitemap.xml" target="_blank" rel="noopener noreferrer" className="underline">Public sitemap</a></p>
+    <p className="mt-3 text-sm text-slate-600">After verification, submit sitemap.xml and inspect the homepage, an active department and a fresh deal. Track indexed pages, impressions, clicks and queries weekly. Start with branded searches and stocked departments; expand only where Search Console shows demand. This panel does not report Google’s indexing status.</p>
+  </section>;
 }
