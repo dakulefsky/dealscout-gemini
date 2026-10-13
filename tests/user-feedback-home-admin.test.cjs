@@ -10,7 +10,7 @@ test('admin exposes deal management directly instead of hiding delete inside edi
   const app = read('src/App.jsx');
   const layout = read('src/components/Layout.jsx');
   const manager = read('src/pages/EditorialReview.jsx');
-  assert.match(admin, /Find or remove a deal/);
+  assert.match(admin, /Manage the catalog/);
   assert.match(admin, /to="\/admin\/deals"/);
   assert.match(app, /path="\/admin\/deals"/);
   assert.match(layout, /Manage deals/);
