@@ -74,6 +74,8 @@ function buildSitemap({ baseUrl, deals = [], categories = [], nowMs = Date.now()
     { loc: `${baseUrl}/how-we-find-deals` },
     { loc: `${baseUrl}/about` },
     { loc: `${baseUrl}/guides/${require('../../shared/buyingGuide.json').slug}` },
+    { loc: `${baseUrl}/articles` },
+    ...require('../../shared/articles.json').map(article => ({ loc: `${baseUrl}/articles/${article.slug}` })),
     { loc: `${baseUrl}/disclosure` },
     { loc: `${baseUrl}/privacy` },
     { loc: `${baseUrl}/support` },
@@ -246,4 +248,4 @@ function dealMeta(baseUrl, deal, nowMs = Date.now()) {
   return { title, description, canonical, image, jsonLd, robots: 'index,follow' };
 }
 
-module.exports = { renderFailure, collectionMeta, collectionMatches, siteBase, priceCheckAgeHours, buildSitemap, buildRobots, replaceMeta, homeMeta, categoryMeta, dealMeta };
+module.exports = { htmlEscape, renderFailure, collectionMeta, collectionMatches, siteBase, priceCheckAgeHours, buildSitemap, buildRobots, replaceMeta, homeMeta, categoryMeta, dealMeta };
