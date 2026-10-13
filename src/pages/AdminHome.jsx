@@ -1,15 +1,28 @@
 import SearchVisibilitySettings from '@/components/admin/SearchVisibilitySettings';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, AlertTriangle, ArrowRight, CheckCircle2, Clock3, Eraser, Globe2, History, Image, Loader2, MessageCircle, PauseCircle, PlayCircle, RefreshCw, ShieldCheck, Smartphone, Sparkles, Trash2 } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, Clock3, Eraser, Globe2, History, Image, Loader2, MessageCircle, PauseCircle, PlayCircle, RefreshCw, ShieldCheck, Smartphone, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { deals as dealsApi, functions } from '@/lib/api';
 import { useToast } from '@/components/ui/use-toast';
 import { describePriceCheck } from '@/lib/priceCheckFeedback';
+import AdminOperationsControls from '@/components/AdminOperationsControls';
 import AmazonSeasonalPromotionSettings from '@/components/admin/AmazonSeasonalPromotionSettings';
 
 function Stat({ label, value, hint }) {
   return <div className="bg-white border border-slate-200 rounded-2xl p-4"><div className="text-xs font-semibold text-slate-500">{label}</div><div className="text-2xl font-black text-slate-900 mt-1">{value ?? '—'}</div>{hint && <div className="text-[11px] text-slate-400 mt-1">{hint}</div>}</div>;
+}
+
+function AdminSection({ title, description, children }) {
+  return (
+    <details className="group rounded-2xl border border-slate-200 bg-white">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-2xl p-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600 [&::-webkit-details-marker]:hidden">
+        <span><span className="block font-bold text-slate-900">{title}</span><span className="mt-1 block text-sm text-slate-500">{description}</span></span>
+        <ChevronDown aria-hidden="true" className="h-5 w-5 shrink-0 text-slate-500 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-slate-100 p-4 sm:p-5">{children}</div>
+    </details>
+  );
 }
 
 function activityLabel(action = '') {
@@ -141,13 +154,13 @@ export default function AdminHome() {
   const budgetUnavailable = Boolean(rainforestBudget.error) || loadFailures.includes('provider status');
   const whatsappSettingsUnavailable = loadFailures.includes('channel settings');
   const whatsappStatusEnabled = whatsappSettingsUnavailable ? null : channelSettings.whatsappStatus?.enabled !== false;
-  const whatsappStatusLabel = whatsappStatusEnabled === false ? 'Paused' : publicationUnavailable ? 'Unknown' : publicationIssues ? 'Needs attention' : 'Ready';
-  const whatsappStatusClass = whatsappStatusEnabled === false || publicationUnavailable || publicationIssues ? 'text-amber-700' : 'text-emerald-700';
+  const whatsappStatusLabel = whatsappStatusEnabled === null ? 'Unknown' : whatsappStatusEnabled === false ? 'Paused' : publicationUnavailable ? 'Unknown' : publicationIssues ? 'Needs attention' : 'Ready';
+  const whatsappStatusClass = whatsappStatusEnabled !== true || publicationUnavailable || publicationIssues ? 'text-amber-700' : 'text-emerald-700';
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-7">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div><div className="text-xs font-bold uppercase tracking-wider text-emerald-600">DealScout Operations</div><h1 className="text-3xl font-black text-slate-900 mt-1">Admin</h1><p className="text-sm text-slate-500 mt-1">One deal engine, with separate controls for web, app, and WhatsApp Status.</p></div>
+        <div><div className="text-xs font-bold uppercase tracking-wider text-emerald-600">DealScout Operations</div><h1 className="text-3xl font-black text-slate-900 mt-1">Admin</h1><p className="text-sm text-slate-500 mt-1">Review deals, monitor discovery, and manage the site.</p></div>
         <Button variant="outline" onClick={load} disabled={actionInFlight} className="rounded-xl gap-2"><RefreshCw className="w-4 h-4" /> Refresh</Button>
       </div>
 
@@ -163,7 +176,7 @@ export default function AdminHome() {
           <div>
             <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider"><Clock3 className="w-4 h-4" /> Shared deal pull</div>
             <div className="text-3xl font-black mt-2">Next pull in {nextPull}</div>
-            <div className="text-sm text-slate-300 mt-2">Automatic discovery runs on the shared catalog. A manual pull can pass our daily Rainforest limit while respecting the monthly limit and your provider plan.</div>
+            <div className="text-sm text-slate-300 mt-2">Discovery runs automatically. Pull deals now overrides the daily allowance, but never the 500-credit monthly cap.</div>
             <div className="text-xs text-slate-400 mt-2">Last successful pull: {lastPull}</div>
             {lastPullAttempt && <div className="text-xs text-slate-400 mt-1">Last attempt: {lastPullAttempt}</div>}
           </div>
@@ -171,10 +184,9 @@ export default function AdminHome() {
             {busy === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />} Pull deals now
           </Button>
         </div>
-        <div className="grid sm:grid-cols-3 gap-2 mt-5 text-xs font-bold">
-          <div className="rounded-xl bg-white/10 px-3 py-2">Web ← shared PostgreSQL catalog</div>
-          <div className="rounded-xl bg-white/10 px-3 py-2">App ← same shopper API/catalog</div>
-          <div className="rounded-xl bg-white/10 px-3 py-2">WhatsApp Status ← same approved deals</div>
+        <div className="grid sm:grid-cols-2 gap-3 mt-5 text-sm">
+          <div className="rounded-xl bg-white/10 px-4 py-3"><span className="text-slate-300">Rainforest today</span><div className="font-bold mt-1">{budgetUnavailable ? 'Unavailable' : `${rainforestBudget.dayCount || 0} / ${rainforestBudget.limits?.daily ?? '—'} credits`}</div></div>
+          <div className="rounded-xl bg-white/10 px-4 py-3"><span className="text-slate-300">Rainforest month</span><div className="font-bold mt-1">{budgetUnavailable ? 'Unavailable' : `${rainforestBudget.monthCount || 0} / ${rainforestBudget.limits?.monthly ?? '—'} credits`}</div></div>
         </div>
       </section>
 
@@ -187,58 +199,30 @@ export default function AdminHome() {
         <Stat label="Average discount" value={stats.avgDiscount != null ? `${Number(stats.avgDiscount).toFixed(0)}%` : null} />
       </div>
 
-      <section className="bg-white border-2 border-slate-900 rounded-3xl p-5 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500"><Trash2 className="w-4 h-4" /> Deal management</div>
-            <h2 className="text-xl font-black text-slate-900 mt-1">Find or remove a deal</h2>
-            <p className="text-sm text-slate-500 mt-2">Search the catalog by title or ASIN, then permanently remove any deal when needed.</p>
-          </div>
-          <Link to="/admin/deals" className="inline-flex items-center justify-center gap-2 bg-slate-900 text-white px-4 py-3 rounded-xl text-sm font-black hover:bg-slate-800 shrink-0">Manage deals <ArrowRight className="w-4 h-4" /></Link>
-        </div>
-      </section>
-
-      <section>
-        <div className="mb-3"><div className="text-xs font-bold uppercase tracking-wider text-slate-500">Channel controls</div><h2 className="text-xl font-black text-slate-900 mt-1">Web, app, and WhatsApp Status</h2></div>
-        <div className="grid lg:grid-cols-3 gap-4">
-          <div className="bg-white border border-slate-200 rounded-3xl p-5">
-            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Globe2 className="w-5 h-5 text-emerald-600" /><div className="font-black text-slate-900">Web</div></div><span className="text-xs font-bold text-emerald-700">Live</span></div>
-            <p className="text-sm text-slate-500 mt-3">Reads approved, verified deals only while their price check is inside the public freshness window.</p>
-            <div className="mt-4 text-xs text-slate-500"><span className="font-bold text-slate-700">Visible deals:</span> {publicVisibleCount ?? '—'}</div>
-            <a href="https://dealscouted.com" className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-emerald-700 hover:text-emerald-800">Open shopper site <ArrowRight className="w-4 h-4" /></a>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-3xl p-5">
-            <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Smartphone className="w-5 h-5 text-emerald-600" /><div className="font-black text-slate-900">App</div></div><span className="text-xs font-bold text-emerald-700">Shared feed</span></div>
-            <p className="text-sm text-slate-500 mt-3">The native app uses the same shopper API and approved catalog as the website. No second Rainforest pull is needed.</p>
-            <div className="mt-4 text-xs text-slate-500"><span className="font-bold text-slate-700">Catalog:</span> synchronized with web</div>
-            <div className="mt-4 text-sm font-bold text-slate-700">Admin stays on the web dashboard; the shopper app stays admin-free.</div>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-3xl p-5">
-            <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><MessageCircle className="w-5 h-5 text-emerald-600" /><div className="font-black text-slate-900">WhatsApp Status</div></div><span className={`text-xs font-bold ${whatsappStatusClass}`}>{whatsappStatusLabel}</span></div>
-            <p className="text-sm text-slate-500 mt-3">Publishes from the same approved deal catalog; it does not perform its own Rainforest discovery pull.</p>
-            <div className="mt-4 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-slate-50 p-3"><div className="text-slate-500">Queued</div><div className="font-black text-slate-900 mt-1">{publicationUnavailable ? '—' : publicationCounts.queued || 0}</div></div><div className="rounded-xl bg-slate-50 p-3"><div className="text-slate-500">Published</div><div className="font-black text-slate-900 mt-1">{publicationUnavailable ? '—' : publicationCounts.published || 0}</div></div></div>
-            <Button disabled={actionInFlight || whatsappStatusEnabled === null} onClick={() => run('whatsapp-status', () => functions.setWhatsAppStatusEnabled(!whatsappStatusEnabled), whatsappStatusEnabled ? 'WhatsApp Status paused' : 'WhatsApp Status resumed')} variant="outline" className="mt-4 w-full rounded-xl gap-2 font-bold">
-              {busy === 'whatsapp-status' ? <Loader2 className="w-4 h-4 animate-spin" /> : whatsappStatusEnabled ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />} {whatsappStatusEnabled ? 'Pause Status publishing' : 'Resume Status publishing'}
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      <div className="grid lg:grid-cols-3 gap-4">
-        <Link to="/admin/editorial" className="lg:col-span-2 bg-slate-900 text-white rounded-3xl p-6 hover:bg-slate-800 transition group">
-          <div className="flex items-start justify-between gap-4"><div><div className="inline-flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider"><CheckCircle2 className="w-4 h-4" /> Review queue</div><h2 className="text-2xl font-black mt-3">Review deals that need attention</h2><p className="text-sm text-slate-300 mt-2">Publish normally, feature as a Pick, reject, or save for later.</p></div><ArrowRight className="w-5 h-5 mt-1 group-hover:translate-x-1 transition" /></div>
-          <div className="mt-6 text-sm font-bold">{stats.pendingCount ?? '—'} waiting</div>
+      <div className="grid lg:grid-cols-2 gap-4">
+        <Link to="/admin/editorial" className="bg-slate-900 text-white rounded-3xl p-6 hover:bg-slate-800 transition group">
+          <div className="flex items-start justify-between gap-4"><div><div className="inline-flex items-center gap-2 text-emerald-300 text-xs font-bold uppercase tracking-wider"><CheckCircle2 className="w-4 h-4" /> Review queue</div><h2 className="text-xl font-black mt-2">Review deals that need attention</h2><p className="text-sm text-slate-300 mt-2">Publish normally, feature as a Pick, reject, or save for later.</p></div><ArrowRight className="w-5 h-5 mt-1 group-hover:translate-x-1 transition" /></div>
+          <div className="mt-4 text-sm font-bold">{stats.pendingCount ?? '—'} waiting</div>
         </Link>
+        <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500"><Trash2 className="w-4 h-4" /> Deal management</div>
+              <h2 className="text-xl font-black text-slate-900 mt-1">Manage the catalog</h2>
+              <p className="text-sm text-slate-500 mt-2">Search, edit, add, or remove deals by title or ASIN.</p>
+            </div>
+            <Link to="/admin/deals" className="inline-flex items-center justify-center gap-2 bg-slate-900 text-white px-4 py-3 rounded-xl text-sm font-black hover:bg-slate-800 shrink-0">Manage deals <ArrowRight className="w-4 h-4" /></Link>
+          </div>
+        </section>
+      </div>
 
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4">
+
+      <AdminSection title="Discovery &amp; catalog health" description="Pull results, rejection reasons, department supply, and hidden deals.">
+        <div className="space-y-4">
           <div className="flex items-center gap-2"><Activity className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">System health</h2></div>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span className="text-slate-500">Provider</span><span className="font-bold text-slate-800">{loadFailures.includes('provider status') ? 'Unavailable' : effectiveProvider}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Rainforest</span><span className={provider.rainforest?.isConfigured ? 'font-bold text-emerald-700' : 'font-bold text-amber-700'}>{loadFailures.includes('provider status') ? 'Unknown' : provider.rainforest?.isConfigured ? 'Ready' : 'Not configured'}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Rainforest today</span><span className="font-bold text-slate-800">{budgetUnavailable ? '—' : `${rainforestBudget.dayCount || 0}/${rainforestBudget.limits?.daily ?? '∞'}`}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">Rainforest month</span><span className="font-bold text-slate-800">{budgetUnavailable ? '—' : `${rainforestBudget.monthCount || 0}/${rainforestBudget.limits?.monthly ?? '∞'}`}</span></div>
             {provider.rainforest?.discovery && <div className="border-t border-slate-200 pt-3 space-y-1">
               <h3 className="font-bold text-slate-900">Last discovery pull</h3>
               <p className="text-xs text-slate-500">{new Date(provider.rainforest.discovery.at).toLocaleString()} · Page {provider.rainforest.discovery.page} of {provider.rainforest.discovery.totalPages}</p>
@@ -283,37 +267,76 @@ export default function AdminHome() {
             )}
           </div>
         </div>
-      </div>
+      </AdminSection>
 
-      <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6">
-        <div className="flex items-center justify-between gap-4 mb-4"><div className="flex items-center gap-2"><Activity className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">WhatsApp publication automation</h2></div>{!publicationUnavailable && <span className={`text-xs font-bold ${whatsappStatusEnabled === false || publicationIssues ? 'text-amber-700' : 'text-emerald-700'}`}>{whatsappStatusEnabled === false ? 'Paused' : publicationIssues ? 'Needs attention' : 'Healthy'}</span>}</div>
-        {publicationUnavailable ? <p className="text-sm text-slate-500">Publication queue health is unavailable right now.</p> : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <Stat label="Queued" value={publicationCounts.queued || 0} hint={whatsappStatusEnabled === false ? 'Held while Status is paused' : publication.retryWaiting ? `${publication.retryWaiting} waiting to retry` : 'Ready or scheduled'} />
-            <Stat label="Overdue" value={publication.overdue || 0} hint={publication.oldestQueuedAt ? `Oldest ${relativeTime(publication.oldestQueuedAt)}` : 'No overdue backlog'} />
-            <Stat label="Failed" value={publicationCounts.failed || 0} hint="Terminal failures" />
-            <Stat label="Published" value={publicationCounts.published || 0} hint={`Last success ${relativeTime(publication.lastPublishedAt)}`} />
+      <AdminSection title="Publishing channels" description="Web, app, and WhatsApp Status · pause publishing or inspect the queue.">
+        <section>
+          <div className="mb-3"><div className="text-xs font-bold uppercase tracking-wider text-slate-500">Channel controls</div><h2 className="text-xl font-black text-slate-900 mt-1">Web, app, and WhatsApp Status</h2></div>
+          <div className="grid lg:grid-cols-3 gap-4">
+            <div className="bg-white border border-slate-200 rounded-3xl p-5">
+              <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Globe2 className="w-5 h-5 text-emerald-600" /><div className="font-black text-slate-900">Web</div></div><span className="text-xs font-bold text-emerald-700">Live</span></div>
+              <p className="text-sm text-slate-500 mt-3">Reads approved, verified deals only while their price check is inside the public freshness window.</p>
+              <div className="mt-4 text-xs text-slate-500"><span className="font-bold text-slate-700">Visible deals:</span> {publicVisibleCount ?? '—'}</div>
+              <a href="https://dealscouted.com" className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-emerald-700 hover:text-emerald-800">Open shopper site <ArrowRight className="w-4 h-4" /></a>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-3xl p-5">
+              <div className="flex items-center justify-between"><div className="flex items-center gap-2"><Smartphone className="w-5 h-5 text-emerald-600" /><div className="font-black text-slate-900">App</div></div><span className="text-xs font-bold text-emerald-700">Shared feed</span></div>
+              <p className="text-sm text-slate-500 mt-3">The native app uses the same shopper API and approved catalog as the website. No second Rainforest pull is needed.</p>
+              <div className="mt-4 text-xs text-slate-500"><span className="font-bold text-slate-700">Catalog:</span> synchronized with web</div>
+              <div className="mt-4 text-sm font-bold text-slate-700">Admin stays on the web dashboard; the shopper app stays admin-free.</div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-3xl p-5">
+              <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><MessageCircle className="w-5 h-5 text-emerald-600" /><div className="font-black text-slate-900">WhatsApp Status</div></div><span className={`text-xs font-bold ${whatsappStatusClass}`}>{whatsappStatusLabel}</span></div>
+              <p className="text-sm text-slate-500 mt-3">Publishes from the same approved deal catalog; it does not perform its own Rainforest discovery pull.</p>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-slate-50 p-3"><div className="text-slate-500">Queued</div><div className="font-black text-slate-900 mt-1">{publicationUnavailable ? '—' : publicationCounts.queued || 0}</div></div><div className="rounded-xl bg-slate-50 p-3"><div className="text-slate-500">Published</div><div className="font-black text-slate-900 mt-1">{publicationUnavailable ? '—' : publicationCounts.published || 0}</div></div></div>
+              <Button disabled={actionInFlight || whatsappStatusEnabled === null} onClick={() => run('whatsapp-status', () => functions.setWhatsAppStatusEnabled(!whatsappStatusEnabled), whatsappStatusEnabled ? 'WhatsApp Status paused' : 'WhatsApp Status resumed')} variant="outline" className="mt-4 w-full rounded-xl gap-2 font-bold">
+                {busy === 'whatsapp-status' ? <Loader2 className="w-4 h-4 animate-spin" /> : whatsappStatusEnabled ? <PauseCircle className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />} {whatsappStatusEnabled === null ? 'Publishing status unavailable' : whatsappStatusEnabled ? 'Pause Status publishing' : 'Resume Status publishing'}
+              </Button>
+            </div>
           </div>
-        )}
-      </section>
+        </section>
+        <p className="my-4 text-xs text-slate-500">Web and app use the shared PostgreSQL catalog; WhatsApp publishes the same approved deals.</p>
+        <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-4 mb-4"><div className="flex items-center gap-2"><Activity className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">WhatsApp publication automation</h2></div><span className={`text-xs font-bold ${whatsappStatusClass}`}>{whatsappStatusLabel}</span></div>
+          {publicationUnavailable ? <p className="text-sm text-slate-500">Publication queue health is unavailable right now.</p> : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <Stat label="Queued" value={publicationCounts.queued || 0} hint={whatsappStatusEnabled === false ? 'Held while Status is paused' : publication.retryWaiting ? `${publication.retryWaiting} waiting to retry` : 'Ready or scheduled'} />
+              <Stat label="Overdue" value={publication.overdue || 0} hint={publication.oldestQueuedAt ? `Oldest ${relativeTime(publication.oldestQueuedAt)}` : 'No overdue backlog'} />
+              <Stat label="Failed" value={publicationCounts.failed || 0} hint="Terminal failures" />
+              <Stat label="Published" value={publicationCounts.published || 0} hint={`Last success ${relativeTime(publication.lastPublishedAt)}`} />
+            </div>
+          )}
+        </section>
+      </AdminSection>
 
-      <section className="bg-white border border-slate-200 rounded-3xl p-6">
-        <div className="flex items-center gap-2 mb-4"><ShieldCheck className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">Maintenance actions</h2></div>
-        <p className="text-sm text-slate-500 mb-4">Automatic price-only refresh runs once a day for up to 12 existing products. Manual checks remain available.</p>
-        <div className="grid sm:grid-cols-2 gap-2">
-          <Button disabled={actionInFlight} onClick={() => run('verify', () => functions.verifyPrices(6), (result) => result.providerDeferred ? 'Price check paused' : 'Price check complete', describePriceCheck)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'verify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check up to 6 prices</Button>
-          <Button disabled={actionInFlight} onClick={() => run('images', () => functions.repairImages(30), 'Image repair complete', (result) => `${result?.repaired || 0} repaired.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'images' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />} Repair images</Button>
-          {cleanupCandidates > 0 && <Button disabled={actionInFlight} onClick={() => run('cleanup', () => functions.cleanupLegacyEnrichment(), 'Legacy copy cleaned', (result) => `${result?.cleaned || 0} rows cleaned.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-2 border-amber-200 text-amber-800 hover:bg-amber-50">{busy === 'cleanup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />} Clean {cleanupCandidates} known legacy {cleanupCandidates === 1 ? 'row' : 'rows'}</Button>}
+      <AdminSection title="Maintenance" description="Check prices, repair images, and clean legacy copy.">
+        <section className="bg-white border border-slate-200 rounded-3xl p-6">
+          <div className="flex items-center gap-2 mb-4"><ShieldCheck className="w-5 h-5 text-emerald-600" /><h2 className="font-black text-slate-900">Maintenance actions</h2></div>
+          <p className="text-sm text-slate-500 mb-4">Automatic price-only refresh runs once a day for up to 12 existing products. Manual checks remain available.</p>
+          <div className="grid sm:grid-cols-2 gap-2">
+            <Button disabled={actionInFlight} onClick={() => run('verify', () => functions.verifyPrices(6), (result) => result.providerDeferred ? 'Price check paused' : 'Price check complete', describePriceCheck)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'verify' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Check up to 6 prices</Button>
+            <Button disabled={actionInFlight} onClick={() => run('images', () => functions.repairImages(30), 'Image repair complete', (result) => `${result?.repaired || 0} repaired.`)} variant="outline" className="rounded-xl justify-start gap-2">{busy === 'images' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />} Repair images</Button>
+            {cleanupCandidates > 0 && <Button disabled={actionInFlight} onClick={() => run('cleanup', () => functions.cleanupLegacyEnrichment(), 'Legacy copy cleaned', (result) => `${result?.cleaned || 0} rows cleaned.`)} variant="outline" className="rounded-xl justify-start gap-2 sm:col-span-2 border-amber-200 text-amber-800 hover:bg-amber-50">{busy === 'cleanup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eraser className="w-4 h-4" />} Clean {cleanupCandidates} known legacy {cleanupCandidates === 1 ? 'row' : 'rows'}</Button>}
+          </div>
+        </section>
+      </AdminSection>
+
+      <AdminSection title="Site settings" description="Provider API pause, Shabbat &amp; Yom Tov closures, seasonal promotions, and search visibility.">
+        <div className="space-y-5">
+          <AdminOperationsControls />
+          <AmazonSeasonalPromotionSettings />
+          <SearchVisibilitySettings />
         </div>
-      </section>
+      </AdminSection>
 
-      <AmazonSeasonalPromotionSettings />
-      <SearchVisibilitySettings />
-
-      <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6">
-        <div className="flex items-center gap-2 mb-4"><History className="w-5 h-5 text-slate-600" /><h2 className="font-black text-slate-900">Recent activity</h2></div>
-        {recentActivity.length === 0 ? <p className="text-sm text-slate-500">Admin actions will appear here as they happen.</p> : <div className="divide-y divide-slate-100">{recentActivity.map((item) => <div key={item.id} className="py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-4"><div className="min-w-0"><div className="text-sm font-bold text-slate-800 capitalize">{activityLabel(item.action)}</div><div className="text-xs text-slate-500 mt-0.5 truncate">{item.target_id ? `${item.target_type || 'item'}: ${item.target_id}` : item.path}</div></div><div className="text-xs text-slate-500 shrink-0">{relativeTime(item.created_at)}</div></div>)}</div>}
-      </section>
+      <AdminSection title="Recent activity" description="Audit trail of manual admin actions.">
+        <section className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6">
+          <div className="flex items-center gap-2 mb-4"><History className="w-5 h-5 text-slate-600" /><h2 className="font-black text-slate-900">Recent activity</h2></div>
+          {recentActivity.length === 0 ? <p className="text-sm text-slate-500">Admin actions will appear here as they happen.</p> : <div className="divide-y divide-slate-100">{recentActivity.map((item) => <div key={item.id} className="py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-4"><div className="min-w-0"><div className="text-sm font-bold text-slate-800 capitalize">{activityLabel(item.action)}</div><div className="text-xs text-slate-500 mt-0.5 truncate">{item.target_id ? `${item.target_type || 'item'}: ${item.target_id}` : item.path}</div></div><div className="text-xs text-slate-500 shrink-0">{relativeTime(item.created_at)}</div></div>)}</div>}
+        </section>
+      </AdminSection>
     </div>
   );
 }

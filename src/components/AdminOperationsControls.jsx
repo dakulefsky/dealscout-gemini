@@ -62,7 +62,7 @@ export default function AdminOperationsControls() {
   const selectedLocation = calendar?.location || 'jerusalem';
 
   return (
-    <section className="max-w-6xl mx-auto px-4 pt-8 grid lg:grid-cols-2 gap-4">
+    <section className="grid lg:grid-cols-2 gap-4">
       <div className="bg-white border border-slate-200 rounded-3xl p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
