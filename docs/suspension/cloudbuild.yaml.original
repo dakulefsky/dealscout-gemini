@@ -1,0 +1,27 @@
+# Repository-owned Cloud Build configuration for DealScout.
+#
+# This deliberately builds and publishes the production image without changing
+# Cloud Run. Runtime configuration (Cloud SQL attachment, secrets, origins, and
+# first-admin bootstrap) must be validated before a new revision is deployed.
+# Once the production service is cleanly configured, a deploy step can be added
+# here without relying on legacy source-deployment metadata.
+
+steps:
+  - id: build-production-image
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --tag
+      - gcr.io/$PROJECT_ID/dealscout:$COMMIT_SHA
+      - --tag
+      - gcr.io/$PROJECT_ID/dealscout:latest
+      - .
+
+images:
+  - gcr.io/$PROJECT_ID/dealscout:$COMMIT_SHA
+  - gcr.io/$PROJECT_ID/dealscout:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 1200s
